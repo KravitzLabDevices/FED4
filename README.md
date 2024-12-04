@@ -1,6 +1,6 @@
 # FED4 Library
 
-A C++ library for the Feeding Experimentation Device version 4 (FED4), an open-source device for rodent behavioral experiments.
+An Arduino library for the Feeding Experimentation Device version 4 (FED4), an open-source device for rodent behavioral experiments.
 
 ## Features
 

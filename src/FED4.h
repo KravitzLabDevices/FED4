@@ -23,34 +23,7 @@
 #include <driver/touch_pad.h>
 
 // Pin Definitions
-#define SDA_2 20
-#define SCL_2 19
-#define SHARP_SCK 12
-#define SHARP_MOSI 11
-#define SHARP_SS 17
-#define LDO3 14
-#define haptic 8
-#define PIN 35
-#define PG1 12
-#define TOUCH_PIN_1 T1
-#define TOUCH_PIN_5 T5
-#define TOUCH_PIN_6 T6
-#define NUMPIXELS 1
-#define STEPS 512
-#define VBAT_ADC_CHANNEL ADC1_CHANNEL_6
-#define BLACK 0
-#define WHITE 1
-
-// TODO: These pins need proper naming and verification
-#define MOTOR_PIN_1 46 // Used in ReleaseMotor() and Feed()
-#define MOTOR_PIN_2 37 // Used in ReleaseMotor() and Feed()
-#define MOTOR_PIN_3 21 // Used in ReleaseMotor() and Feed()
-#define MOTOR_PIN_4 38 // Used in ReleaseMotor() and Feed()
-#define POWER_PIN_1 47 // Used in begin() and enterLightSleep()
-#define POWER_PIN_2 36 // Used in enterLightSleep()
-#define GPIO_PIN_1 2   // Used in begin()
-#define GPIO_PIN_2 3   // Used in begin()
-#define GPIO_PIN_3 4   // Used in begin()
+#include "FED4_Pins.h"
 
 class FED4
 {
@@ -61,19 +34,19 @@ public:
     // Initialization
     void begin();
 
-    // Core functionality
+    // Core functionality (defined in FED4_Motor.cpp)
     void Feed();
     void CheckForPellet();
-    void UpdateDisplay();
-    void SerialOutput();
-    void enterLightSleep();
+    void ReleaseMotor();
 
-    // Touch sensor management
+    // Touch sensor management (defined in FED4_Sensors.cpp)
     void CalibrateTouchSensors();
     void BaselineTouchSensors();
     void interpretTouch();
+    static void IRAM_ATTR onWakeUp();
+    void touch_pad_init();
 
-    // LED control and stimuli
+    // LED control (defined in FED4_LED.cpp)
     void BluePix();
     void DimBluePix();
     void GreenPix();
@@ -81,6 +54,13 @@ public:
     void PurplePix();
     void NoPix();
     void Vibrate(unsigned long wait);
+
+    // Display functions (defined in FED4_Display.cpp)
+    void UpdateDisplay();
+    void SerialOutput();
+
+    // Power management (defined in FED4_Power.cpp)
+    void enterLightSleep();
 
     // Public counters and timing
     int PelletCount;
@@ -112,10 +92,11 @@ private:
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
 
-    // Private methods
-    void ReleaseMotor();
-    void touch_pad_init();
-    static void IRAM_ATTR onWakeUp();
+    friend class FED4_Display;
+    friend class FED4_Motor;
+    friend class FED4_Sensors;
+    friend class FED4_Power;
+    friend class FED4_LED;
 };
 
 #endif
