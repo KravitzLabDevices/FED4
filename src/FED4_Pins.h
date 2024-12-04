@@ -24,14 +24,14 @@
 #define PG1 12
 
 // Touch Sensor Pins
-#define TOUCH_PIN_1 T1
-#define TOUCH_PIN_5 T5
-#define TOUCH_PIN_6 T6
+#define TOUCH_PIN_1 TOUCH_PAD_NUM1
+#define TOUCH_PIN_5 TOUCH_PAD_NUM5
+#define TOUCH_PIN_6 TOUCH_PAD_NUM6
 
 // LED & Haptic Feedback
-#define NEOPIXEL_EN_PIN 35 // NeoPixel LED pin
-#define NUMPIXELS 1        // Number of NeoPixels
-#define HAPTIC_PIN 8       // Haptic feedback pin
+#define NEOPIXEL_PIN 35 // NeoPixel enable pin
+#define NUMPIXELS 1     // Number of NeoPixels
+#define HAPTIC_PIN 8    // Haptic feedback pin
 
 // General Purpose I/O
 #define GPIO_PIN_1 2

@@ -12,10 +12,11 @@
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
 #include "RTClib.h"
-#include <SdFat.h>
+// #include <SdFat.h>
+#include <SD.h>
 #include <Adafruit_AHTX0.h>
-#include "WiFi.h"
-#include "FS.h"
+// #include "WiFi.h"
+// #include "FS.h"
 #include <SPI.h>
 #include <driver/adc.h>
 #include <driver/i2s.h>

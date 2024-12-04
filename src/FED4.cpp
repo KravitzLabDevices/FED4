@@ -8,7 +8,7 @@
  * Constructor
  ********************************************************/
 FED4::FED4() : display(SHARP_SCK, SHARP_MOSI, SHARP_SS, 144, 168),
-               pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800),
+               pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
                stepper(STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
