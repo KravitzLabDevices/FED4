@@ -4,14 +4,14 @@ void FED4::Feed()
 {
     if (FeedReady)
     {
-        PG1Read = mcp.digitalRead(PG1);
+        PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
 
         Serial.println("Feeding!");
         while (PG1Read == 1)
         {                     // while pellet well is empty
             stepper.step(-2); // small movement
             delay(10);
-            PG1Read = mcp.digitalRead(PG1);
+            PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
             pelletReady = true;
         }
 
@@ -31,7 +31,7 @@ void FED4::Feed()
         while (PG1Read == 0)
         { // while pellet well is full
             BluePix();
-            PG1Read = mcp.digitalRead(PG1);
+            PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
             RetrievalTime = millis() - PelletDrop;
             if (RetrievalTime > 10000)
                 break;
@@ -52,7 +52,7 @@ void FED4::Feed()
 
 void FED4::CheckForPellet()
 {
-    PG1Read = mcp.digitalRead(PG1);
+    PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
 }
 
 void FED4::ReleaseMotor()
@@ -65,7 +65,7 @@ void FED4::ReleaseMotor()
 
 void FED4::Vibrate(unsigned long wait)
 {
-    mcp.digitalWrite(HAPTIC_PIN, HIGH);
+    mcp.digitalWrite(EXP_HAPTIC, HIGH);
     delay(wait);
-    mcp.digitalWrite(HAPTIC_PIN, LOW);
+    mcp.digitalWrite(EXP_HAPTIC, LOW);
 }

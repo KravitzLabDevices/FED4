@@ -34,5 +34,5 @@ void FED4::NoPix()
 {
     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
     pixels.show();
-    digitalWrite(NEOPIXEL_PIN, LOW);
+    digitalWrite(STATUS_RGB_LED, LOW);
 }

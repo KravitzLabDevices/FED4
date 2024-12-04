@@ -7,8 +7,8 @@
 /********************************************************
  * Constructor
  ********************************************************/
-FED4::FED4() : display(SHARP_SCK, SHARP_MOSI, SHARP_SS, 144, 168),
-               pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
+FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
+               pixels(NUMPIXELS, STATUS_RGB_LED, NEO_GRB + NEO_KHZ800),
                stepper(STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
@@ -33,8 +33,8 @@ void FED4::begin()
     Serial.begin(115200);
 
     // Power up LD02
-    pinMode(POWER_PIN_1, OUTPUT);
-    digitalWrite(POWER_PIN_1, HIGH);
+    pinMode(LDO2_ENABLE, OUTPUT);
+    digitalWrite(LDO2_ENABLE, HIGH);
 
     // Initialize primary I2C bus
     if (!Wire.begin())
@@ -85,12 +85,13 @@ void FED4::begin()
     }
 
     // Configure GPIO pins
-    mcp.pinMode(LDO3, OUTPUT);
-    mcp.digitalWrite(LDO3, HIGH);
-    mcp.pinMode(PG1, INPUT_PULLUP);
-    pinMode(GPIO_PIN_1, INPUT);
-    pinMode(GPIO_PIN_2, INPUT);
-    pinMode(GPIO_PIN_3, INPUT_PULLUP);
+    mcp.pinMode(EXP_LDO3, OUTPUT);
+    mcp.digitalWrite(EXP_LDO3, HIGH);
+    mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
+
+    pinMode(BUTTON_1, INPUT);
+    pinMode(BUTTON_2, INPUT);
+    pinMode(BUTTON_3, INPUT_PULLUP);
 
     // Initialize peripherals
     stepper.setSpeed(36);

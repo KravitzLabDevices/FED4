@@ -5,8 +5,8 @@ void FED4::enterLightSleep()
     // Power down
     Serial.println("Powering down...");
     NoPix();
-    digitalWrite(POWER_PIN_1, LOW);
-    digitalWrite(POWER_PIN_2, LOW);
+    digitalWrite(LDO2_ENABLE, LOW);
+    digitalWrite(FRONT_RGB_LED, LOW);
 
     // Enter sleep
     Serial.println("Entering light sleep...");
@@ -15,10 +15,10 @@ void FED4::enterLightSleep()
 
     // Wake up
     Serial.println("Woke up!");
-    pinMode(POWER_PIN_1, OUTPUT);
-    digitalWrite(POWER_PIN_1, HIGH);
-    pinMode(POWER_PIN_2, OUTPUT);
-    digitalWrite(POWER_PIN_2, HIGH);
+    pinMode(LDO2_ENABLE, OUTPUT);
+    digitalWrite(LDO2_ENABLE, HIGH);
+    pinMode(FRONT_RGB_LED, OUTPUT);
+    digitalWrite(FRONT_RGB_LED, HIGH);
 
     // Post-wake actions
     interpretTouch();

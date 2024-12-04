@@ -8,9 +8,9 @@ void IRAM_ATTR FED4::onWakeUp()
 void FED4::touch_pad_init()
 {
     touch_pad_init();
-    touch_pad_config(TOUCH_PIN_1);
-    touch_pad_config(TOUCH_PIN_5);
-    touch_pad_config(TOUCH_PIN_6);
+    touch_pad_config(TOUCH_PAD_LEFT);
+    touch_pad_config(TOUCH_PAD_CENTER);
+    touch_pad_config(TOUCH_PAD_RIGHT);
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
     // touch_pad_filter_start(10); // not found during compilation
     delay(200);
@@ -19,18 +19,18 @@ void FED4::touch_pad_init()
 void FED4::CalibrateTouchSensors()
 {
     Serial.println("Touch sensor calibration");
-    touchAttachInterrupt(TOUCH_PIN_1, onWakeUp, threshold);
-    touchAttachInterrupt(TOUCH_PIN_5, onWakeUp, threshold);
-    touchAttachInterrupt(TOUCH_PIN_6, onWakeUp, threshold);
+    touchAttachInterrupt(TOUCH_PAD_LEFT, onWakeUp, threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, onWakeUp, threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, onWakeUp, threshold);
     esp_sleep_enable_touchpad_wakeup();
 }
 
 void FED4::BaselineTouchSensors()
 {
     Serial.println("Re-baselining...");
-    baseline1 = touchRead(TOUCH_PIN_1);
-    baseline5 = touchRead(TOUCH_PIN_5);
-    baseline6 = touchRead(TOUCH_PIN_6);
+    baseline1 = touchRead(TOUCH_PAD_LEFT);
+    baseline5 = touchRead(TOUCH_PAD_CENTER);
+    baseline6 = touchRead(TOUCH_PAD_RIGHT);
     Serial.println("*****");
     Serial.printf("Pin 1: %d\n", baseline1);
     Serial.printf("Pin 5: %d\n", baseline5);
@@ -40,9 +40,9 @@ void FED4::BaselineTouchSensors()
 
 void FED4::interpretTouch()
 {
-    int reading1 = abs((int)(touchRead(TOUCH_PIN_1) - baseline1));
-    int reading5 = abs((int)(touchRead(TOUCH_PIN_5) - baseline5));
-    int reading6 = abs((int)(touchRead(TOUCH_PIN_6) - baseline6));
+    int reading1 = abs((int)(touchRead(TOUCH_PAD_LEFT) - baseline1));
+    int reading5 = abs((int)(touchRead(TOUCH_PAD_CENTER) - baseline5));
+    int reading6 = abs((int)(touchRead(TOUCH_PAD_RIGHT) - baseline6));
 
     Serial.println("Touch readings (baseline subtracted, abs):");
     Serial.printf("Pin 1: %d\n", reading1);
