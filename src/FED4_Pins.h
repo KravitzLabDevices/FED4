@@ -58,7 +58,7 @@
 #define BLACK 0
 #define WHITE 1
 
-// GPIO Expander Pins (already verified)
+// GPIO Expander Pins
 #define EXP_PHOTOGATE_1 12 // Center
 #define EXP_PHOTOGATE_2 13 // Left
 #define EXP_PHOTOGATE_3 0  // Right
