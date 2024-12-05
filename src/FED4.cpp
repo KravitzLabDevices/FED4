@@ -89,9 +89,9 @@ void FED4::begin()
     mcp.digitalWrite(EXP_LDO3, HIGH);
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
 
-    pinMode(BUTTON_1, INPUT);
-    pinMode(BUTTON_2, INPUT);
-    pinMode(BUTTON_3, INPUT_PULLUP);
+    pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
+    pinMode(AUDIO_TRRS_2, INPUT);
+    pinMode(AUDIO_TRRS_3, INPUT);
 
     // Initialize peripherals
     stepper.setSpeed(36);
