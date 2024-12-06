@@ -114,7 +114,7 @@ void FED4::SerialStatusReport()
     }
 
     // Pellet counts section
-    Serial.println(F("\n► Pellet Counts"));
+    Serial.println(F("\n► Pellet Count"));
     Serial.print(F("  • Total: "));
     Serial.println(PelletCount);
 
