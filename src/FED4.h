@@ -80,6 +80,7 @@ public:
     void updateRTC();
     DateTime now();
     void serialPrintRTC();
+    void adjustRTC(uint32_t timestamp);
 
     // Vitals functions (defined in FED4_Vitals.cpp)
     float getBatteryVoltage();

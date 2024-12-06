@@ -136,3 +136,18 @@ void FED4::updateCompilationID()
         Serial.println("Verified stored compilation time: " + storedTime);
     }
 }
+
+void FED4::adjustRTC(uint32_t timestamp)
+{
+    if (debugRTC)
+        Serial.println("Adjusting RTC with Unix timestamp: " + String(timestamp));
+
+    rtc.adjust(DateTime(timestamp));
+
+    if (debugRTC)
+    {
+        Serial.print("RTC time after adjustment: ");
+        serialPrintRTC();
+        Serial.println();
+    }
+}
