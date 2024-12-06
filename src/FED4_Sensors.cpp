@@ -7,7 +7,6 @@ void IRAM_ATTR FED4::onWakeUp()
 
 void FED4::touch_pad_init()
 {
-    touch_pad_init();
     touch_pad_config(TOUCH_PAD_LEFT);
     touch_pad_config(TOUCH_PAD_CENTER);
     touch_pad_config(TOUCH_PAD_RIGHT);
