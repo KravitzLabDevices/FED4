@@ -12,16 +12,16 @@
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
 #include "RTClib.h"
-// #include <SdFat.h>
 #include <SD.h>
 #include <Adafruit_AHTX0.h>
-// #include "WiFi.h"
-// #include "FS.h"
+#include "SD.h"
+#include "FS.h"
 #include <SPI.h>
 #include <driver/adc.h>
 #include <driver/i2s.h>
 #include <driver/rtc_io.h>
 #include <driver/touch_pad.h>
+#include <Preferences.h>
 
 // Pin Definitions
 #include "FED4_Pins.h"
@@ -58,10 +58,14 @@ public:
 
     // Display functions (defined in FED4_Display.cpp)
     void UpdateDisplay();
-    void SerialOutput();
+    void SerialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
     void enterLightSleep();
+
+    // SD card functions (defined in FED4_SD.cpp)
+    bool initializeSD();
+    void createDataFile();
 
     // Public counters and timing
     int PelletCount;
@@ -70,6 +74,19 @@ public:
     int RightCount;
     int WakeCount;
     unsigned long waketime;
+
+    // RTC functions
+    void initializeRTC();
+    void updateRTC();
+    DateTime now();
+    void serialPrintRTC();
+
+    // Vitals functions (defined in FED4_Vitals.cpp)
+    float getBatteryVoltage();
+    float getBatteryPercentage();
+    float getTemperature();
+    float getHumidity();
+    bool isBatteryConnected();
 
 private:
     // Hardware objects
@@ -92,6 +109,12 @@ private:
     int threshold;
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
+
+    // RTC functions
+    Preferences preferences;
+    String getCompileDateTime();
+    bool isNewCompilation();
+    void updateCompilationID();
 
     friend class FED4_Display;
     friend class FED4_Motor;

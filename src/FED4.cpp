@@ -64,6 +64,9 @@ void FED4::begin()
     }
     Serial.println("RTC started");
 
+    // Initialize and update RTC if needed
+    initializeRTC();
+
     // Initialize battery monitor
     while (!maxlipo.begin())
     {
@@ -101,4 +104,12 @@ void FED4::begin()
     touch_pad_init();
     BaselineTouchSensors();
     CalibrateTouchSensors();
+
+    // Initialize SD card
+    if (!initializeSD())
+    {
+        Serial.println("Warning: SD card initialization failed!");
+        // while (1) { delay(100); }
+    }
+    createDataFile();
 }

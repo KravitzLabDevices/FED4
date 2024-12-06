@@ -2,7 +2,7 @@
 
 void FED4::UpdateDisplay()
 {
-    SerialOutput();
+    SerialStatusReport();
 
     // Initialize display
     display.begin();
@@ -76,37 +76,55 @@ void FED4::UpdateDisplay()
     display.refresh();
 }
 
-void FED4::SerialOutput()
+void FED4::SerialStatusReport()
 {
-    DateTime now = rtc.now();
+    // Print header
+    Serial.println(F("\n================================================"));
+    Serial.println(F("                 FED4 Status Report               "));
+    Serial.println(F("================================================"));
 
-    // Output date and time
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print("    ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
+    // Date and Time section
+    Serial.print(F("\n► DateTime: "));
+    serialPrintRTC();
     Serial.println();
 
-    // Output temperature
-    Serial.print("Temperature: ");
-    Serial.print(rtc.getTemperature());
-    Serial.println(" C");
-    Serial.println();
+    // Environmental Data section
+    Serial.println(F("\n► Environmental Data"));
+    Serial.print(F("  • Temperature:  "));
+    Serial.print(getTemperature(), 1);
+    Serial.println(F(" °C"));
+    Serial.print(F("  • Humidity:     "));
+    Serial.print(getHumidity(), 1);
+    Serial.println(F("%"));
 
-    // Output counts
-    Serial.print("Pellets: ");
-    Serial.print(PelletCount);
-    Serial.print(" Center: ");
-    Serial.print(CenterCount);
-    Serial.print(" Left: ");
+    // Battery Status section
+    Serial.println(F("\n► Battery Status"));
+    if (isBatteryConnected())
+    {
+        Serial.print(F("  • Voltage: "));
+        Serial.print(getBatteryVoltage(), 1);
+        Serial.println(F("V"));
+        Serial.print(F("  • Charge:  "));
+        Serial.print(getBatteryPercentage(), 1);
+        Serial.println(F("%"));
+    }
+    else
+    {
+        Serial.println(F("  • USB Powered"));
+    }
+
+    // Pellet counts section
+    Serial.println(F("\n► Pellet Counts"));
+    Serial.print(F("  • Total: "));
+    Serial.println(PelletCount);
+
+    Serial.println(F("\n► Pokes"));
+    Serial.print(F("  • Left: "));
     Serial.print(LeftCount);
-    Serial.print("  Right: ");
+    Serial.print(F(" | Center: "));
+    Serial.print(CenterCount);
+    Serial.print(F(" | Right: "));
     Serial.println(RightCount);
+
+    Serial.println(F("\n================================================\n"));
 }

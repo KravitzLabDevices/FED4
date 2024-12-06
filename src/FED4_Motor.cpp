@@ -23,7 +23,7 @@ void FED4::Feed()
         FeedReady = false;
 
         ReleaseMotor();
-        SerialOutput();
+        SerialStatusReport();
         strcpy(Event, "PelletDrop");
 
         // Monitor retrieval
