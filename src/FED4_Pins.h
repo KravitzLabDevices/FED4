@@ -32,7 +32,7 @@
 #define SD_CS 10
 #define DISPLAY_CS 17
 #define SPI_MOSI 11
-#define SPI_SCK 23
+#define SPI_SCK 12
 #define SPI_MISO 13
 
 // I2C Interface
