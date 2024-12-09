@@ -1,38 +1,50 @@
 #include "FED4.h"
 
-void FED4::UpdateDisplay()
+void FED4::updateDisplay()
 {
-    SerialStatusReport();
-
     // Initialize display
+    Serial.println("Initializing display...");
     display.begin();
     display.refresh();
     display.setRotation(2);
     display.setTextColor(BLACK);
     display.clearDisplay();
+    Serial.println("Display initialized");
 
     // Display title
+    Serial.println("Drawing title...");
     display.setTextSize(3);
     display.setCursor(12, 20);
     display.print("FED4");
     display.refresh();
+    Serial.println("Title drawn");
 
     // Switch to smaller text for details
     display.setTextSize(1);
 
     // Display counts
+    Serial.println("Drawing counts...");
     display.setCursor(12, 56);
     display.print("Pellets: ");
-    display.print(PelletCount);
+    display.print(pelletCount);
     display.setCursor(12, 72);
     display.print("L:");
-    display.print(LeftCount);
+    display.print(leftCount);
     display.print("   C:");
-    display.print(CenterCount);
+    display.print(centerCount);
     display.print("   R:");
-    display.print(RightCount);
+    display.print(rightCount);
+    Serial.print("Counts - Pellets: ");
+    Serial.print(pelletCount);
+    Serial.print(" Left: ");
+    Serial.print(leftCount);
+    Serial.print(" Center: ");
+    Serial.print(centerCount);
+    Serial.print(" Right: ");
+    Serial.println(rightCount);
 
     // Display environmental data
+    Serial.println("Getting environmental data...");
     sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);
     display.setCursor(12, 90);
@@ -42,8 +54,14 @@ void FED4::UpdateDisplay()
     display.print(" Hum: ");
     display.print(humidity.relative_humidity, 1);
     display.println("%");
+    Serial.print("Temperature: ");
+    Serial.print(temp.temperature, 1);
+    Serial.print("C, Humidity: ");
+    Serial.print(humidity.relative_humidity, 1);
+    Serial.println("%");
 
     // Display battery status
+    Serial.println("Getting battery status...");
     float cellVoltage = maxlipo.cellVoltage();
     float cellPercent = maxlipo.cellPercent();
     display.setCursor(12, 122);
@@ -52,8 +70,14 @@ void FED4::UpdateDisplay()
     display.print("V, ");
     display.print(cellPercent, 1);
     display.println("%");
+    Serial.print("Battery: ");
+    Serial.print(cellVoltage, 1);
+    Serial.print("V, ");
+    Serial.print(cellPercent, 1);
+    Serial.println("%");
 
     // Display date/time
+    Serial.println("Getting date/time...");
     DateTime now = rtc.now();
     display.setCursor(12, 140);
     display.print(now.month());
@@ -67,16 +91,34 @@ void FED4::UpdateDisplay()
     if (now.minute() < 10)
         display.print('0');
     display.print(now.minute());
+    Serial.print("DateTime: ");
+    Serial.print(now.month());
+    Serial.print("/");
+    Serial.print(now.day());
+    Serial.print("/");
+    Serial.print(now.year());
+    Serial.print(" ");
+    Serial.print(now.hour());
+    Serial.print(":");
+    if (now.minute() < 10)
+        Serial.print('0');
+    Serial.println(now.minute());
 
     // Display wake count
+    Serial.println("Drawing wake count...");
     display.setCursor(12, 156);
     display.print("Unclear:");
-    display.print(WakeCount);
+    display.print(wakeCount);
+    Serial.print("Wake count: ");
+    Serial.println(wakeCount);
 
     display.refresh();
+    Serial.println("Display refresh complete");
+
+    serialStatusReport();
 }
 
-void FED4::SerialStatusReport()
+void FED4::serialStatusReport()
 {
     // Print header
     Serial.println(F("\n================================================"));
@@ -116,15 +158,27 @@ void FED4::SerialStatusReport()
     // Pellet counts section
     Serial.println(F("\n► Pellet Count"));
     Serial.print(F("  • Total: "));
-    Serial.println(PelletCount);
+    Serial.println(pelletCount);
 
     Serial.println(F("\n► Pokes"));
     Serial.print(F("  • Left: "));
-    Serial.print(LeftCount);
+    Serial.print(leftCount);
     Serial.print(F(" | Center: "));
-    Serial.print(CenterCount);
+    Serial.print(centerCount);
     Serial.print(F(" | Right: "));
-    Serial.println(RightCount);
+    Serial.println(rightCount);
+
+    // Memory Statistics section
+    Serial.println(F("\n► Memory Statistics"));
+    Serial.print(F("  • Free Heap: "));
+    Serial.print(ESP.getFreeHeap());
+    Serial.println(F(" bytes"));
+    Serial.print(F("  • Heap Size: "));
+    Serial.print(ESP.getHeapSize());
+    Serial.println(F(" bytes"));
+    Serial.print(F("  • Min Free Heap: "));
+    Serial.print(ESP.getMinFreeHeap());
+    Serial.println(F(" bytes"));
 
     Serial.println(F("\n================================================\n"));
 }

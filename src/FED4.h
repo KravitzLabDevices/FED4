@@ -36,29 +36,29 @@ public:
     void begin();
 
     // Core functionality (defined in FED4_Motor.cpp)
-    void Feed();
-    void CheckForPellet();
-    void ReleaseMotor();
+    void feed();
+    void checkForPellet();
+    void releaseMotor();
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
-    void CalibrateTouchSensors();
-    void BaselineTouchSensors();
+    void calibrateTouchSensors();
+    void baselineTouchSensors();
     void interpretTouch();
     static void IRAM_ATTR onWakeUp();
-    void touch_pad_init();
+    void touchPadInit();
 
     // LED control (defined in FED4_LED.cpp)
-    void BluePix();
-    void DimBluePix();
-    void GreenPix();
-    void RedPix();
-    void PurplePix();
-    void NoPix();
-    void Vibrate(unsigned long wait);
+    void bluePix();
+    void dimBluePix();
+    void greenPix();
+    void redPix();
+    void purplePix();
+    void noPix();
+    void vibrate();
 
     // Display functions (defined in FED4_Display.cpp)
-    void UpdateDisplay();
-    void SerialStatusReport();
+    void updateDisplay();
+    void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
     void enterLightSleep();
@@ -68,11 +68,11 @@ public:
     void createDataFile();
 
     // Public counters and timing
-    int PelletCount;
-    int CenterCount;
-    int LeftCount;
-    int RightCount;
-    int WakeCount;
+    int pelletCount;
+    int centerCount;
+    int leftCount;
+    int rightCount;
+    int wakeCount;
     unsigned long waketime;
 
     // RTC functions
@@ -102,10 +102,10 @@ private:
 
     // Device state variables
     bool pelletReady;
-    bool FeedReady;
-    int PG1Read;
-    char Event[12];
-    int RetrievalTime;
+    bool feedReady;
+    int pg1Read;
+    char event[12];
+    int retrievalTime;
     int baseline1, baseline5, baseline6;
     int threshold;
     esp_adc_cal_characteristics_t *adc_cal;
@@ -122,6 +122,8 @@ private:
     friend class FED4_Sensors;
     friend class FED4_Power;
     friend class FED4_LED;
+    friend class FED4_SD;
+    friend class FED4_Vitals;
 };
 
 #endif

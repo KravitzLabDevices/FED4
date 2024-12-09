@@ -1,61 +1,61 @@
 #include "FED4.h"
 
-void FED4::Feed()
+void FED4::feed()
 {
-    if (FeedReady)
+    if (feedReady)
     {
-        PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
+        pg1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
 
         Serial.println("Feeding!");
-        while (PG1Read == 1)
+        while (pg1Read == 1)
         {                     // while pellet well is empty
             stepper.step(-2); // small movement
             delay(10);
-            PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
+            pg1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
             pelletReady = true;
         }
 
         if (pelletReady)
         {
-            PelletCount++;
+            pelletCount++;
             pelletReady = false;
         }
-        FeedReady = false;
+        feedReady = false;
 
-        ReleaseMotor();
-        SerialStatusReport();
-        strcpy(Event, "PelletDrop");
+        releaseMotor();
+        serialStatusReport();
+        strcpy(event, "PelletDrop");
 
         // Monitor retrieval
-        unsigned long PelletDrop = millis();
-        while (PG1Read == 0)
+        unsigned long pelletDrop = millis();
+        while (pg1Read == 0)
         { // while pellet well is full
-            BluePix();
-            PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
-            RetrievalTime = millis() - PelletDrop;
-            if (RetrievalTime > 10000)
+            bluePix();
+            pg1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
+            retrievalTime = millis() - pelletDrop;
+            if (retrievalTime > 10000)
                 break;
         }
-        RedPix();
-        strcpy(Event, "PelletTaken");
-        RetrievalTime = 0;
+        redPix();
+        strcpy(event, "PelletTaken");
+        retrievalTime = 0;
     }
 
-    UpdateDisplay();
+    updateDisplay();
 
     // Rebaseline touch sensors every 5 pellets
-    if (PelletCount % 5 == 0 && PelletCount > 1)
+    if (pelletCount % 5 == 0 && pelletCount > 1)
     {
-        BaselineTouchSensors();
+        baselineTouchSensors();
     }
 }
 
-void FED4::CheckForPellet()
+void FED4::checkForPellet()
 {
-    PG1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
+    pg1Read = mcp.digitalRead(EXP_PHOTOGATE_1);
 }
 
-void FED4::ReleaseMotor()
+void FED4::releaseMotor()
 {
     digitalWrite(MOTOR_PIN_1, LOW);
     digitalWrite(MOTOR_PIN_2, LOW);
@@ -63,9 +63,10 @@ void FED4::ReleaseMotor()
     digitalWrite(MOTOR_PIN_4, LOW);
 }
 
-void FED4::Vibrate(unsigned long wait)
+void FED4::vibrate()
 {
     mcp.digitalWrite(EXP_HAPTIC, HIGH);
+    int wait = 100; // !! added, can't find wait var anywhere???
     delay(wait);
     mcp.digitalWrite(EXP_HAPTIC, LOW);
 }

@@ -13,15 +13,15 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
                I2C_2(1)
 {
     pelletReady = true;
-    FeedReady = false;
+    feedReady = false;
     threshold = 300;
 
     // Initialize counters
-    PelletCount = 0;
-    CenterCount = 0;
-    LeftCount = 0;
-    RightCount = 0;
-    WakeCount = 0;
+    pelletCount = 0;
+    centerCount = 0;
+    leftCount = 0;
+    rightCount = 0;
+    wakeCount = 0;
 }
 
 /********************************************************
@@ -29,6 +29,8 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
  ********************************************************/
 void FED4::begin()
 {
+    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
+
     // Initialize serial connection
     Serial.begin(115200);
 
@@ -101,9 +103,9 @@ void FED4::begin()
     pixels.begin();
 
     // Initialize touch sensors
-    touch_pad_init();
-    BaselineTouchSensors();
-    CalibrateTouchSensors();
+    touchPadInit();
+    baselineTouchSensors();
+    calibrateTouchSensors();
 
     // Initialize SD card
     if (!initializeSD())
@@ -111,5 +113,4 @@ void FED4::begin()
         Serial.println("Warning: SD card initialization failed!");
         // while (1) { delay(100); }
     }
-    createDataFile();
 }

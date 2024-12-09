@@ -10,6 +10,6 @@ void setup()
 
 void loop()
 {
-    fed.Feed();
+    fed.feed();
     fed.enterLightSleep();
 }

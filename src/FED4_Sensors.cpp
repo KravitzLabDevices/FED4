@@ -5,7 +5,7 @@ void IRAM_ATTR FED4::onWakeUp()
     // Empty function to serve as interrupt handler for touchpad wake-up
 }
 
-void FED4::touch_pad_init()
+void FED4::touchPadInit()
 {
     touch_pad_config(TOUCH_PAD_LEFT);
     touch_pad_config(TOUCH_PAD_CENTER);
@@ -15,7 +15,7 @@ void FED4::touch_pad_init()
     delay(200);
 }
 
-void FED4::CalibrateTouchSensors()
+void FED4::calibrateTouchSensors()
 {
     Serial.println("Touch sensor calibration");
     touchAttachInterrupt(TOUCH_PAD_LEFT, onWakeUp, threshold);
@@ -24,7 +24,7 @@ void FED4::CalibrateTouchSensors()
     esp_sleep_enable_touchpad_wakeup();
 }
 
-void FED4::BaselineTouchSensors()
+void FED4::baselineTouchSensors()
 {
     Serial.println("Re-baselining...");
     baseline1 = touchRead(TOUCH_PAD_LEFT);
@@ -71,22 +71,22 @@ void FED4::interpretTouch()
     {
     case 1:
         Serial.println("Wake-up triggered by Right Poke.");
-        RightCount++;
-        RedPix();
+        rightCount++;
+        redPix();
         break;
     case 5:
         Serial.println("Wake-up triggered by Center Poke.");
-        CenterCount++;
-        BluePix();
+        centerCount++;
+        bluePix();
         break;
     case 6:
         Serial.println("Wake-up triggered by Left Poke.");
-        GreenPix();
-        LeftCount++;
-        FeedReady = true;
+        greenPix();
+        leftCount++;
+        feedReady = true;
         break;
     default:
         Serial.println("Wake-up reason unclear, taking no action.");
-        WakeCount++;
+        wakeCount++;
     }
 }

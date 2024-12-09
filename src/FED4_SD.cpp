@@ -13,21 +13,6 @@ bool FED4::initializeSD()
         return false;
     }
     Serial.println("SD card initialized successfully.");
-
-    // Check if we can write to the SD card
-    File testFile = SD.open("/test.txt", FILE_WRITE);
-    if (testFile)
-    {
-        testFile.println("SD Card Write Test");
-        testFile.close();
-        Serial.println("SD card write test successful.");
-        return true;
-    }
-    else
-    {
-        Serial.println("Error opening test file!");
-        return false;
-    }
 }
 
 void FED4::createDataFile()
