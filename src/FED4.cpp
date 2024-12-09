@@ -14,7 +14,7 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
 {
     pelletReady = true;
     feedReady = false;
-    threshold = 300;
+    threshold = 1.1; // changed to percentage of baseline
 
     // Initialize counters
     pelletCount = 0;
@@ -22,6 +22,7 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
     leftCount = 0;
     rightCount = 0;
     wakeCount = 0;
+    touchTriggers = 0;
 }
 
 /********************************************************
@@ -29,8 +30,6 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
  ********************************************************/
 void FED4::begin()
 {
-    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
-
     // Initialize serial connection
     Serial.begin(115200);
 
@@ -98,19 +97,25 @@ void FED4::begin()
     pinMode(AUDIO_TRRS_2, INPUT);
     pinMode(AUDIO_TRRS_3, INPUT);
 
+    pinMode(BUTTON_1, INPUT);
+    pinMode(BUTTON_2, INPUT);
+    pinMode(BUTTON_3, INPUT);
+
     // Initialize peripherals
     stepper.setSpeed(36);
     pixels.begin();
 
     // Initialize touch sensors
     touchPadInit();
-    baselineTouchSensors();
+    // baselineTouchSensors(); // !!only displays, consider removing
+    // conceptuually, we should only calibrate once at startup/known conditions
+    // or eventually set constants/values in NVS for each device
     calibrateTouchSensors();
+    monitorTouchSensors(); // loops if BUTTON_2 (center) is pressed
 
     // Initialize SD card
     if (!initializeSD())
     {
-        Serial.println("Warning: SD card initialization failed!");
-        // while (1) { delay(100); }
+        Serial.println("SD card initialization failed!");
     }
 }

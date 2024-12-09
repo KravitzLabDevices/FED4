@@ -44,7 +44,9 @@ public:
     void calibrateTouchSensors();
     void baselineTouchSensors();
     void interpretTouch();
-    static void IRAM_ATTR onWakeUp();
+    static void IRAM_ATTR onLeftWakeUp();
+    static void IRAM_ATTR onCenterWakeUp();
+    static void IRAM_ATTR onRightWakeUp();
     void touchPadInit();
 
     // LED control (defined in FED4_LED.cpp)
@@ -89,6 +91,8 @@ public:
     float getHumidity();
     bool isBatteryConnected();
 
+    void monitorTouchSensors();
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
@@ -106,7 +110,7 @@ private:
     int pg1Read;
     char event[12];
     int retrievalTime;
-    int baseline1, baseline5, baseline6;
+    int touchPadLeftBaseline, touchPadCenterBaseline, touchPadRightBaseline;
     int threshold;
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
@@ -116,6 +120,14 @@ private:
     String getCompileDateTime();
     bool isNewCompilation();
     void updateCompilationID();
+
+    // Replace individual trigger flags with a single atomic type
+    volatile uint8_t touchTriggers;
+    static constexpr uint8_t LEFT_TRIGGER = 0x01;
+    static constexpr uint8_t CENTER_TRIGGER = 0x02;
+    static constexpr uint8_t RIGHT_TRIGGER = 0x04;
+
+    uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 
     friend class FED4_Display;
     friend class FED4_Motor;

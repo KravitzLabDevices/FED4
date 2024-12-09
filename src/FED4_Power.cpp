@@ -5,8 +5,9 @@ void FED4::enterLightSleep()
     // Power down
     Serial.println("Powering down...");
     noPix();
-    digitalWrite(LDO2_ENABLE, LOW);
-    digitalWrite(FRONT_RGB_LED, LOW);
+    // !! let's not power down until everything works
+    // digitalWrite(LDO2_ENABLE, LOW);
+    // digitalWrite(FRONT_RGB_LED, LOW);
 
     // Enter sleep
     Serial.println("Entering light sleep...");
@@ -23,5 +24,5 @@ void FED4::enterLightSleep()
     // Post-wake actions
     interpretTouch();
     purplePix();
-    calibrateTouchSensors();
+    // calibrateTouchSensors();
 }

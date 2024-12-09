@@ -6,13 +6,34 @@
 
 bool FED4::initializeSD()
 {
-    // Initialize SD card
-    if (!SD.begin(SD_CS))
+    // Initialize SPI for SD card
+    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
+
+    // Try different SD card initialization speeds
+    for (uint8_t i = 0; i < 3; i++)
     {
-        Serial.println("SD card initialization failed!");
-        return false;
+        if (SD.begin(SD_CS, SPI, 4000000))
+        { // Try 4MHz first
+            Serial.println("SD card initialized successfully");
+            return true;
+        }
+        else if (SD.begin(SD_CS, SPI, 1000000))
+        { // Try slower 1MHz
+            Serial.println("SD card initialized at lower speed");
+            return true;
+        }
+        else
+        {
+            Serial.println("SD initialization attempt " + String(i + 1) + " failed");
+            delay(100);
+        }
     }
-    Serial.println("SD card initialized successfully.");
+
+    if (!SD.cardType())
+    {
+        Serial.println("No SD card attached");
+    }
+    return false;
 }
 
 void FED4::createDataFile()
