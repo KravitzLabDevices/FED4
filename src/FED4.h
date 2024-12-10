@@ -44,9 +44,10 @@ public:
     void calibrateTouchSensors();
     void baselineTouchSensors();
     void interpretTouch();
-    static void IRAM_ATTR onLeftWakeUp();
-    static void IRAM_ATTR onCenterWakeUp();
-    static void IRAM_ATTR onRightWakeUp();
+    // static void IRAM_ATTR onLeftWakeUp();
+    // static void IRAM_ATTR onCenterWakeUp();
+    // static void IRAM_ATTR onRightWakeUp();
+    static void IRAM_ATTR onTouchWakeUp();
     void touchPadInit();
 
     // LED control (defined in FED4_LED.cpp)
@@ -68,7 +69,7 @@ public:
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
     void createLogFile();
-    void logData(const char *event);
+    void logData();
 
     // Public counters and timing
     int pelletCount;
@@ -94,6 +95,16 @@ public:
 
     void monitorTouchSensors();
 
+    void setEvent(const String &newEvent)
+    {
+        event = newEvent;
+    }
+
+    String getEvent() const
+    {
+        return event;
+    }
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
@@ -109,7 +120,7 @@ private:
     bool pelletReady;
     bool feedReady;
     int pg1Read;
-    char event[12];
+    String event;
     int retrievalTime;
     int touchPadLeftBaseline, touchPadCenterBaseline, touchPadRightBaseline;
     int threshold;

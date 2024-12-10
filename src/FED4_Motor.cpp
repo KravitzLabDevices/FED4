@@ -23,8 +23,7 @@ void FED4::feed()
         feedReady = false;
 
         releaseMotor();
-        serialStatusReport();
-        strcpy(event, "PelletDrop");
+        setEvent("PelletDrop");
 
         // Monitor retrieval
         unsigned long pelletDrop = millis();
@@ -37,7 +36,7 @@ void FED4::feed()
                 break;
         }
         redPix();
-        strcpy(event, "PelletTaken");
+        setEvent("PelletTaken");
         retrievalTime = 0;
     }
 

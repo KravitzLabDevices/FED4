@@ -57,7 +57,7 @@ void FED4::createLogFile()
     }
 }
 
-void FED4::logData(const char *event)
+void FED4::logData()
 {
     DateTime now = rtc.now();
     char filename[20];
@@ -70,7 +70,7 @@ void FED4::logData(const char *event)
         dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%s,",
                         now.year(), now.month(), now.day(),
                         now.hour(), now.minute(), now.second(),
-                        event);
+                        event.c_str());
 
         // Counters
         dataFile.printf("%d,%d,%d,%d,%d,",

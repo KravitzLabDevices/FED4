@@ -6,36 +6,41 @@ static FED4 *FED4Instance = nullptr;
 // this is the accepted method for callbacks in ESP32, however
 // it is not consistent with the highest valued sensor, so we fix it below
 // !! we could rever to a single callback, but maybe this ends up working one day
-void IRAM_ATTR FED4::onLeftWakeUp()
-{
-    if (FED4Instance)
-    {
-        FED4Instance->touchTriggers |= LEFT_TRIGGER;
-        FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_LEFT); // Store touch value
-    }
-}
+// void IRAM_ATTR FED4::onLeftWakeUp()
+// {
+//     if (FED4Instance)
+//     {
+//         FED4Instance->touchTriggers |= LEFT_TRIGGER;
+//         FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_LEFT); // Store touch value
+//     }
+// }
 
-void IRAM_ATTR FED4::onCenterWakeUp()
-{
-    if (FED4Instance)
-    {
-        FED4Instance->touchTriggers |= CENTER_TRIGGER;
-        FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_CENTER);
-    }
-}
+// void IRAM_ATTR FED4::onCenterWakeUp()
+// {
+//     if (FED4Instance)
+//     {
+//         FED4Instance->touchTriggers |= CENTER_TRIGGER;
+//         FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_CENTER);
+//     }
+// }
 
-void IRAM_ATTR FED4::onRightWakeUp()
+// void IRAM_ATTR FED4::onRightWakeUp()
+// {
+//     if (FED4Instance)
+//     {
+//         FED4Instance->touchTriggers |= RIGHT_TRIGGER;
+//         FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_RIGHT);
+//     }
+// }
+
+void IRAM_ATTR FED4::onTouchWakeUp()
 {
-    if (FED4Instance)
-    {
-        FED4Instance->touchTriggers |= RIGHT_TRIGGER;
-        FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_RIGHT);
-    }
+    // empty
 }
 
 void FED4::touchPadInit()
 {
-    FED4Instance = this; // for the IRAM_ATTR callbacks
+    // FED4Instance = this;
 
     // Initialize touch pad peripheral
     touch_pad_init();
@@ -45,27 +50,28 @@ void FED4::touchPadInit()
     touch_pad_config(TOUCH_PAD_CENTER);
     touch_pad_config(TOUCH_PAD_RIGHT);
 
+    // Rest of your existing configuration...
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
 
-    // Set measurement time and sleep time
-    touch_pad_set_meas_time(0x1000, 0xffff);
+    // // Set measurement time and sleep time
+    // touch_pad_set_meas_time(0x1000, 0xffff);
 
-    // Set filter config with updated struct name
-    touch_filter_config_t filter_info = {
-        .mode = TOUCH_PAD_FILTER_IIR_16,
-        .debounce_cnt = 1, // 1 time count
-        .noise_thr = 0,    // 50%
-        .jitter_step = 4,  // use for jitter mode
-        .smh_lvl = TOUCH_PAD_SMOOTH_IIR_2,
-    };
-    touch_pad_filter_set_config(&filter_info);
+    // // Set filter config with updated struct name
+    // touch_filter_config_t filter_info = {
+    //     .mode = TOUCH_PAD_FILTER_IIR_16,
+    //     .debounce_cnt = 1, // 1 time count
+    //     .noise_thr = 0,    // 50%
+    //     .jitter_step = 4,  // use for jitter mode
+    //     .smh_lvl = TOUCH_PAD_SMOOTH_IIR_2,
+    // };
+    // touch_pad_filter_set_config(&filter_info);
 
-    // Denoise setting
-    touch_pad_denoise_t denoise = {
-        .grade = TOUCH_PAD_DENOISE_BIT4,
-        .cap_level = TOUCH_PAD_DENOISE_CAP_L4};
-    touch_pad_denoise_set_config(&denoise);
-    touch_pad_denoise_enable();
+    // // Denoise setting
+    // touch_pad_denoise_t denoise = {
+    //     .grade = TOUCH_PAD_DENOISE_BIT4,
+    //     .cap_level = TOUCH_PAD_DENOISE_CAP_L4};
+    // touch_pad_denoise_set_config(&denoise);
+    // touch_pad_denoise_enable();
 
     delay(200);
 }
@@ -74,7 +80,6 @@ void FED4::calibrateTouchSensors()
 {
     Serial.println("Touch sensor calibration");
 
-    // Use touchRead instead of touch_pad_read
     baselineTouchSensors();
 
     uint16_t left_threshold = touchPadLeftBaseline * threshold;
@@ -84,12 +89,13 @@ void FED4::calibrateTouchSensors()
     Serial.printf("Thresholds - Left: %d, Center: %d, Right: %d\n",
                   left_threshold, center_threshold, right_threshold);
 
-    // Set individual thresholds for each pad
-    touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftWakeUp, left_threshold);
-    touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterWakeUp, center_threshold);
-    touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightWakeUp, right_threshold);
-
+    // Enable wake-up on touch pads
     esp_sleep_enable_touchpad_wakeup();
+
+    // Set individual thresholds for each pad
+    touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchWakeUp, left_threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchWakeUp, center_threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchWakeUp, right_threshold);
 }
 
 // !!let's consider if this is going to be useful or lead to more bugs mid-session
@@ -143,6 +149,12 @@ void FED4::interpretTouch()
         rightCount++;
         redPix();
     }
+
+    // Clear the touch triggers after processing
+    touchTriggers = 0;
+
+    // Clear any pending touch pad interrupts
+    touch_pad_clear_status();
 }
 
 void FED4::monitorTouchSensors()

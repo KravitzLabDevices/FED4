@@ -14,7 +14,7 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, 144, 168),
 {
     pelletReady = true;
     feedReady = false;
-    threshold = 1.1; // changed to percentage of baseline
+    threshold = 1.01; // changed to percentage of baseline
 
     // Initialize counters
     pelletCount = 0;
@@ -107,7 +107,7 @@ void FED4::begin()
 
     // Initialize touch sensors
     touchPadInit();
-    // baselineTouchSensors(); // !!only displays, consider removing
+    // baselineTouchSensors();
     // conceptuually, we should only calibrate once at startup/known conditions
     // or eventually set constants/values in NVS for each device
     calibrateTouchSensors();
@@ -118,7 +118,10 @@ void FED4::begin()
     {
         Serial.println("SD card initialization failed!");
     }
-    // !! untested, give them a try!
+
     createLogFile();
-    logData("Startup");
+    setEvent("Startup");
+    logData();
+
+    display.begin();
 }

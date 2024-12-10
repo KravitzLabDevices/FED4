@@ -3,7 +3,6 @@
 void FED4::updateDisplay()
 {
     // Initialize display
-    display.begin();
     display.refresh();
     display.setRotation(2);
     display.setTextColor(BLACK);
@@ -31,19 +30,17 @@ void FED4::updateDisplay()
     display.print(rightCount);
 
     // Display environmental data
-    sensors_event_t humidity, temp;
-    aht.getEvent(&humidity, &temp);
     display.setCursor(12, 90);
     display.print("Temp: ");
-    display.print(temp.temperature, 1);
+    display.print(getTemperature(), 1);
     display.print("C");
     display.print(" Hum: ");
-    display.print(humidity.relative_humidity, 1);
+    display.print(getHumidity(), 1);
     display.println("%");
 
     // Display battery status
-    float cellVoltage = maxlipo.cellVoltage();
-    float cellPercent = maxlipo.cellPercent();
+    float cellVoltage = getBatteryVoltage();
+    float cellPercent = getBatteryPercentage();
     display.setCursor(12, 122);
     display.print("Fuel: ");
     display.print(cellVoltage, 1);

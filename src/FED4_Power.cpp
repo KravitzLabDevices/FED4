@@ -12,17 +12,22 @@ void FED4::enterLightSleep()
     // Enter sleep
     Serial.println("Entering light sleep...");
     delay(50);
+
     esp_light_sleep_start();
 
-    // Wake up
+    // Clear any pending touch status
+    touch_pad_clear_status();
+
+    // Now interpret the touch that woke us
+    interpretTouch();
+
     Serial.println("Woke up!");
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
     pinMode(FRONT_RGB_LED, OUTPUT);
     digitalWrite(FRONT_RGB_LED, HIGH);
 
-    // Post-wake actions
-    interpretTouch();
     purplePix();
+    serialStatusReport();
     // calibrateTouchSensors();
 }
