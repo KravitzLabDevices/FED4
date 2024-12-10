@@ -118,4 +118,7 @@ void FED4::begin()
     {
         Serial.println("SD card initialization failed!");
     }
+    // !! untested, give them a try!
+    createLogFile();
+    logData("Startup");
 }
