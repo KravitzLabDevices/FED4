@@ -67,7 +67,8 @@ public:
 
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
-    void createDataFile();
+    void createLogFile();
+    void logData(const char *event);
 
     // Public counters and timing
     int pelletCount;

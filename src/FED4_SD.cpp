@@ -78,8 +78,8 @@ void FED4::logData(const char *event)
 
         // Battery and Environmental
         dataFile.printf("%.2f,%.1f,",
-                        maxlipo.cellVoltage(),
-                        aht.getTemperature());
+                        getBatteryVoltage(),
+                        getTemperature());
 
         // Memory stats
         dataFile.printf("%d,%d,%d\n",
