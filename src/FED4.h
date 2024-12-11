@@ -139,6 +139,7 @@ public:
     int touchPadLeftBaseline;
     int touchPadCenterBaseline;
     int touchPadRightBaseline;
+    int motorTurns;
 
 private:
     // Hardware objects

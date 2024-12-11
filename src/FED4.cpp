@@ -21,6 +21,7 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, DISPLAY_WIDTH, DISPLAY_HEI
     leftCount = 0;
     rightCount = 0;
     wakeCount = 0;
+    motorTurns = 0;
 }
 
 /********************************************************
@@ -111,6 +112,9 @@ void FED4::feed()
             delay(10);
             pelletPresent = checkForPellet();
             pelletReady = true;
+            motorTurns ++;
+            Serial.print("Motor: ");
+            Serial.println(motorTurns);
         }
 
         if (pelletReady)
@@ -140,10 +144,10 @@ void FED4::feed()
 
     updateDisplay();
 
-    // Rebaseline touch sensors every 5 pellets
-    if (pelletCount % 5 == 0 && pelletCount > 1)
-    {
-        calibrateTouchSensors();
+    // Rebaseline touch sensors every 5 touches
+    int touchesToCalibrate = 5;
+    if ((leftCount % touchesToCalibrate == 0 && leftCount > 1) || (rightCount % touchesToCalibrate == 0 && rightCount > 1) || (centerCount % touchesToCalibrate == 0 && centerCount > 1)) {
+      calibrateTouchSensors();
     }
 }
 
