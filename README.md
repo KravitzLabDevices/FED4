@@ -24,38 +24,19 @@ The SD card should include a meta.json file containing metadata for the device. 
 }
 ```
 
-These meta data will be parsed using the following prototype in Arduino, but can be parsed in other languages as well for post-analysis:
+These meta data will be parsed in Arduino and other languages as well for post-analysis. Other JSON resources:
+- [ArduinoJson Assistant 7](https://arduinojson.org/v7/assistant/#/step1)
+- [JSON to Graph Converter](https://jsonviewer.tools/editor)
 
-```cpp
-// String input;
-JsonDocument doc;
-
-DeserializationError error = deserializeJson(doc, input);
-
-if (error) {
-  Serial.print("deserializeJson() failed: ");
-  Serial.println(error.c_str());
-  return;
-}
-
-JsonObject subject = doc["subject"];
-const char* subject_id = subject["id"]; // "mouse001"
-const char* subject_strain = subject["strain"]; // "C57BL/6"
-const char* subject_sex = subject["sex"]; // "male"
-
-const char* fed_program = doc["fed"]["program"]; // "Classic"
+Here are some common uses with FED4:
+``` cpp
+String subjectId = getMetaValue("subject", "id"); // within library
+String subjectId = fed.getMetaValue("subject", "id"); // within sketch
 ```
-
-*Coded by [ArduinoJson Assistant 7](https://arduinojson.org/v7/assistant/#/step1).* There are a number of free JSON editors/visualizers (e.g., [JSON to Graph Converter](https://jsonviewer.tools/editor)).
 
 ### Creating a meta.json file
-On unix-like systems, you can create a meta.json file using:
-```bash
-cd /path/to/your/SD
-echo '{"subject":{"id":"mouse001","strain":"C57BL/6","sex":"male"},"fed":{"program":"Classic"}}' > meta.json
-```
+You can create a meta.json file in most terminals using:
 
-On Windows, you can create a meta.json file using:
 ```bash
 cd /path/to/your/SD
 echo '{"subject":{"id":"mouse001","strain":"C57BL/6","sex":"male"},"fed":{"program":"Classic"}}' > meta.json
