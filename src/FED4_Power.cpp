@@ -6,6 +6,13 @@ void FED4::enterLightSleep()
     Serial.println("Powering down...");
     noPix();
 
+    // Safely disconnect SD card before power down
+    SPI.end(); // Release SPI pins
+    pinMode(SPI_SCK, INPUT);
+    pinMode(SPI_MOSI, INPUT);
+    pinMode(SPI_MISO, INPUT);
+    pinMode(SD_CS, INPUT); // Release CS pin
+
     LDO2_OFF();
     noPix();
 
@@ -25,6 +32,9 @@ void FED4::enterLightSleep()
     Serial.println("Woke up!");
     LDO2_ON();
     digitalWrite(RGB_STRIP_PIN, HIGH);
+
+    // Reinitialize SD card
+    initializeSD(); // Re-initialize SPI and SD card
 
     purplePix();
     serialStatusReport();
