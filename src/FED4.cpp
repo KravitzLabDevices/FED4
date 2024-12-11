@@ -52,7 +52,10 @@ void FED4::begin()
     {
         Serial.println("mcp error");
     }
-    Serial.println("mcp ok");
+    else
+    {
+        Serial.println("mcp ok");
+    }
 
     initializeLEDs();
     initializeRTC();
@@ -76,6 +79,7 @@ void FED4::begin()
     monitorTouchSensors(); // !! loops if BUTTON_2 (center) is pressed
 
     initializeSD();
+
     // example usage of getMetaValue
     String subjectId = getMetaValue("subject", "id");
     if (subjectId.length() > 0)
