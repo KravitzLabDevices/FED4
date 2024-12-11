@@ -1,11 +1,16 @@
 #include "FED4.h"
 
+void FED4::initializeDisplay()
+{
+    display.begin();
+}
+
 void FED4::updateDisplay()
 {
     // Initialize display
     display.refresh();
     display.setRotation(2);
-    display.setTextColor(BLACK);
+    display.setTextColor(DISPLAY_BLACK);
     display.clearDisplay();
 
     // Display title

@@ -1,5 +1,13 @@
 #include "FED4.h"
 
+void FED4::initializeLEDs()
+{
+    pinMode(RGB_STRIP_PIN, OUTPUT);
+    pinMode(NEOPIXEL_PIN, OUTPUT);
+    pixels.begin();
+    noPix();
+}
+
 void FED4::bluePix()
 {
     pixels.setPixelColor(0, pixels.Color(0, 0, 20));
@@ -34,5 +42,6 @@ void FED4::noPix()
 {
     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
     pixels.show();
-    digitalWrite(STATUS_RGB_LED, LOW);
+    digitalWrite(NEOPIXEL_PIN, LOW);
+    digitalWrite(RGB_STRIP_PIN, LOW);
 }

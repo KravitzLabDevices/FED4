@@ -26,6 +26,23 @@
 // Pin Definitions
 #include "FED4_Pins.h"
 
+// Display Colors and Constants
+static const uint8_t DISPLAY_BLACK = 0;
+static const uint8_t DISPLAY_WHITE = 1;
+static const uint8_t DISPLAY_INVERSE = 2;
+static const uint8_t DISPLAY_NORMAL = 3;
+
+// Common display dimensions
+static const uint16_t DISPLAY_WIDTH = 144;
+static const uint16_t DISPLAY_HEIGHT = 168;
+
+static const uint8_t NUMPIXELS = 1;
+static const uint16_t MOTOR_STEPS = 512;
+static const uint8_t MOTOR_SPEED = 36;
+
+static const float TOUCH_THRESHOLD = 1.01; // percentage of baseline
+
+// current verty public-oriented, consider pushing some to private
 class FED4
 {
 public:
@@ -34,37 +51,41 @@ public:
 
     // Initialization
     void begin();
-
-    // Core functionality (defined in FED4_Motor.cpp)
     void feed();
-    void checkForPellet();
+    bool checkForPellet();
+
+    // Motor functionality (defined in FED4_Motor.cpp)
+    void initializeMotor();
+    void vibrate();
     void releaseMotor();
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
+    void initializeTouch();
     void calibrateTouchSensors();
-    void baselineTouchSensors();
     void interpretTouch();
-    // static void IRAM_ATTR onLeftWakeUp();
-    // static void IRAM_ATTR onCenterWakeUp();
-    // static void IRAM_ATTR onRightWakeUp();
     static void IRAM_ATTR onTouchWakeUp();
-    void touchPadInit();
 
     // LED control (defined in FED4_LED.cpp)
+    void initializeLEDs();
     void bluePix();
     void dimBluePix();
     void greenPix();
     void redPix();
     void purplePix();
     void noPix();
-    void vibrate();
 
     // Display functions (defined in FED4_Display.cpp)
+    void initializeDisplay();
     void updateDisplay();
     void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
     void enterLightSleep();
+    void initializeLDOs();
+    void LDO2_ON();
+    void LDO2_OFF();
+    void LDO3_ON();
+    void LDO3_OFF();
 
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
@@ -87,6 +108,7 @@ public:
     void adjustRTC(uint32_t timestamp);
 
     // Vitals functions (defined in FED4_Vitals.cpp)
+    void initializeVitals();
     float getBatteryVoltage();
     float getBatteryPercentage();
     float getTemperature();
@@ -105,6 +127,16 @@ public:
         return event;
     }
 
+    // Move these from private to public
+    bool pelletReady;
+    bool feedReady;
+    int photogate1State;
+    String event;
+    int retrievalTime;
+    int touchPadLeftBaseline;
+    int touchPadCenterBaseline;
+    int touchPadRightBaseline;
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
@@ -117,13 +149,6 @@ private:
     TwoWire I2C_2;
 
     // Device state variables
-    bool pelletReady;
-    bool feedReady;
-    int pg1Read;
-    String event;
-    int retrievalTime;
-    int touchPadLeftBaseline, touchPadCenterBaseline, touchPadRightBaseline;
-    int threshold;
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
 
@@ -133,20 +158,15 @@ private:
     bool isNewCompilation();
     void updateCompilationID();
 
-    // Replace individual trigger flags with a single atomic type
-    volatile uint8_t touchTriggers;
-    static constexpr uint8_t LEFT_TRIGGER = 0x01;
-    static constexpr uint8_t CENTER_TRIGGER = 0x02;
-    static constexpr uint8_t RIGHT_TRIGGER = 0x04;
-
     uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 
     friend class FED4_Display;
-    friend class FED4_Motor;
-    friend class FED4_Sensors;
-    friend class FED4_Power;
     friend class FED4_LED;
+    friend class FED4_Motor;
+    friend class FED4_Power;
+    friend class FED4_RTC;
     friend class FED4_SD;
+    friend class FED4_Sensors;
     friend class FED4_Vitals;
 };
 

@@ -7,7 +7,6 @@
 #define MOTOR_PIN_2 37 // A3 motor
 #define MOTOR_PIN_3 21 // A4 motor
 #define MOTOR_PIN_4 38 // A5 motor
-#define STEPS 512
 
 // User Buttons
 #define BUTTON_1 14 // User Button 1 - bottom
@@ -47,16 +46,11 @@
 #define USER_PIN_18 18
 
 // LED Control
-#define STATUS_RGB_LED 35
-#define FRONT_RGB_LED 36
-#define NUMPIXELS 1
+#define NEOPIXEL_PIN 35
+#define RGB_STRIP_PIN 36
 
 // ADC Configuration
 #define VBAT_ADC_CHANNEL ADC1_CHANNEL_6
-
-// Display Colors
-#define BLACK 0
-#define WHITE 1
 
 // GPIO Expander Pins
 #define EXP_PHOTOGATE_1 12 // Center

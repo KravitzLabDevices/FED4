@@ -22,8 +22,14 @@ static const bool debugRTC = false;
 
 void FED4::initializeRTC()
 {
-    if (debugRTC)
-        Serial.println("Initializing RTC...");
+    // First check if RTC hardware is working
+    if (!rtc.begin(&I2C_2))
+    {
+        Serial.println("Couldn't find RTC");
+        return; // Exit early if RTC hardware isn't found
+    }
+    Serial.println("RTC started.");
+
     preferences.begin("fed4", false); // Open preferences in RW mode
 
     if (debugRTC)

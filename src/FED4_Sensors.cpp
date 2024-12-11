@@ -1,47 +1,13 @@
 #include "FED4.h"
 #include "driver/touch_pad.h"
 
-static FED4 *FED4Instance = nullptr;
-
-// this is the accepted method for callbacks in ESP32, however
-// it is not consistent with the highest valued sensor, so we fix it below
-// !! we could rever to a single callback, but maybe this ends up working one day
-// void IRAM_ATTR FED4::onLeftWakeUp()
-// {
-//     if (FED4Instance)
-//     {
-//         FED4Instance->touchTriggers |= LEFT_TRIGGER;
-//         FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_LEFT); // Store touch value
-//     }
-// }
-
-// void IRAM_ATTR FED4::onCenterWakeUp()
-// {
-//     if (FED4Instance)
-//     {
-//         FED4Instance->touchTriggers |= CENTER_TRIGGER;
-//         FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_CENTER);
-//     }
-// }
-
-// void IRAM_ATTR FED4::onRightWakeUp()
-// {
-//     if (FED4Instance)
-//     {
-//         FED4Instance->touchTriggers |= RIGHT_TRIGGER;
-//         FED4Instance->lastTouchValue = touchRead(TOUCH_PAD_RIGHT);
-//     }
-// }
-
 void IRAM_ATTR FED4::onTouchWakeUp()
 {
     // empty
 }
 
-void FED4::touchPadInit()
+void FED4::initializeTouch()
 {
-    // FED4Instance = this;
-
     // Initialize touch pad peripheral
     touch_pad_init();
 
@@ -80,11 +46,13 @@ void FED4::calibrateTouchSensors()
 {
     Serial.println("Touch sensor calibration");
 
-    baselineTouchSensors();
+    touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
+    touchPadCenterBaseline = touchRead(TOUCH_PAD_CENTER);
+    touchPadRightBaseline = touchRead(TOUCH_PAD_RIGHT);
 
-    uint16_t left_threshold = touchPadLeftBaseline * threshold;
-    uint16_t center_threshold = touchPadCenterBaseline * threshold;
-    uint16_t right_threshold = touchPadRightBaseline * threshold;
+    uint16_t left_threshold = touchPadLeftBaseline * TOUCH_THRESHOLD;
+    uint16_t center_threshold = touchPadCenterBaseline * TOUCH_THRESHOLD;
+    uint16_t right_threshold = touchPadRightBaseline * TOUCH_THRESHOLD;
 
     Serial.printf("Thresholds - Left: %d, Center: %d, Right: %d\n",
                   left_threshold, center_threshold, right_threshold);
@@ -96,20 +64,6 @@ void FED4::calibrateTouchSensors()
     touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchWakeUp, left_threshold);
     touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchWakeUp, center_threshold);
     touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchWakeUp, right_threshold);
-}
-
-// !!let's consider if this is going to be useful or lead to more bugs mid-session
-void FED4::baselineTouchSensors()
-{
-    Serial.println("Re-baselining...");
-    touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
-    touchPadCenterBaseline = touchRead(TOUCH_PAD_CENTER);
-    touchPadRightBaseline = touchRead(TOUCH_PAD_RIGHT);
-    Serial.println("*****");
-    Serial.printf("Pin LEFT: %d\n", touchPadLeftBaseline);
-    Serial.printf("Pin CENTER: %d\n", touchPadCenterBaseline);
-    Serial.printf("Pin RIGHT: %d\n", touchPadRightBaseline);
-    Serial.println("*****");
 }
 
 void FED4::interpretTouch()
@@ -149,9 +103,6 @@ void FED4::interpretTouch()
         rightCount++;
         redPix();
     }
-
-    // Clear the touch triggers after processing
-    touchTriggers = 0;
 
     // Clear any pending touch pad interrupts
     touch_pad_clear_status();
