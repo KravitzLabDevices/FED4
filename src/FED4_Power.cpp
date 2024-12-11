@@ -15,9 +15,6 @@ void FED4::enterLightSleep()
 
     LDO2_OFF();
     
-    //Lex added this
-    digitalWrite (10, LOW);
-    
     noPix();
 
     // Enter sleep

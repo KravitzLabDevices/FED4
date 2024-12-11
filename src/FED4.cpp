@@ -80,6 +80,7 @@ void FED4::begin()
     monitorTouchSensors(); // !! loops if BUTTON_2 (center) is pressed
 
     initializeSD();
+    initializeMotor();
 
     // example usage of getMetaValue
     String subjectId = getMetaValue("subject", "id");
@@ -113,17 +114,31 @@ void FED4::feed()
             pelletPresent = checkForPellet();
             pelletReady = true;
             motorTurns ++;
-            Serial.print("Motor: ");
-            Serial.println(motorTurns);
-        }
 
+            //delay for 1s roughly each pellet position
+            if (motorTurns % 125 == 0){ 
+               delay (1000);
+            }
+         
+            //if stepper is called too many times without a dispense do a small movement to remove jam
+            if (motorTurns % 500 == 0){ 
+               minorJamClear();
+            }
+            
+            if (motorTurns % 1000 == 0){ 
+               vibrateJamClear();
+            }
+        }
+        motorTurns = 0;
+       
         if (pelletReady)
         {
             pelletCount++;
             pelletReady = false;
+           
         }
+       
         feedReady = false;
-
         releaseMotor();
         setEvent("PelletDrop");
 
@@ -144,10 +159,10 @@ void FED4::feed()
 
     updateDisplay();
 
-    // Rebaseline touch sensors every 5 touches
-    int touchesToCalibrate = 5;
-    if ((leftCount % touchesToCalibrate == 0 && leftCount > 1) || (rightCount % touchesToCalibrate == 0 && rightCount > 1) || (centerCount % touchesToCalibrate == 0 && centerCount > 1)) {
-      calibrateTouchSensors();
+    // Rebaseline touch sensors
+    reBaselineTouches = 10; 
+    if ((leftCount + rightCount + centerCount) % reBaselineTouches == 0 && (leftCount + rightCount + centerCount) > 5) {
+        calibrateTouchSensors();
     }
 }
 

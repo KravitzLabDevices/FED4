@@ -39,7 +39,7 @@ static const uint16_t DISPLAY_HEIGHT = 168;
 
 static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
-static const uint8_t MOTOR_SPEED = 36;
+static const uint8_t MOTOR_SPEED = 12;
 
 static const float TOUCH_THRESHOLD = 1.01; // percentage of baseline
 static const char *META_FILE = "/meta.json";
@@ -58,8 +58,13 @@ public:
 
     // Motor functionality (defined in FED4_Motor.cpp)
     void initializeMotor();
-    void vibrate();
     void releaseMotor();
+    void minorJamClear();
+    void majorJamClear();
+    void vibrateJamClear();
+    
+    // Haptic motor
+    void haptic();
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
     void initializeTouch();
@@ -140,6 +145,7 @@ public:
     int touchPadCenterBaseline;
     int touchPadRightBaseline;
     int motorTurns;
+    int reBaselineTouches;
 
 private:
     // Hardware objects

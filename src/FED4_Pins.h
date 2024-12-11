@@ -15,8 +15,8 @@
 
 // Touch Sensor Pins
 #define TOUCH_PAD_CENTER TOUCH_PAD_NUM5 // Touch pad - Center
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM6  // Touch pad - Right
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1   // Touch pad - Left
+#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM1  // Touch pad - Right
+#define TOUCH_PAD_LEFT TOUCH_PAD_NUM6   // Touch pad - Left
 
 // Audio Interface
 #define AUDIO_TRRS_1 4
