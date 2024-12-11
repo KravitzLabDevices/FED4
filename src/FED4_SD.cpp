@@ -91,4 +91,47 @@ void FED4::logData()
     }
 }
 
-// ... other functions ...
+/**
+ * Retrieves a value from the meta.json configuration file
+ *
+ * Example usage:
+ *   String program = getMetaValue("fed", "program");     // returns "Classic"
+ *   String mouseId = getMetaValue("subject", "id");      // returns "mouse001"
+ */
+String FED4::getMetaValue(const char *rootKey, const char *subKey)
+{
+    File metaFile = SD.open(META_FILE, FILE_READ);
+    if (!metaFile)
+    {
+        Serial.println("Failed to open meta.json");
+        return "";
+    }
+
+    const size_t capacity = JSON_OBJECT_SIZE(3) + 120; // Increased for nested objects
+    DynamicJsonDocument doc(capacity);
+
+    DeserializationError error = deserializeJson(doc, metaFile);
+    metaFile.close();
+
+    if (error)
+    {
+        Serial.print("deserializeJson() failed: ");
+        Serial.println(error.c_str());
+        return "";
+    }
+
+    // Get the root object first
+    JsonObject rootObj = doc[rootKey];
+    if (!rootObj.isNull())
+    {
+        // Then get the nested value
+        const char *value = rootObj[subKey];
+        if (value)
+        {
+            return String(value);
+        }
+    }
+
+    Serial.printf("Value not found for %s > %s\n", rootKey, subKey);
+    return "";
+}

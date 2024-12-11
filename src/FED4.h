@@ -22,6 +22,7 @@
 #include <driver/rtc_io.h>
 #include <driver/touch_pad.h>
 #include <Preferences.h>
+#include <ArduinoJson.h>
 
 // Pin Definitions
 #include "FED4_Pins.h"
@@ -41,6 +42,7 @@ static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 36;
 
 static const float TOUCH_THRESHOLD = 1.01; // percentage of baseline
+static const char *META_FILE = "/meta.json";
 
 // current verty public-oriented, consider pushing some to private
 class FED4
@@ -91,6 +93,7 @@ public:
     bool initializeSD();
     void createLogFile();
     void logData();
+    String getMetaValue(const char *rootKey, const char *subKey);
 
     // Public counters and timing
     int pelletCount;

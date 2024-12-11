@@ -26,6 +26,8 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, DISPLAY_WIDTH, DISPLAY_HEI
 /********************************************************
  * Initialization
  ********************************************************/
+// !! this could benefit from every init returning a bool, then
+// !! showing a status report or acting on critical errors
 void FED4::begin()
 {
     Serial.begin(115200);
@@ -74,6 +76,14 @@ void FED4::begin()
     monitorTouchSensors(); // !! loops if BUTTON_2 (center) is pressed
 
     initializeSD();
+    // example usage of getMetaValue
+    String subjectId = getMetaValue("subject", "id");
+    if (subjectId.length() > 0)
+    {
+        Serial.print("Subject ID: ");
+        Serial.println(subjectId);
+    }
+
     createLogFile();
     setEvent("Startup");
     logData();
@@ -81,6 +91,9 @@ void FED4::begin()
     initializeDisplay();
 }
 
+/********************************************************
+ * Core Functions
+ ********************************************************/
 void FED4::feed()
 {
     if (feedReady)
