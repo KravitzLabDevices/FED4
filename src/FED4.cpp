@@ -33,6 +33,7 @@ void FED4::begin()
 {
     Serial.begin(115200);
     initializeLDOs(); // turns on LDO2 and LDO3 by default
+    LDO3_OFF();       // only attached to User Pins connnector
 
     // Initialize primary I2C bus
     if (!Wire.begin())
@@ -113,31 +114,33 @@ void FED4::feed()
             delay(10);
             pelletPresent = checkForPellet();
             pelletReady = true;
-            motorTurns ++;
+            motorTurns++;
 
-            //delay for 1s roughly each pellet position
-            if (motorTurns % 125 == 0){ 
-               delay (1000);
+            // delay for 1s roughly each pellet position
+            if (motorTurns % 125 == 0)
+            {
+                delay(1000);
             }
-         
-            //if stepper is called too many times without a dispense do a small movement to remove jam
-            if (motorTurns % 500 == 0){ 
-               minorJamClear();
+
+            // if stepper is called too many times without a dispense do a small movement to remove jam
+            if (motorTurns % 500 == 0)
+            {
+                minorJamClear();
             }
-            
-            if (motorTurns % 1000 == 0){ 
-               vibrateJamClear();
+
+            if (motorTurns % 1000 == 0)
+            {
+                vibrateJamClear();
             }
         }
         motorTurns = 0;
-       
+
         if (pelletReady)
         {
             pelletCount++;
             pelletReady = false;
-           
         }
-       
+
         feedReady = false;
         releaseMotor();
         setEvent("PelletDrop");
@@ -160,8 +163,9 @@ void FED4::feed()
     updateDisplay();
 
     // Rebaseline touch sensors
-    reBaselineTouches = 10; 
-    if ((leftCount + rightCount + centerCount) % reBaselineTouches == 0 && (leftCount + rightCount + centerCount) > 5) {
+    reBaselineTouches = 10;
+    if ((leftCount + rightCount + centerCount) % reBaselineTouches == 0 && (leftCount + rightCount + centerCount) > 5)
+    {
         calibrateTouchSensors();
     }
 }

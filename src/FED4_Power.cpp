@@ -7,14 +7,14 @@ void FED4::enterLightSleep()
     noPix();
 
     // Safely disconnect SD card before power down
-    SPI.end(); // Release SPI pins
-    pinMode(SPI_SCK, INPUT);
-    pinMode(SPI_MOSI, INPUT);
-    pinMode(SPI_MISO, INPUT);
+    // SPI.end(); // Release SPI pins
+    // pinMode(SPI_SCK, INPUT);
+    // pinMode(SPI_MOSI, INPUT);
+    // pinMode(SPI_MISO, INPUT);
     pinMode(SD_CS, INPUT); // Release CS pin
 
     LDO2_OFF();
-    
+
     noPix();
 
     // Enter sleep
