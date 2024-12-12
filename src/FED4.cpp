@@ -78,11 +78,9 @@ void FED4::begin()
 
     initializeTouch();
     calibrateTouchSensors();
-    monitorTouchSensors(); // !! loops if BUTTON_2 (center) is pressed
-
-    initializeSD();
     initializeMotor();
 
+    initializeSD();
     // example usage of getMetaValue
     String subjectId = getMetaValue("subject", "id");
     if (subjectId.length() > 0)
@@ -96,6 +94,10 @@ void FED4::begin()
     logData();
 
     initializeDisplay();
+
+    // not working for some reason, just makes static
+    // initializeSpeaker();
+    // playStartup();
 }
 
 /********************************************************

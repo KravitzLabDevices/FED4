@@ -62,7 +62,7 @@ public:
     void minorJamClear();
     void majorJamClear();
     void vibrateJamClear();
-    
+
     // Haptic motor
     void haptic();
 
@@ -71,6 +71,7 @@ public:
     void calibrateTouchSensors();
     void interpretTouch();
     static void IRAM_ATTR onTouchWakeUp();
+    void monitorTouchSensors();
 
     // LED control (defined in FED4_LED.cpp)
     void initializeLEDs();
@@ -123,7 +124,11 @@ public:
     float getHumidity();
     bool isBatteryConnected();
 
-    void monitorTouchSensors();
+    // Speaker functions (defined in FED4_Speaker.cpp)
+    void initializeSpeaker();
+    void playTone(uint32_t frequency, uint32_t duration_ms);
+    void resetSpeaker();
+    void playStartup();
 
     void setEvent(const String &newEvent)
     {
@@ -135,7 +140,6 @@ public:
         return event;
     }
 
-    // Move these from private to public
     bool pelletReady;
     bool feedReady;
     int photogate1State;
