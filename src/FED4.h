@@ -41,7 +41,7 @@ static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 12;
 
-static const float TOUCH_THRESHOLD = 1.01; // percentage of baseline
+static const float TOUCH_THRESHOLD = 0.01; // percentage of baseline
 static const char *META_FILE = "/meta.json";
 
 // current verty public-oriented, consider pushing some to private
