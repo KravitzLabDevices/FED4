@@ -159,6 +159,7 @@ void FED4::feed()
         }
         redPix();
         setEvent("PelletTaken");
+        logData();
         retrievalTime = 0;
     }
 

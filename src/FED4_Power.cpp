@@ -6,11 +6,7 @@ void FED4::enterLightSleep()
     Serial.println("Powering down...");
     noPix();
 
-    // Safely disconnect SD card before power down
-    // SPI.end(); // Release SPI pins
-    // pinMode(SPI_SCK, INPUT);
-    // pinMode(SPI_MOSI, INPUT);
-    // pinMode(SPI_MISO, INPUT);
+    //if this is left connected, SD card does not shut down and can burn 30-40mA of power during sleep
     pinMode(SD_CS, INPUT); // Release CS pin
 
     LDO2_OFF();
@@ -48,7 +44,7 @@ void FED4::initializeLDOs()
     pinMode(LDO2_ENABLE, OUTPUT);
     mcp.pinMode(EXP_LDO3, OUTPUT);
     LDO2_ON();
-    LDO3_ON();
+//     LDO3_ON();  //LDO3 is used to control user settable 3V output
 }
 
 void FED4::LDO2_ON()

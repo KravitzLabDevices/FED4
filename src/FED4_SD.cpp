@@ -40,8 +40,9 @@ void FED4::createLogFile()
 {
     // Create a new file with a unique name based on date/time
     DateTime now = rtc.now();
-    char filename[20];
     sprintf(filename, "/%04d%02d%02d.CSV", now.year(), now.month(), now.day());
+    Serial.print ("New file created: ");
+    Serial.println (filename);
 
     // Check if file exists, if not create it and write headers
     if (!SD.exists(filename))
@@ -59,13 +60,18 @@ void FED4::createLogFile()
 
 void FED4::logData()
 {
+    greenPix();
+    
+    Serial.println ("Getting time");
     DateTime now = rtc.now();
-    char filename[20];
-    sprintf(filename, "/%04d%02d%02d.CSV", now.year(), now.month(), now.day());
+    
+    Serial.print ("Attempting to open file: ");
+    Serial.print (filename);
+    File dataFile = SD.open(filename, FILE_WRITE);
 
-    File dataFile = SD.open(filename, FILE_APPEND);
     if (dataFile)
     {
+    Serial.println (" ... opened");
         // DateTime, Event
         dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%s,",
                         now.year(), now.month(), now.day(),
@@ -89,6 +95,11 @@ void FED4::logData()
 
         dataFile.close();
     }
+    
+    else {
+    Serial.println(" ... Warning: SD file not opened.");
+    }
+    noPix();
 }
 
 /**
