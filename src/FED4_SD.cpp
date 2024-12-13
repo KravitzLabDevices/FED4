@@ -41,6 +41,7 @@ void FED4::createLogFile()
     // Create a new file with a unique name based on date/time
     DateTime now = rtc.now();
     sprintf(filename, "/%04d%02d%02d.CSV", now.year(), now.month(), now.day());
+    //filename = "/datafile.csv"
     Serial.print("New file created: ");
     Serial.println(filename);
 
@@ -67,13 +68,7 @@ void FED4::logData()
 
     Serial.print("Attempting to open file: ");
     Serial.print(filename);
-    //File dataFile = SD.open("/" + filename, FILE_WRITE);
-
-    char fullPath[22]; // Adjust size as needed
-    snprintf(fullPath, sizeof(fullPath), "/%s", filename);
-    File dataFile = SD.open(fullPath, FILE_WRITE);
-
-    //File dataFile = SD.open(String("/") + filename, FILE_WRITE);
+    File dataFile = SD.open("/" + filename, FILE_WRITE);
 
     if (dataFile)
     {
