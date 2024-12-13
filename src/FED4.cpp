@@ -146,7 +146,8 @@ void FED4::feed()
         feedReady = false;
         releaseMotor();
         setEvent("PelletDrop");
-
+//        logData();
+ 
         // Monitor retrieval
         unsigned long pelletDrop = millis();
         while (!pelletPresent)
@@ -159,7 +160,7 @@ void FED4::feed()
         }
         redPix();
         setEvent("PelletTaken");
-        logData();
+//        logData();
         retrievalTime = 0;
     }
 

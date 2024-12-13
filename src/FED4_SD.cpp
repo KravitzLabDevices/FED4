@@ -67,7 +67,13 @@ void FED4::logData()
 
     Serial.print("Attempting to open file: ");
     Serial.print(filename);
-    File dataFile = SD.open("/" + filename, FILE_WRITE);
+    //File dataFile = SD.open("/" + filename, FILE_WRITE);
+
+    char fullPath[22]; // Adjust size as needed
+    snprintf(fullPath, sizeof(fullPath), "/%s", filename);
+    File dataFile = SD.open(fullPath, FILE_WRITE);
+
+    //File dataFile = SD.open(String("/") + filename, FILE_WRITE);
 
     if (dataFile)
     {
