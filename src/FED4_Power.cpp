@@ -18,13 +18,7 @@ void FED4::enterLightSleep()
     delay(50);
 
     esp_light_sleep_start();
-    digitalWrite(USER_PIN_18, HIGH); // pulse ON
-
-    // Clear any pending touch status
-    touch_pad_clear_status();
-
-    // Now interpret the touch that woke us
-    interpretTouch();
+//    digitalWrite(USER_PIN_18, HIGH); // pulse ON
 
     Serial.println("Woke up!");
     LDO2_ON();
@@ -33,10 +27,16 @@ void FED4::enterLightSleep()
     // Reinitialize SD card
     initializeSD(); // Re-initialize SPI and SD card
 
+    // Clear any pending touch status
+    touch_pad_clear_status();
+
+    // Now interpret the touch that woke us
+    interpretTouch();
+
     purplePix();
     serialStatusReport();
 
-    digitalWrite(USER_PIN_18, LOW); // pulse OFF
+//    digitalWrite(USER_PIN_18, LOW); // pulse OFF
 }
 
 void FED4::initializeLDOs()

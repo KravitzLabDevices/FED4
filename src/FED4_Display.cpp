@@ -74,8 +74,6 @@ void FED4::updateDisplay()
     display.print(wakeCount);
 
     display.refresh();
-
-    serialStatusReport();
 }
 
 void FED4::serialStatusReport()
