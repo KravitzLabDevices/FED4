@@ -2,78 +2,78 @@
 
 void FED4::initializeDisplay()
 {
-    display.begin();
+//    display.begin();
 }
 
 void FED4::updateDisplay()
 {
-    // Initialize display
-    display.refresh();
-    display.setRotation(2);
-    display.setTextColor(DISPLAY_BLACK);
-    display.clearDisplay();
-
-    // Display title
-    display.setTextSize(3);
-    display.setCursor(12, 20);
-    display.print("FED4");
-    display.refresh();
-
-    // Switch to smaller text for details
-    display.setTextSize(1);
-
-    // Display counts
-    display.setCursor(12, 56);
-    display.print("Pellets: ");
-    display.print(pelletCount);
-    display.setCursor(12, 72);
-    display.print("L:");
-    display.print(leftCount);
-    display.print("   C:");
-    display.print(centerCount);
-    display.print("   R:");
-    display.print(rightCount);
-
-    // Display environmental data
-    display.setCursor(12, 90);
-    display.print("Temp: ");
-    display.print(getTemperature(), 1);
-    display.print("C");
-    display.print(" Hum: ");
-    display.print(getHumidity(), 1);
-    display.println("%");
-
-    // Display battery status
-    float cellVoltage = getBatteryVoltage();
-    float cellPercent = getBatteryPercentage();
-    display.setCursor(12, 122);
-    display.print("Fuel: ");
-    display.print(cellVoltage, 1);
-    display.print("V, ");
-    display.print(cellPercent, 1);
-    display.println("%");
-
-    // Display date/time
-    DateTime now = rtc.now();
-    display.setCursor(12, 140);
-    display.print(now.month());
-    display.print("/");
-    display.print(now.day());
-    display.print("/");
-    display.print(now.year());
-    display.print(" ");
-    display.print(now.hour());
-    display.print(":");
-    if (now.minute() < 10)
-        display.print('0');
-    display.print(now.minute());
-
-    // Display wake count
-    display.setCursor(12, 156);
-    display.print("Unclear:");
-    display.print(wakeCount);
-
-    display.refresh();
+//     // Initialize display
+//     display.refresh();
+//     display.setRotation(2);
+//     display.setTextColor(DISPLAY_BLACK);
+//     display.clearDisplay();
+// 
+//     // Display title
+//     display.setTextSize(3);
+//     display.setCursor(12, 20);
+//     display.print("FED4");
+//     display.refresh();
+// 
+//     // Switch to smaller text for details
+//     display.setTextSize(1);
+// 
+//     // Display counts
+//     display.setCursor(12, 56);
+//     display.print("Pellets: ");
+//     display.print(pelletCount);
+//     display.setCursor(12, 72);
+//     display.print("L:");
+//     display.print(leftCount);
+//     display.print("   C:");
+//     display.print(centerCount);
+//     display.print("   R:");
+//     display.print(rightCount);
+// 
+//     // Display environmental data
+//     display.setCursor(12, 90);
+//     display.print("Temp: ");
+//     display.print(getTemperature(), 1);
+//     display.print("C");
+//     display.print(" Hum: ");
+//     display.print(getHumidity(), 1);
+//     display.println("%");
+// 
+//     // Display battery status
+//     float cellVoltage = getBatteryVoltage();
+//     float cellPercent = getBatteryPercentage();
+//     display.setCursor(12, 122);
+//     display.print("Fuel: ");
+//     display.print(cellVoltage, 1);
+//     display.print("V, ");
+//     display.print(cellPercent, 1);
+//     display.println("%");
+// 
+//     // Display date/time
+//     DateTime now = rtc.now();
+//     display.setCursor(12, 140);
+//     display.print(now.month());
+//     display.print("/");
+//     display.print(now.day());
+//     display.print("/");
+//     display.print(now.year());
+//     display.print(" ");
+//     display.print(now.hour());
+//     display.print(":");
+//     if (now.minute() < 10)
+//         display.print('0');
+//     display.print(now.minute());
+// 
+//     // Display wake count
+//     display.setCursor(12, 156);
+//     display.print("Unclear:");
+//     display.print(wakeCount);
+// 
+//     display.refresh();
 }
 
 void FED4::serialStatusReport()

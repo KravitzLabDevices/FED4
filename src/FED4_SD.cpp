@@ -6,6 +6,7 @@
 
 bool FED4::initializeSD()
 {
+    initializeLDOs();
     // Initialize SPI for SD card
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
 

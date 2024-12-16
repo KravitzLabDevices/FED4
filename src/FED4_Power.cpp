@@ -4,14 +4,19 @@ void FED4::enterLightSleep()
 {
     pinMode(SD_CS, INPUT); // Release CS pin to high-impedance state
     noPix();
+//     LDO2_OFF();
 
     // Enter sleep
     Serial.println("Entering light sleep...");
     Serial.flush();
 
+
     esp_light_sleep_start();
 
     Serial.println("Woke up!");
+    
+//     LDO2_ON();
+    initializeSD();
 
     interpretTouch();
     purplePix();

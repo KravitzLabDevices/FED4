@@ -94,6 +94,8 @@ void FED4::begin()
         Serial.println(subjectId);
     }
 
+    initializeDisplay();
+
     createLogFile();
     setEvent("Startup");
     logData();
@@ -102,7 +104,7 @@ void FED4::begin()
     setEvent("Test2");
     logData();
 
-    initializeDisplay();
+//    initializeDisplay();
 
     // not working for some reason, just makes static
     // initializeSpeaker();
