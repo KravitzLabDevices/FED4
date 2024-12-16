@@ -60,46 +60,73 @@ void FED4::createLogFile()
 
 void FED4::logData()
 {
-    greenPix();
+    File dataFile;
 
-    Serial.println("Getting time");
-    DateTime now = rtc.now();
-
-    Serial.print("Attempting to open file: ");
-    Serial.print(filename);
-    File dataFile = SD.open(filename, FILE_WRITE);
-
-    if (dataFile)
+    try
     {
-        Serial.println(" ... opened");
-        // DateTime, Event
+        greenPix();
+
+        DateTime now = rtc.now();
+
+        Serial.print("Attempting to open file: ");
+        Serial.println(filename);
+
+        // Add debug prints for SD card status
+        Serial.print("SD Card Type: ");
+        Serial.println(SD.cardType());
+
+        if (!SD.cardType())
+        {
+            Serial.println("SD card not detected. Reinitializing...");
+            if (initializeSD())
+            {
+                Serial.println("SD reinitialization successful");
+            }
+            else
+            {
+                Serial.println("SD reinitialization failed");
+                return;
+            }
+        }
+
+        dataFile = SD.open(filename, FILE_APPEND);
+        if (!dataFile)
+        {
+            Serial.println("Failed to open file");
+            return;
+        }
+
+        Serial.println("Writing data");
+
+        // Write data
         dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%s,",
                         now.year(), now.month(), now.day(),
                         now.hour(), now.minute(), now.second(),
                         event.c_str());
 
-        // Counters
         dataFile.printf("%d,%d,%d,%d,%d,",
                         pelletCount, leftCount, rightCount, centerCount, wakeCount);
 
-        // Battery and Environmental
         dataFile.printf("%.2f,%.1f,",
                         getBatteryVoltage(),
                         getTemperature());
 
-        // Memory stats
         dataFile.printf("%d,%d,%d\n",
                         ESP.getFreeHeap(),
                         ESP.getHeapSize(),
                         ESP.getMinFreeHeap());
+    }
+    catch (...)
+    {
+        Serial.println("Exception in logData()");
+    }
 
+    // Always close the file, even if there was an error
+    if (dataFile)
+    {
         dataFile.close();
     }
 
-    else
-    {
-        Serial.println(" ... Warning: SD file not opened.");
-    }
     noPix();
 }
 

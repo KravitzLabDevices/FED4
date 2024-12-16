@@ -107,6 +107,9 @@ public:
     int leftCount;
     int rightCount;
     int wakeCount;
+    bool leftTouch;
+    bool centerTouch;
+    bool rightTouch;
     unsigned long waketime;
 
     // RTC functions

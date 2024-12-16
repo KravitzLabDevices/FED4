@@ -22,6 +22,11 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, DISPLAY_WIDTH, DISPLAY_HEI
     rightCount = 0;
     wakeCount = 0;
     motorTurns = 0;
+
+    // Initialize touch states
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
 }
 
 /********************************************************
@@ -92,6 +97,10 @@ void FED4::begin()
     createLogFile();
     setEvent("Startup");
     logData();
+    setEvent("Test1");
+    logData();
+    setEvent("Test2");
+    logData();
 
     initializeDisplay();
 
@@ -146,8 +155,8 @@ void FED4::feed()
         feedReady = false;
         releaseMotor();
         setEvent("PelletDrop");
-//        logData();
- 
+        //        logData();
+
         // Monitor retrieval
         unsigned long pelletDrop = millis();
         while (!pelletPresent)
@@ -160,8 +169,13 @@ void FED4::feed()
         }
         redPix();
         setEvent("PelletTaken");
-//        logData();
+        //        logData();
         retrievalTime = 0;
+
+        // Reset touch states after handling the feed
+        leftTouch = false;
+        centerTouch = false;
+        rightTouch = false;
     }
 
     updateDisplay();
