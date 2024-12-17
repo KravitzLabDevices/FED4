@@ -1,79 +1,98 @@
 #include "FED4.h"
 
-void FED4::initializeDisplay()
-{
-    display.begin();
-}
+#define SHARPMEM_BIT_WRITECMD (0x01) // 0x80 if writing, 0x00 if reading
+#define SHARPMEM_BIT_VCOM (0x02)     // ROM_IN pin state
+#define SHARPMEM_BIT_CLEAR (0x04)    // CL pin state
+#define SHARPMEM_SPI_FREQ (1000000)  // 1 MHz SPI clock frequency
+
+#ifndef _swap_int16_t
+#define _swap_int16_t(a, b) \
+    {                       \
+        int16_t t = a;      \
+        a = b;              \
+        b = t;              \
+    }
+#endif
+
+// Add these lookup tables at the top of the file
+static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
+                             clr[] = {(uint8_t)~1, (uint8_t)~2, (uint8_t)~4,
+                                      (uint8_t)~8, (uint8_t)~16, (uint8_t)~32,
+                                      (uint8_t)~64, (uint8_t)~128};
 
 void FED4::updateDisplay()
 {
-    // Initialize display
-    display.refresh();
-    display.setRotation(2);
-    display.setTextColor(DISPLAY_BLACK);
-    display.clearDisplay();
+    // Step 1: Initial setup
+    clearDisplay();
+    setRotation(2);
+    setTextColor(DISPLAY_BLACK);
 
-    // Display title
-    display.setTextSize(3);
-    display.setCursor(12, 20);
-    display.print("FED4");
-    display.refresh();
+    // Step 2: Title
+    setTextSize(3);
+    setCursor(12, 20);
+    print("FED4");
+    refresh();
 
-    // Switch to smaller text for details
-    display.setTextSize(1);
+    // Step 3: Status information
+    setTextSize(1);
 
-    // Display counts
-    display.setCursor(12, 56);
-    display.print("Pellets: ");
-    display.print(pelletCount);
-    display.setCursor(12, 72);
-    display.print("L:");
-    display.print(leftCount);
-    display.print("   C:");
-    display.print(centerCount);
-    display.print("   R:");
-    display.print(rightCount);
+    // Counts
+    setCursor(12, 56);
+    print("Pellets: ");
+    print(pelletCount);
+    refresh();
 
-    // Display environmental data
-    display.setCursor(12, 90);
-    display.print("Temp: ");
-    display.print(getTemperature(), 1);
-    display.print("C");
-    display.print(" Hum: ");
-    display.print(getHumidity(), 1);
-    display.println("%");
+    setCursor(12, 72);
+    print("L:");
+    print(leftCount);
+    print("   C:");
+    print(centerCount);
+    print("   R:");
+    print(rightCount);
+    refresh();
 
-    // Display battery status
+    // Environmental
+    setCursor(12, 90);
+    print("Temp: ");
+    print(getTemperature(), 1);
+    print("C");
+    print(" Hum: ");
+    print(getHumidity(), 1);
+    println("%");
+    refresh();
+
+    // Battery
     float cellVoltage = getBatteryVoltage();
     float cellPercent = getBatteryPercentage();
-    display.setCursor(12, 122);
-    display.print("Fuel: ");
-    display.print(cellVoltage, 1);
-    display.print("V, ");
-    display.print(cellPercent, 1);
-    display.println("%");
+    setCursor(12, 122);
+    print("Fuel: ");
+    print(cellVoltage, 1);
+    print("V, ");
+    print(cellPercent, 1);
+    println("%");
+    refresh();
 
-    // Display date/time
-    DateTime now = rtc.now();
-    display.setCursor(12, 140);
-    display.print(now.month());
-    display.print("/");
-    display.print(now.day());
-    display.print("/");
-    display.print(now.year());
-    display.print(" ");
-    display.print(now.hour());
-    display.print(":");
-    if (now.minute() < 10)
-        display.print('0');
-    display.print(now.minute());
+    // Time
+    DateTime currentTime = now();
+    setCursor(12, 140);
+    print(currentTime.month());
+    print("/");
+    print(currentTime.day());
+    print("/");
+    print(currentTime.year());
+    print(" ");
+    print(currentTime.hour());
+    print(":");
+    if (currentTime.minute() < 10)
+        print('0');
+    print(currentTime.minute());
+    refresh();
 
-    // Display wake count
-    display.setCursor(12, 156);
-    display.print("Unclear:");
-    display.print(wakeCount);
-
-    display.refresh();
+    // Wake count
+    setCursor(12, 156);
+    print("Unclear:");
+    print(wakeCount);
+    refresh();
 }
 
 void FED4::serialStatusReport()
@@ -139,4 +158,159 @@ void FED4::serialStatusReport()
     Serial.println(F(" bytes"));
 
     Serial.println(F("\n================================================\n"));
+}
+
+void FED4::initializeDisplay()
+{
+    // SPI.begin() is already called in begin()
+
+    // Setup control pin
+    pinMode(DISPLAY_CS, OUTPUT);
+    digitalWrite(DISPLAY_CS, LOW); // Start deselected
+
+    // Initialize the display buffer
+    if (displayBuffer)
+    {
+        free(displayBuffer);
+    }
+    uint16_t bufferSize = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
+    displayBuffer = (uint8_t *)malloc(bufferSize);
+    if (!displayBuffer)
+    {
+        Serial.println("Failed to allocate display buffer");
+        return;
+    }
+    memset(displayBuffer, 0xff, bufferSize);
+
+    vcom = false;
+
+    // Initialize display with a clear command
+    digitalWrite(DISPLAY_CS, LOW); // Start deselected
+    SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+    digitalWrite(DISPLAY_CS, HIGH); // Select display
+
+    // Send clear command
+    uint8_t cmd = SHARPMEM_BIT_WRITECMD | SHARPMEM_BIT_CLEAR;
+    if (vcom)
+        cmd |= SHARPMEM_BIT_VCOM;
+    vcom = !vcom;
+
+    SPI.transfer(cmd);
+    SPI.transfer(0x00); // Required trailing byte
+
+    digitalWrite(DISPLAY_CS, LOW); // Deselect display
+    SPI.endTransaction();
+
+    delay(10); // Give display time to process clear command
+
+    // Set initial display state
+    setRotation(2);
+    refresh(); // Initial refresh to ensure display is ready
+}
+
+void FED4::sendDisplayCommand(uint8_t cmd)
+{
+    digitalWrite(DISPLAY_CS, LOW); // Start deselected
+    SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+    digitalWrite(DISPLAY_CS, HIGH); // Select display (active HIGH)
+
+    // Toggle VCOM
+    cmd |= SHARPMEM_BIT_WRITECMD;
+    if (vcom)
+    {
+        cmd |= SHARPMEM_BIT_VCOM;
+    }
+    vcom = !vcom;
+
+    SPI.transfer(cmd);
+
+    digitalWrite(DISPLAY_CS, LOW); // Deselect display
+    SPI.endTransaction();
+}
+
+void FED4::clearDisplay()
+{
+    sendDisplayCommand(SHARPMEM_BIT_CLEAR);
+    delay(1); // Wait for the clear to complete
+    memset(displayBuffer, 0xff, (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8);
+}
+
+void FED4::refresh()
+{
+    uint16_t i, currentline;
+
+    digitalWrite(DISPLAY_CS, LOW);
+    SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+    digitalWrite(DISPLAY_CS, HIGH);
+
+    uint8_t cmd = SHARPMEM_BIT_WRITECMD;
+    if (vcom)
+    {
+        cmd |= SHARPMEM_BIT_VCOM;
+    }
+    vcom = !vcom;
+
+    SPI.transfer(cmd);
+
+    uint8_t bytes_per_line = DISPLAY_WIDTH / 8;
+    uint16_t totalbytes = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
+
+    // Send all lines
+    for (i = 0; i < totalbytes; i += bytes_per_line)
+    {
+        // Prepare the line buffer
+        uint8_t line[bytes_per_line + 2];
+
+        // Send address byte (line number)
+        currentline = ((i + 1) / (DISPLAY_WIDTH / 8)) + 1;
+        line[0] = currentline;
+
+        // Copy display data for this line
+        memcpy(line + 1, displayBuffer + i, bytes_per_line);
+
+        // Add end of line marker
+        line[bytes_per_line + 1] = 0x00;
+
+        // Send the entire line at once
+        for (uint8_t j = 0; j < bytes_per_line + 2; j++)
+        {
+            SPI.transfer(line[j]);
+        }
+    }
+
+    SPI.transfer(0x00);
+
+    digitalWrite(DISPLAY_CS, LOW);
+    SPI.endTransaction();
+}
+
+void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)
+{
+    if ((x < 0) || (x >= DISPLAY_WIDTH) || (y < 0) || (y >= DISPLAY_HEIGHT))
+        return;
+
+    switch (rotation)
+    {
+    case 1:
+        _swap_int16_t(x, y);
+        x = DISPLAY_WIDTH - 1 - x;
+        break;
+    case 2:
+        x = DISPLAY_WIDTH - 1 - x;
+        y = DISPLAY_HEIGHT - 1 - y;
+        break;
+    case 3:
+        _swap_int16_t(x, y);
+        y = DISPLAY_HEIGHT - 1 - y;
+        break;
+    }
+
+    if (color)
+    {
+        displayBuffer[(y * DISPLAY_WIDTH + x) / 8] |= pgm_read_byte(&set[x & 7]);
+    }
+    else
+    {
+        displayBuffer[(y * DISPLAY_WIDTH + x) / 8] &= pgm_read_byte(&clr[x & 7]);
+    }
 }

@@ -6,43 +6,32 @@
 
 bool FED4::initializeSD()
 {
-    // Initialize SPI for SD card
-    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
+    SPI.setBitOrder(MSBFIRST);
 
     // Try different SD card initialization speeds
     for (uint8_t i = 0; i < 3; i++)
     {
+        digitalWrite(SD_CS, LOW); // Select SD card (active LOW)
         if (SD.begin(SD_CS, SPI, 4000000))
-        { // Try 4MHz first
+        {
+            digitalWrite(SD_CS, HIGH); // Deselect SD card
             Serial.println("SD card initialized successfully");
             return true;
         }
-        else if (SD.begin(SD_CS, SPI, 1000000))
-        { // Try slower 1MHz
-            Serial.println("SD card initialized at lower speed");
-            return true;
-        }
-        else
-        {
-            Serial.println("SD initialization attempt " + String(i + 1) + " failed");
-            delay(100);
-        }
-    }
-
-    if (!SD.cardType())
-    {
-        Serial.println("No SD card attached");
+        digitalWrite(SD_CS, HIGH); // Ensure SD is deselected on failure
+        delay(100);
     }
     return false;
 }
 
 void FED4::createLogFile()
 {
-    // Create a new file with a unique name based on date/time
     DateTime now = rtc.now();
     sprintf(filename, "/%04d%02d%02d.CSV", now.year(), now.month(), now.day());
-    Serial.print("New file created: ");
-    Serial.println(filename);
+
+    // Just change bit order for SD operations
+    SPI.setBitOrder(MSBFIRST);
+    digitalWrite(SD_CS, LOW);
 
     // Check if file exists, if not create it and write headers
     if (!SD.exists(filename))
@@ -56,77 +45,55 @@ void FED4::createLogFile()
             Serial.println("Created new data file with headers");
         }
     }
+
+    Serial.print("New file created: ");
+    Serial.println(filename);
+
+    digitalWrite(SD_CS, HIGH); // Deselect after operations
 }
 
 void FED4::logData()
 {
     File dataFile;
+    SPI.setBitOrder(MSBFIRST);
+    greenPix();
 
-    try
+    digitalWrite(SD_CS, LOW); // Select SD card for operation
+    DateTime now = rtc.now();
+
+    // Open file for writing
+    dataFile = SD.open(filename, FILE_APPEND);
+    if (!dataFile)
     {
-        greenPix();
-
-        DateTime now = rtc.now();
-
-        Serial.print("Attempting to open file: ");
-        Serial.println(filename);
-
-        // Add debug prints for SD card status
-        Serial.print("SD Card Type: ");
-        Serial.println(SD.cardType());
-
-        if (!SD.cardType())
-        {
-            Serial.println("SD card not detected. Reinitializing...");
-            if (initializeSD())
-            {
-                Serial.println("SD reinitialization successful");
-            }
-            else
-            {
-                Serial.println("SD reinitialization failed");
-                return;
-            }
-        }
-
-        dataFile = SD.open(filename, FILE_APPEND);
-        if (!dataFile)
-        {
-            Serial.println("Failed to open file");
-            return;
-        }
-
-        Serial.println("Writing data");
-
-        // Write data
-        dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%s,",
-                        now.year(), now.month(), now.day(),
-                        now.hour(), now.minute(), now.second(),
-                        event.c_str());
-
-        dataFile.printf("%d,%d,%d,%d,%d,",
-                        pelletCount, leftCount, rightCount, centerCount, wakeCount);
-
-        dataFile.printf("%.2f,%.1f,",
-                        getBatteryVoltage(),
-                        getTemperature());
-
-        dataFile.printf("%d,%d,%d\n",
-                        ESP.getFreeHeap(),
-                        ESP.getHeapSize(),
-                        ESP.getMinFreeHeap());
-    }
-    catch (...)
-    {
-        Serial.println("Exception in logData()");
+        digitalWrite(SD_CS, HIGH);
+        SPI.endTransaction();
+        Serial.println("Failed to open file");
+        noPix();
+        return;
     }
 
-    // Always close the file, even if there was an error
-    if (dataFile)
-    {
-        dataFile.close();
-    }
+    // Write all data
+    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%s,",
+                    now.year(), now.month(), now.day(),
+                    now.hour(), now.minute(), now.second(),
+                    event.c_str());
 
+    dataFile.printf("%d,%d,%d,%d,%d,",
+                    pelletCount, leftCount, rightCount, centerCount, wakeCount);
+
+    dataFile.printf("%.2f,%.1f,",
+                    getBatteryVoltage(),
+                    getTemperature());
+
+    dataFile.printf("%d,%d,%d\n",
+                    ESP.getFreeHeap(),
+                    ESP.getHeapSize(),
+                    ESP.getMinFreeHeap());
+
+    // Clean up
+    dataFile.close();
+    digitalWrite(SD_CS, HIGH);
+    SPI.endTransaction();
     noPix();
 }
 
@@ -139,9 +106,14 @@ void FED4::logData()
  */
 String FED4::getMetaValue(const char *rootKey, const char *subKey)
 {
+    SPI.setBitOrder(MSBFIRST);
+    digitalWrite(SD_CS, LOW); // Select SD card for operation
+
     File metaFile = SD.open(META_FILE, FILE_READ);
     if (!metaFile)
     {
+        digitalWrite(SD_CS, HIGH); // Deselect on error
+        SPI.endTransaction();
         Serial.println("Failed to open meta.json");
         return "";
     }
@@ -151,6 +123,9 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
 
     DeserializationError error = deserializeJson(doc, metaFile);
     metaFile.close();
+
+    digitalWrite(SD_CS, HIGH); // Deselect after operations
+    SPI.endTransaction();
 
     if (error)
     {

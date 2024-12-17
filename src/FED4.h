@@ -8,7 +8,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SharpMem.h>
+// #include <Adafruit_SharpMem.h>
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
 #include "RTClib.h"
@@ -45,10 +45,10 @@ static const float TOUCH_THRESHOLD = 0.01; // percentage of baseline change to t
 static const char *META_FILE = "/meta.json";
 
 // current verty public-oriented, consider pushing some to private
-class FED4
+class FED4 : public Adafruit_GFX
 {
 public:
-    // Constructor
+    // Constructor declaration only
     FED4();
 
     // Initialization
@@ -155,13 +155,19 @@ public:
     int reBaselineTouches;
     char filename[20];
 
+    void clearDisplay();
+    void refresh();
+    void drawPixel(int16_t x, int16_t y, uint16_t color);
+
+    void drawChar(int16_t x, int16_t y, unsigned char c, uint8_t size = 1);
+    void drawText(const char *text, uint8_t size = 1);
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
     Adafruit_MAX17048 maxlipo;
     RTC_DS3231 rtc;
     Adafruit_AHTX0 aht;
-    Adafruit_SharpMem display;
     Adafruit_NeoPixel pixels;
     Stepper stepper;
     TwoWire I2C_2;
@@ -178,6 +184,10 @@ private:
 
     uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 
+    uint8_t *displayBuffer = nullptr;
+    bool vcom;
+    void sendDisplayCommand(uint8_t cmd);
+
     friend class FED4_Display;
     friend class FED4_LED;
     friend class FED4_Motor;
@@ -186,6 +196,14 @@ private:
     friend class FED4_SD;
     friend class FED4_Sensors;
     friend class FED4_Vitals;
+};
+
+// Standard ASCII 5x7 font
+static const unsigned char font[] PROGMEM = {
+    0x00, 0x00, 0x00, 0x00, 0x00, // space
+    0x00, 0x00, 0x5F, 0x00, 0x00, // !
+    0x00, 0x07, 0x00, 0x07, 0x00, // "
+    // ... rest of font data ...
 };
 
 #endif

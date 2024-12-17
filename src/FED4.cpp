@@ -7,13 +7,15 @@
 /********************************************************
  * Constructor
  ********************************************************/
-FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, DISPLAY_WIDTH, DISPLAY_HEIGHT),
+FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
                pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
                stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
     pelletReady = true;
     feedReady = false;
+    displayBuffer = nullptr; // Initialize our display buffer pointer
+    vcom = false;            // Initialize VCOM state
 
     // Initialize counters
     pelletCount = 0;
@@ -37,6 +39,13 @@ FED4::FED4() : display(SPI_SCK, SPI_MOSI, DISPLAY_CS, DISPLAY_WIDTH, DISPLAY_HEI
 void FED4::begin()
 {
     Serial.begin(115200);
+
+    // Initialize CS pins to their inactive states
+    pinMode(SD_CS, OUTPUT);
+    pinMode(DISPLAY_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);     // SD inactive = HIGH
+    digitalWrite(DISPLAY_CS, LOW); // Display inactive = LOW
+
     initializeLDOs(); // turns on LDO2 and LDO3 by default
     LDO3_OFF();       // only attached to User Pins connnector
 
@@ -85,24 +94,25 @@ void FED4::begin()
     calibrateTouchSensors();
     initializeMotor();
 
-    initializeSD();
+    // Initialize SPI once for all devices
+    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+
+    // Initialize SPI for SD card
+    initializeSD();      // Initialize SD after display is ready
+    initializeDisplay(); // This will initialize our native display
+    updateDisplay();     // Update the display with initial content
+
     // example usage of getMetaValue
-    String subjectId = getMetaValue("subject", "id");
-    if (subjectId.length() > 0)
-    {
-        Serial.print("Subject ID: ");
-        Serial.println(subjectId);
-    }
+    // String subjectId = getMetaValue("subject", "id");
+    // if (subjectId.length() > 0)
+    // {
+    //     Serial.print("Subject ID: ");
+    //     Serial.println(subjectId);
+    // }
 
     createLogFile();
     setEvent("Startup");
     logData();
-    setEvent("Test1");
-    logData();
-    setEvent("Test2");
-    logData();
-
-    initializeDisplay();
 
     // not working for some reason, just makes static
     // initializeSpeaker();
