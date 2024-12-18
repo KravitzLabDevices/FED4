@@ -162,11 +162,9 @@ void FED4::serialStatusReport()
 
 void FED4::initializeDisplay()
 {
-    // SPI.begin() is already called in begin()
-
-    // Setup control pin
     pinMode(DISPLAY_CS, OUTPUT);
-    digitalWrite(DISPLAY_CS, LOW); // Start deselected
+    digitalWrite(DISPLAY_CS, LOW); // Display inactive = LOW
+    SPI.setBitOrder(LSBFIRST);
 
     // Initialize the display buffer
     if (displayBuffer)
@@ -185,8 +183,7 @@ void FED4::initializeDisplay()
     vcom = false;
 
     // Initialize display with a clear command
-    digitalWrite(DISPLAY_CS, LOW); // Start deselected
-    SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+    SPI.setBitOrder(LSBFIRST);
     digitalWrite(DISPLAY_CS, HIGH); // Select display
 
     // Send clear command
@@ -199,7 +196,6 @@ void FED4::initializeDisplay()
     SPI.transfer(0x00); // Required trailing byte
 
     digitalWrite(DISPLAY_CS, LOW); // Deselect display
-    SPI.endTransaction();
 
     delay(10); // Give display time to process clear command
 
@@ -210,8 +206,7 @@ void FED4::initializeDisplay()
 
 void FED4::sendDisplayCommand(uint8_t cmd)
 {
-    digitalWrite(DISPLAY_CS, LOW); // Start deselected
-    SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+    SPI.setBitOrder(LSBFIRST);
     digitalWrite(DISPLAY_CS, HIGH); // Select display (active HIGH)
 
     // Toggle VCOM
@@ -225,7 +220,6 @@ void FED4::sendDisplayCommand(uint8_t cmd)
     SPI.transfer(cmd);
 
     digitalWrite(DISPLAY_CS, LOW); // Deselect display
-    SPI.endTransaction();
 }
 
 void FED4::clearDisplay()
@@ -239,8 +233,7 @@ void FED4::refresh()
 {
     uint16_t i, currentline;
 
-    digitalWrite(DISPLAY_CS, LOW);
-    SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+    SPI.setBitOrder(LSBFIRST);
     digitalWrite(DISPLAY_CS, HIGH);
 
     uint8_t cmd = SHARPMEM_BIT_WRITECMD;
@@ -281,7 +274,6 @@ void FED4::refresh()
     SPI.transfer(0x00);
 
     digitalWrite(DISPLAY_CS, LOW);
-    SPI.endTransaction();
 }
 
 void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)

@@ -2,18 +2,35 @@
 
 void FED4::enterLightSleep()
 {
-    pinMode(SD_CS, INPUT); // Release CS pin to high-impedance state
     noPix();
 
     // Enter sleep
     Serial.println("Entering light sleep...");
     Serial.flush();
+    pinMode(SD_CS, INPUT); // Release CS pin to high-impedance state
+
+    // LDO2_OFF();
 
     esp_light_sleep_start();
 
-    Serial.println("Woke up!");
+    interpretTouch(); // do first to capture touch values
 
-    interpretTouch();
+    // LDO2_ON();        // needed for SD card
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH); // Make sure CS is high during dummy clocks
+
+    // Send multiple dummy bytes to reset SD card state
+    // for (int i = 0; i < 10; i++)
+    // {
+    //     SPI.transfer(0xFF);
+    // }
+
+    // initializeSD(); // Initialize SD after dummy clocks
+    logData(); // event set in interpretTouch(), consider refactoring
+
+    // display still works suggesting its not SPI, but the SD card
+
+    Serial.println("Woke up!");
     purplePix();
     serialStatusReport();
 }

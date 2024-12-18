@@ -40,12 +40,6 @@ void FED4::begin()
 {
     Serial.begin(115200);
 
-    // Initialize CS pins to their inactive states
-    pinMode(SD_CS, OUTPUT);
-    pinMode(DISPLAY_CS, OUTPUT);
-    digitalWrite(SD_CS, HIGH);     // SD inactive = HIGH
-    digitalWrite(DISPLAY_CS, LOW); // Display inactive = LOW
-
     initializeLDOs(); // turns on LDO2 and LDO3 by default
     LDO3_OFF();       // only attached to User Pins connnector
 
@@ -103,12 +97,12 @@ void FED4::begin()
     updateDisplay();     // Update the display with initial content
 
     // example usage of getMetaValue
-    // String subjectId = getMetaValue("subject", "id");
-    // if (subjectId.length() > 0)
-    // {
-    //     Serial.print("Subject ID: ");
-    //     Serial.println(subjectId);
-    // }
+    String subjectId = getMetaValue("subject", "id");
+    if (subjectId.length() > 0)
+    {
+        Serial.print("Subject ID: ");
+        Serial.println(subjectId);
+    }
 
     createLogFile();
     setEvent("Startup");

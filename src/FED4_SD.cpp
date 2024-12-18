@@ -1,11 +1,17 @@
 #include "FED4.h"
 
+// This chip does not like SPI.beginTransaction(SPISettings(SHARPMEM_SPI_FREQ, LSBFIRST, SPI_MODE0));
+// SPI will stop working. The display can operate on SPI_MODE0, just LSBFIRST.
+// So we need to set the bit order to MSBFIRST for SD operations.
+
 /********************************************************
  * SD Card Functions
  ********************************************************/
 
 bool FED4::initializeSD()
 {
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH); // SD inactive = HIGH
     SPI.setBitOrder(MSBFIRST);
 
     // Try different SD card initialization speeds
@@ -21,6 +27,7 @@ bool FED4::initializeSD()
         digitalWrite(SD_CS, HIGH); // Ensure SD is deselected on failure
         delay(100);
     }
+    Serial.println("SD card initialization failed");
     return false;
 }
 
@@ -58,15 +65,14 @@ void FED4::logData()
     SPI.setBitOrder(MSBFIRST);
     greenPix();
 
-    digitalWrite(SD_CS, LOW); // Select SD card for operation
     DateTime now = rtc.now();
 
     // Open file for writing
+    digitalWrite(SD_CS, LOW); // Select SD card for operation
     dataFile = SD.open(filename, FILE_APPEND);
     if (!dataFile)
     {
         digitalWrite(SD_CS, HIGH);
-        SPI.endTransaction();
         Serial.println("Failed to open file");
         noPix();
         return;
@@ -89,6 +95,8 @@ void FED4::logData()
                     ESP.getFreeHeap(),
                     ESP.getHeapSize(),
                     ESP.getMinFreeHeap());
+
+    Serial.println("Data logged successfully");
 
     // Clean up
     dataFile.close();
@@ -113,7 +121,7 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
     if (!metaFile)
     {
         digitalWrite(SD_CS, HIGH); // Deselect on error
-        SPI.endTransaction();
+        // SPI.endTransaction();
         Serial.println("Failed to open meta.json");
         return "";
     }
