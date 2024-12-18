@@ -109,8 +109,8 @@ void FED4::begin()
     logData();
 
     // not working for some reason, just makes static
-    // initializeSpeaker();
-    // playStartup();
+    initializeSpeaker();
+    playStartup();
 }
 
 /********************************************************

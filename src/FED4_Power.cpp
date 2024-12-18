@@ -3,31 +3,27 @@
 void FED4::enterLightSleep()
 {
     noPix();
-    //     LDO2_OFF();
 
     // Enter sleep
     Serial.println("Entering light sleep...");
     Serial.flush();
+
+    SD.end();
     pinMode(SD_CS, INPUT); // Release CS pin to high-impedance state
 
-    // LDO2_OFF();
+    LDO2_OFF();
 
     esp_light_sleep_start();
 
-    interpretTouch(); // do first to capture touch values
+    interpretTouch(); // do first to capture accurate touch values
 
-    // LDO2_ON();        // needed for SD cardz
     pinMode(SD_CS, OUTPUT);
     digitalWrite(SD_CS, HIGH); // Make sure CS is high during dummy clocks
 
-    // Send multiple dummy bytes to reset SD card state
-    // for (int i = 0; i < 10; i++)
-    // {
-    //     SPI.transfer(0xFF);
-    // }
+    LDO2_ON();
+    initializeSD(); // Initialize SD after dummy clocks
 
-    // initializeSD(); // Initialize SD after dummy clocks
-    logData(); // event set in interpretTouch(), consider refactoring
+    logData(); // event set in interpretTouch() but we need SD card online to log
 
     // display still works suggesting its not SPI, but the SD card
 

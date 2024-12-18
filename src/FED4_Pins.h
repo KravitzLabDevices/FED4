@@ -24,7 +24,7 @@
 #define AUDIO_TRRS_3 2
 #define AUDIO_LRCLK 48
 #define AUDIO_BCLK 45
-#define AUDIO_DIN 43
+#define AUDIO_DIN 41
 #define AUDIO_SD 42
 
 // SPI Interface

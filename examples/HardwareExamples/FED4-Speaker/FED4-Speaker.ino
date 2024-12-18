@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "Audio.h"
+#include "Audio.h" // [schreibfaul1/ESP32-audioI2S: Play mp3 files from SD via I2S](https://github.com/schreibfaul1/ESP32-audioI2S)
 #include "Wire.h"
 #include "WiFi.h"
 #include "FS.h"

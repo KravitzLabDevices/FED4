@@ -129,7 +129,14 @@ public:
 
     // Speaker functions (defined in FED4_Speaker.cpp)
     void initializeSpeaker();
-    void playTone(uint32_t frequency, uint32_t duration_ms);
+    struct Tone
+    {
+        uint32_t frequency;
+        uint32_t duration_ms;
+    };
+    void playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp);
+    void playTones(const Tone *tones, size_t count);
+    void enableAmp(bool enable);
     void resetSpeaker();
     void playStartup();
 

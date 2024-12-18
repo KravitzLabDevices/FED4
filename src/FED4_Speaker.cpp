@@ -24,6 +24,11 @@ void FED4::initializeSpeaker()
         .data_out_num = AUDIO_DIN,
         .data_in_num = I2S_PIN_NO_CHANGE};
 
+    // Initialize SD pin first
+    pinMode(AUDIO_SD, OUTPUT);
+    digitalWrite(AUDIO_SD, LOW); // Start with amp disabled
+
+    // Initialize I2S with better error handling
     esp_err_t err = i2s_driver_install(I2S_NUM_0, &i2sConfig, 0, NULL);
     if (err != ESP_OK)
     {
@@ -35,26 +40,35 @@ void FED4::initializeSpeaker()
     if (err != ESP_OK)
     {
         Serial.println("Failed to set I2S pins");
+        i2s_driver_uninstall(I2S_NUM_0); // Cleanup on error
         return;
     }
-
-    pinMode(AUDIO_SD, OUTPUT);
-    digitalWrite(AUDIO_SD, LOW); // off by default
 }
 
-void FED4::playTone(uint32_t frequency, uint32_t duration_ms)
+void FED4::enableAmp(bool enable)
 {
+    digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
+    if (enable)
+    {
+        delay(200); // Give amp time to stabilize
+    }
+}
+
+void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp = true)
+{
+    if (controlAmp)
+    {
+        enableAmp(true);
+    }
+
+    // Generate and play tone
     const uint32_t sampleRate = 44100;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
     const float amplitude = 0.5;
     const float twoPiF = 2.0 * M_PI * frequency;
 
-    // Buffer to store multiple samples before writing
     int16_t sampleBuffer[256];
     size_t samplesInBuffer = 0;
-
-    digitalWrite(AUDIO_SD, HIGH);
-    delay(5);
 
     for (uint32_t i = 0; i < sampleCount; i++)
     {
@@ -69,35 +83,67 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms)
         }
     }
 
-    // Write any remaining samples
+    // Write remaining samples
     if (samplesInBuffer > 0)
     {
         size_t bytes_written;
         i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
     }
 
-    i2s_zero_dma_buffer(I2S_NUM_0);
-    digitalWrite(AUDIO_SD, LOW);
+    if (controlAmp)
+    {
+        enableAmp(false);
+    }
+}
+
+struct Tone
+{
+    uint32_t frequency;
+    uint32_t duration_ms;
+};
+
+void FED4::playTones(const Tone *tones, size_t count)
+{
+    if (!count)
+        return;
+
+    esp_err_t err = i2s_start(I2S_NUM_0);
+    if (err != ESP_OK)
+    {
+        Serial.println("I2S not ready, skipping tones");
+        return;
+    }
+
+    enableAmp(true);
+
+    for (size_t i = 0; i < count; i++)
+    {
+        playTone(tones[i].frequency, tones[i].duration_ms, false);
+    }
+
+    enableAmp(false);
 }
 
 void FED4::playStartup()
 {
-    // Play a short ascending melody
     esp_err_t err = i2s_start(I2S_NUM_0);
     if (err != ESP_OK)
     {
         Serial.println("I2S not ready, skipping startup sound");
         return;
     }
-    playTone(1000, 250);
-    delay(200);
-    // playTone(523, 100); // C5
-    // delay(50);
-    // playTone(659, 100); // E5
-    // delay(50);
-    // playTone(784, 150); // G5
-    // delay(50);
-    // playTone(1047, 200); // C6
+
+    const Tone startupSequence[] = {
+        {587, 100},  // D5
+        {784, 100},  // G5
+        {987, 200},  // B5
+        {1175, 300}, // D6
+        {987, 100},  // B5
+        {784, 200},  // G5
+        {1175, 300}  // D6
+    };
+
+    playTones(startupSequence, 7);
 }
 
 void FED4::resetSpeaker()
