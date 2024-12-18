@@ -73,7 +73,8 @@ void FED4::logData()
     if (!dataFile)
     {
         digitalWrite(SD_CS, HIGH);
-        Serial.println("Failed to open file");
+        Serial.print("Failed to open file: ");
+        Serial.println(filename);
         noPix();
         return;
     }
@@ -96,7 +97,8 @@ void FED4::logData()
                     ESP.getHeapSize(),
                     ESP.getMinFreeHeap());
 
-    Serial.println("Data logged successfully");
+    Serial.print("Data logged to: ");
+    Serial.println(filename);
 
     // Clean up
     dataFile.close();

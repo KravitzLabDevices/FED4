@@ -16,7 +16,7 @@ void FED4::enterLightSleep()
 
     interpretTouch(); // do first to capture touch values
 
-    // LDO2_ON();        // needed for SD card
+    // LDO2_ON();        // needed for SD cardz
     pinMode(SD_CS, OUTPUT);
     digitalWrite(SD_CS, HIGH); // Make sure CS is high during dummy clocks
 
