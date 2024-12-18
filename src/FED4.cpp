@@ -95,7 +95,6 @@ void FED4::begin()
     initializeSD();      // Initialize SD after display is ready
     initializeDisplay(); // This will initialize our native display
     updateDisplay();     // Update the display with initial content
-    delay(500);          // let screen refresh
 
     // example usage of getMetaValue
     String subjectId = getMetaValue("subject", "id");
@@ -104,8 +103,6 @@ void FED4::begin()
         Serial.print("Subject ID: ");
         Serial.println(subjectId);
     }
-
-    initializeDisplay();
 
     createLogFile();
     setEvent("Startup");

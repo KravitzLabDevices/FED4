@@ -7,19 +7,29 @@ void setup()
     Serial.begin(115200);
     fed.begin();
     SPI.setBitOrder(MSBFIRST); // only testing SD card
+
     Serial.println("\nFED4 SD/LDO Test Interface");
     Serial.println("Available commands:");
-    Serial.println("1: Release CS pin (INPUT mode)");
+    Serial.println("\nInitial SD Card Setup:");
+    Serial.println("1: Begin SPI");
     Serial.println("2: Initialize SD card");
-    Serial.println("3: Turn off LDO2");
-    Serial.println("4: Enter light sleep");
-    Serial.println("5: Turn on LDO2");
-    Serial.println("6: Set CS pin OUTPUT/HIGH");
-    Serial.println("7: Set CS pin LOW");
-    Serial.println("8: Send dummy bytes");
-    Serial.println("9: Write test file");
-    Serial.println("10: End SPI");
-    Serial.println("11: Begin SPI");
+    Serial.println("3: Write test file");
+
+    Serial.println("\nEntering Sleep:");
+    Serial.println("4: Release CS pin (INPUT mode)");
+    Serial.println("5: Turn off LDO2");
+    Serial.println("6: Enter light sleep");
+
+    Serial.println("\nWaking Up:");
+    Serial.println("7: Turn on LDO2");
+    Serial.println("8: Set CS pin OUTPUT/HIGH");
+    Serial.println("9: Send dummy bytes");
+    Serial.println("10: Write test file");
+
+    Serial.println("\nUtilities:");
+    Serial.println("11: Set CS pin LOW");
+    Serial.println("12: End SPI");
+    Serial.println("13: End SD");
 }
 
 void loop()
@@ -32,13 +42,13 @@ void loop()
         switch (cmd.toInt())
         {
         case 1:
-            Serial.println("Releasing CS pin...");
-            pinMode(SD_CS, INPUT);
+            Serial.println("Beginning SPI...");
+            SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
             break;
 
         case 2:
             Serial.println("Initializing SD card...");
-            if (SD.begin(SD_CS, SPI, 4000000))
+            if (SD.begin(SD_CS, SPI, 1000000))
             {
                 Serial.println("SD init success");
             }
@@ -49,42 +59,7 @@ void loop()
             break;
 
         case 3:
-            Serial.println("Turning LDO2 off...");
-            fed.LDO2_OFF();
-            break;
-
-        case 4:
-            Serial.println("Entering light sleep...");
-            esp_light_sleep_start();
-            Serial.println("Woke up!");
-            break;
-
-        case 5:
-            Serial.println("Turning LDO2 on...");
-            fed.LDO2_ON();
-            break;
-
-        case 6:
-            Serial.println("Setting CS pin OUTPUT/HIGH...");
-            pinMode(SD_CS, OUTPUT);
-            digitalWrite(SD_CS, HIGH);
-            break;
-
-        case 7:
-            Serial.println("Setting CS pin LOW...");
-            digitalWrite(SD_CS, LOW);
-            break;
-
-        case 8:
-            Serial.println("Sending dummy bytes...");
-            for (int i = 0; i < 10; i++)
-            {
-                uint8_t received = SPI.transfer(0xFF);
-                Serial.printf("Byte %d: 0x%02X\n", i, received);
-            }
-            break;
-
-        case 9:
+        case 10:
             Serial.println("Writing test file...");
             {
                 File dataFile = SD.open("/test.csv", FILE_WRITE);
@@ -101,14 +76,55 @@ void loop()
             }
             break;
 
-        case 10:
+        case 4:
+            Serial.println("Releasing CS pin...");
+            pinMode(SD_CS, INPUT);
+            break;
+
+        case 5:
+            Serial.println("Turning LDO2 off...");
+            fed.LDO2_OFF();
+            break;
+
+        case 6:
+            Serial.println("Entering light sleep...");
+            esp_light_sleep_start();
+            Serial.println("Woke up!");
+            break;
+
+        case 7:
+            Serial.println("Turning LDO2 on...");
+            fed.LDO2_ON();
+            break;
+
+        case 8:
+            Serial.println("Setting CS pin OUTPUT/HIGH...");
+            pinMode(SD_CS, OUTPUT);
+            digitalWrite(SD_CS, HIGH);
+            break;
+
+        case 9:
+            Serial.println("Sending dummy bytes...");
+            for (int i = 0; i < 10; i++)
+            {
+                uint8_t received = SPI.transfer(0xFF);
+                Serial.printf("Byte %d: 0x%02X\n", i, received);
+            }
+            break;
+
+        case 11:
+            Serial.println("Setting CS pin LOW...");
+            digitalWrite(SD_CS, LOW);
+            break;
+
+        case 12:
             Serial.println("Ending SPI...");
             SPI.end();
             break;
 
-        case 11:
-            Serial.println("Beginning SPI...");
-            SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+        case 13:
+            Serial.println("Ending SD...");
+            SD.end();
             break;
 
         default:
