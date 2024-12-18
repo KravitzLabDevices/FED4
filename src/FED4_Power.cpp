@@ -3,6 +3,7 @@
 void FED4::enterLightSleep()
 {
     noPix();
+    //     LDO2_OFF();
 
     // Enter sleep
     Serial.println("Entering light sleep...");

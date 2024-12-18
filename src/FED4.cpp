@@ -104,6 +104,8 @@ void FED4::begin()
         Serial.println(subjectId);
     }
 
+    initializeDisplay();
+
     createLogFile();
     setEvent("Startup");
     logData();
