@@ -20,6 +20,6 @@ void loop()
 {
   // hublink.sync(); // only blocks when ready
   // fed.Feed();
-  // fed.enterLightSleep();
+  // fed.sleep();
   delay(1000);
 }

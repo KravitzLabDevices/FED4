@@ -1,6 +1,6 @@
 #include "FED4.h"
 
-void FED4::enterLightSleep()
+void FED4::sleep()
 {
     noPix();
 
@@ -8,8 +8,8 @@ void FED4::enterLightSleep()
     Serial.println("Entering light sleep...");
     Serial.flush();
 
-    SD.end();
-    pinMode(SD_CS, INPUT); // Release CS pin to high-impedance state
+    // SD.end();
+    // pinMode(SD_CS, INPUT); // Release CS pin to high-impedance state
 
     LDO2_OFF();
 
@@ -17,11 +17,11 @@ void FED4::enterLightSleep()
 
     interpretTouch(); // do first to capture accurate touch values
 
-    pinMode(SD_CS, OUTPUT);
-    digitalWrite(SD_CS, HIGH); // Make sure CS is high during dummy clocks
+    // pinMode(SD_CS, OUTPUT);
+    // digitalWrite(SD_CS, HIGH); // deselect SD card
 
     LDO2_ON();
-    initializeSD(); // Initialize SD after dummy clocks
+    // initializeSD(); // Initialize SD after dummy clocks
 
     logData(); // event set in interpretTouch() but we need SD card online to log
 

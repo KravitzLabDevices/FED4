@@ -11,5 +11,5 @@ void setup()
 void loop()
 {
   fed.feed();
-  fed.enterLightSleep();
+  fed.sleep();
 }

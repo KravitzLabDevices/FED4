@@ -92,7 +92,7 @@ public:
     void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
-    void enterLightSleep();
+    void sleep();
     void initializeLDOs();
     void LDO2_ON();
     void LDO2_OFF();
