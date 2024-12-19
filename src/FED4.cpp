@@ -9,6 +9,7 @@
  ********************************************************/
 FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
                pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
+               strip(8, RGB_STRIP_PIN, NEO_GRB + NEO_KHZ800),
                stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
@@ -43,6 +44,11 @@ void FED4::begin()
     initializeLDOs(); // turns on LDO2 and LDO3 by default
     LDO3_OFF();       // only attached to User Pins connnector
 
+    initializePixel();
+    bluePix();
+    initializeStrip();
+    stripRainbow(1, 1);
+
     // Initialize primary I2C bus
     if (!Wire.begin())
     {
@@ -67,7 +73,6 @@ void FED4::begin()
         Serial.println("mcp ok");
     }
 
-    initializeLEDs();
     initializeRTC();
     initializeVitals();
 
@@ -90,11 +95,14 @@ void FED4::begin()
 
     // Initialize SPI once for all devices
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+    SPI.setFrequency(1000000); // Set SPI clock to 1MHz
 
     // Initialize SPI for SD card
     initializeSD();      // Initialize SD after display is ready
     initializeDisplay(); // This will initialize our native display
     updateDisplay();     // Update the display with initial content
+    // still seeing that the screen doesn't turn on sometimes
+    // delay here doesn't seem to help, trying to lower SPI clock above
 
     // example usage of getMetaValue
     String subjectId = getMetaValue("subject", "id");

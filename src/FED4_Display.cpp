@@ -3,7 +3,6 @@
 #define SHARPMEM_BIT_WRITECMD (0x01) // 0x80 if writing, 0x00 if reading
 #define SHARPMEM_BIT_VCOM (0x02)     // ROM_IN pin state
 #define SHARPMEM_BIT_CLEAR (0x04)    // CL pin state
-#define SHARPMEM_SPI_FREQ (1000000)  // 1 MHz SPI clock frequency
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) \

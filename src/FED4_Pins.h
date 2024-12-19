@@ -47,7 +47,7 @@
 
 // LED Control
 #define NEOPIXEL_PIN 35
-#define RGB_STRIP_PIN 36
+#define RGB_STRIP_PIN 36 // front LEDs
 
 // ADC Configuration
 #define VBAT_ADC_CHANNEL ADC1_CHANNEL_6

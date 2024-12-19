@@ -50,7 +50,7 @@ void FED4::enableAmp(bool enable)
     digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
     if (enable)
     {
-        delay(200); // Give amp time to stabilize
+        delay(1); // stabilize amp
     }
 }
 

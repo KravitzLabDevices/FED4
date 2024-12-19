@@ -13,9 +13,8 @@
 #include "esp_sleep.h"
 #include "RTClib.h"
 #include <SD.h>
-#include <Adafruit_AHTX0.h>
-#include "SD.h"
 #include "FS.h"
+#include <Adafruit_AHTX0.h>
 #include <SPI.h>
 #include <driver/adc.h>
 #include <driver/i2s.h>
@@ -74,12 +73,17 @@ public:
     void monitorTouchSensors();
 
     // LED control (defined in FED4_LED.cpp)
-    void initializeLEDs();
-    void bluePix();
-    void dimBluePix();
-    void greenPix();
-    void redPix();
-    void purplePix();
+    void initializePixel();
+    void setPixBrightness(uint8_t brightness);
+    void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 255);
+    void bluePix(uint8_t brightness = 255);
+    void greenPix(uint8_t brightness = 255);
+    void redPix(uint8_t brightness = 255);
+    void purplePix(uint8_t brightness = 255);
+    void yellowPix(uint8_t brightness = 255);
+    void cyanPix(uint8_t brightness = 255);
+    void whitePix(uint8_t brightness = 255);
+    void orangePix(uint8_t brightness = 255);
     void noPix();
 
     // Display functions (defined in FED4_Display.cpp)
@@ -169,6 +173,15 @@ public:
     void drawChar(int16_t x, int16_t y, unsigned char c, uint8_t size = 1);
     void drawText(const char *text, uint8_t size = 1);
 
+    // LED Strip control (defined in FED4_Strip.cpp)
+    void initializeStrip();
+    void setStripBrightness(uint8_t brightness);
+    void colorWipe(uint32_t color, unsigned long wait);
+    void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases);
+    void stripRainbow(unsigned long wait, unsigned int numLoops);
+    void clearStrip();
+    void setStripPixel(uint8_t pixel, uint32_t color);
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
@@ -178,6 +191,7 @@ private:
     Adafruit_NeoPixel pixels;
     Stepper stepper;
     TwoWire I2C_2;
+    Adafruit_NeoPixel strip;
 
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
