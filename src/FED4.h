@@ -24,6 +24,8 @@
 #include <driver/touch_pad.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+#include <Adafruit_LIS3DH.h>
+#include <Adafruit_Sensor.h>
 
 // Pin Definitions
 #include "FED4_Pins.h"
@@ -188,6 +190,15 @@ public:
     void clearStrip();
     void setStripPixel(uint8_t pixel, uint32_t color);
 
+    // Accelerometer functions (defined in FED4_Accel.cpp)
+    bool initializeAccel();
+    void setAccelRange(lis3dh_range_t range);
+    void setAccelPerformanceMode(lis3dh_mode_t mode);
+    void setAccelDataRate(lis3dh_dataRate_t dataRate);
+    bool getAccelEvent(sensors_event_t *event);
+    void readAccel(float &x, float &y, float &z);
+    bool accelDataReady();
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
@@ -198,6 +209,7 @@ private:
     Stepper stepper;
     TwoWire I2C_2;
     Adafruit_NeoPixel strip;
+    Adafruit_LIS3DH accel = Adafruit_LIS3DH(); // Default constructor
 
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;

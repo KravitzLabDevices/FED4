@@ -63,7 +63,8 @@ bool FED4::begin()
         {"Motor", {false, ""}},
         {"SD Card", {false, ""}},
         {"Display", {false, ""}},
-        {"Speaker", {false, ""}}};
+        {"Speaker", {false, ""}},
+        {"Accelerometer", {false, ""}}};
 
     // Initialize components and track status
     statuses["LDOs"].initialized = initializeLDOs();
@@ -87,6 +88,8 @@ bool FED4::begin()
             ;
     }
     statuses["I2C Secondary"].initialized = true;
+
+    statuses["Accelerometer"].initialized = initializeAccel();
 
     statuses["MCP23017"].initialized = mcp.begin_I2C();
 
