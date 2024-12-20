@@ -56,11 +56,11 @@
 
 bool FED4::initializeAccel()
 {
-    // First construct with I2C_2
-    accel = Adafruit_LIS3DH(&I2C_2);
+    // Initialize with default I2C bus
+    accel = Adafruit_LIS3DH();
 
     // Then begin with the default address
-    if (!accel.begin(0x18)) // Use default I2C address for LIS3DH
+    if (!accel.begin(LIS3DH_I2C_ADDRESS)) // Use default I2C address for LIS3DH
     {
         Serial.println("Could not find LIS3DH accelerometer");
         return false;

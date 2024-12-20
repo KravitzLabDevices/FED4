@@ -43,7 +43,7 @@ bool FED4::begin()
     struct ComponentStatus
     {
         bool initialized;
-        const char *notes;
+        const char *notes; // Example: statuses["Battery"].notes = "3.7V"; or "Init failed - timeout"
     };
 
     // Use map to store status by component name
@@ -119,7 +119,6 @@ bool FED4::begin()
         Serial.println("Vitals initialization failed");
     }
     statuses["Battery Monitor"].initialized = maxlipo.begin();
-    statuses["Battery Monitor"].notes = isBatteryConnected() ? "Connected" : "Missing";
     statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
 
     // Initialize Touch and Motor
@@ -141,6 +140,8 @@ bool FED4::begin()
         Serial.print("Subject ID: ");
         Serial.println(subjectId);
     }
+
+    statuses["Accelerometer"].initialized = initializeAccel();
 
     statuses["Display"].initialized = initializeDisplay();
     updateDisplay();
@@ -175,6 +176,8 @@ bool FED4::begin()
                   statuses.size() - failCount,
                   statuses.size());
     Serial.println("================================\n");
+
+    serialStatusReport();
 
     return true;
 }

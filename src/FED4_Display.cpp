@@ -117,19 +117,12 @@ void FED4::serialStatusReport()
 
     // Battery Status section
     Serial.println(F("\n► Battery Status"));
-    if (isBatteryConnected())
-    {
-        Serial.print(F("  • Voltage: "));
-        Serial.print(getBatteryVoltage(), 1);
-        Serial.println(F("V"));
-        Serial.print(F("  • Charge:  "));
-        Serial.print(getBatteryPercentage(), 1);
-        Serial.println(F("%"));
-    }
-    else
-    {
-        Serial.println(F("  • USB Powered"));
-    }
+    Serial.print(F("  • Voltage: "));
+    Serial.print(getBatteryVoltage(), 1);
+    Serial.println(F("V"));
+    Serial.print(F("  • Charge:  "));
+    Serial.print(getBatteryPercentage(), 1);
+    Serial.println(F("%"));
 
     // Pellet counts section
     Serial.println(F("\n► Pellet Count"));

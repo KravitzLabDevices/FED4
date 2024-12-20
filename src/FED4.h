@@ -30,6 +30,9 @@
 // Pin Definitions
 #include "FED4_Pins.h"
 
+// Device Constants
+static const uint8_t LIS3DH_I2C_ADDRESS = 0x19; // Default I2C address for LIS3DH accelerometer
+
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
 static const uint8_t DISPLAY_WHITE = 1;
@@ -137,7 +140,6 @@ public:
     float getBatteryPercentage();
     float getTemperature();
     float getHumidity();
-    bool isBatteryConnected();
 
     // Speaker functions (defined in FED4_Speaker.cpp)
     bool initializeSpeaker();

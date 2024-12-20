@@ -29,10 +29,6 @@ float FED4::getBatteryVoltage()
 
 float FED4::getBatteryPercentage()
 {
-    if (!isBatteryConnected())
-    {
-        return 0.0;
-    }
     return maxlipo.cellPercent();
 }
 
@@ -48,12 +44,6 @@ float FED4::getHumidity()
     sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);
     return humidity.relative_humidity;
-}
-// does not seem to work: seeing battery voltage >> 0 with no battery connected
-bool FED4::isBatteryConnected()
-{
-    float voltage = maxlipo.cellVoltage();
-    return !isnan(voltage);
 }
 
 // optionally integrate MAX1704X flags:
