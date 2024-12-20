@@ -165,7 +165,7 @@ public:
     bool pelletReady;
     bool feedReady;
     int photogate1State;
-    String event;
+    String event = "";
     int retrievalTime;
     int touchPadLeftBaseline;
     int touchPadCenterBaseline;
@@ -199,6 +199,16 @@ public:
     void readAccel(float &x, float &y, float &z);
     bool accelDataReady();
 
+    ~FED4()
+    {
+        if (displayBuffer)
+        {
+            free(displayBuffer);
+            displayBuffer = nullptr;
+        }
+        preferences.end(); // Ensure preferences is closed
+    }
+
 private:
     // Hardware objects
     Adafruit_MCP23X17 mcp;
@@ -209,7 +219,7 @@ private:
     Stepper stepper;
     TwoWire I2C_2;
     Adafruit_NeoPixel strip;
-    Adafruit_LIS3DH accel = Adafruit_LIS3DH(); // Default constructor
+    Adafruit_LIS3DH accel;
 
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;

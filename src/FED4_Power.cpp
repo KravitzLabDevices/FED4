@@ -37,7 +37,7 @@ bool FED4::initializeLDOs()
     pinMode(LDO2_ENABLE, OUTPUT);
     mcp.pinMode(EXP_LDO3, OUTPUT);
     LDO2_ON();
-    // LDO3_ON();
+    LDO3_ON();
     return true;
 }
 

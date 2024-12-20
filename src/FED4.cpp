@@ -35,8 +35,6 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 /********************************************************
  * Initialization
  ********************************************************/
-// !! this could benefit from every init returning a bool, then
-// !! showing a status report or acting on critical errors
 bool FED4::begin()
 {
     Serial.begin(115200);
@@ -66,34 +64,43 @@ bool FED4::begin()
         {"Speaker", {false, ""}},
         {"Accelerometer", {false, ""}}};
 
-    // Initialize components and track status
+    // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
-    LDO3_OFF(); // only attached to User Pins connector
+    LDO3_OFF();
 
+    // Initialize LEDs early (as in original)
     statuses["NeoPixel"].initialized = initializePixel();
     bluePix();
-
     statuses["LED Strip"].initialized = initializeStrip();
     stripRainbow(1, 1);
 
-    // I2C Systems
+    // Initialize I2C buses
     statuses["I2C Primary"].initialized = Wire.begin();
-
-    if (!I2C_2.begin(SDA_2, SCL_2))
+    if (!statuses["I2C Primary"].initialized)
     {
-        statuses["I2C Secondary"].initialized = false;
-        statuses["I2C Secondary"].notes = "Critical Error";
-        Serial.println("I2C_2 Error - check I2C Address");
-        while (1)
-            ;
+        Serial.println("I2C Error - check I2C Address");
+        return false;
     }
-    statuses["I2C Secondary"].initialized = true;
 
-    statuses["Accelerometer"].initialized = initializeAccel();
+    statuses["I2C Secondary"].initialized = I2C_2.begin(SDA_2, SCL_2);
+    if (!statuses["I2C Secondary"].initialized)
+    {
+        Serial.println("I2C_2 Error - check I2C Address");
+        return false;
+    }
 
+    // Initialize MCP expander
     statuses["MCP23017"].initialized = mcp.begin_I2C();
+    if (!statuses["MCP23017"].initialized)
+    {
+        Serial.println("MCP error");
+    }
+    else
+    {
+        Serial.println("MCP ok");
+    }
 
-    // Configure GPIO pins
+    // Configure all GPIO pins
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_2, INPUT);
@@ -104,33 +111,48 @@ bool FED4::begin()
     pinMode(USER_PIN_18, OUTPUT);
     digitalWrite(USER_PIN_18, LOW);
 
-    // Core systems
+    // Initialize RTC and Vitals
     statuses["RTC"].initialized = initializeRTC();
-
-    // Split vitals into two components
     bool vitalsResult = initializeVitals();
+    if (!vitalsResult)
+    {
+        Serial.println("Vitals initialization failed");
+    }
     statuses["Battery Monitor"].initialized = maxlipo.begin();
     statuses["Battery Monitor"].notes = isBatteryConnected() ? "Connected" : "Missing";
     statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
 
+    // Initialize Touch and Motor
     statuses["Touch Sensors"].initialized = initializeTouch();
     calibrateTouchSensors();
-
     statuses["Motor"].initialized = initializeMotor();
 
-    // SPI Systems
+    // Initialize SPI systems
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+    SPI.setFrequency(1000000); // Set SPI clock to 1MHz
 
+    // Initialize SD and Display
     statuses["SD Card"].initialized = initializeSD();
+
+    // Check meta value
+    String subjectId = getMetaValue("subject", "id");
+    if (subjectId.length() > 0)
+    {
+        Serial.print("Subject ID: ");
+        Serial.println(subjectId);
+    }
+
     statuses["Display"].initialized = initializeDisplay();
     updateDisplay();
 
-    statuses["Speaker"].initialized = initializeSpeaker();
-    playStartup();
-
+    // Initialize logging
     createLogFile();
     setEvent("Startup");
     logData();
+
+    // Initialize Speaker last (as in original)
+    statuses["Speaker"].initialized = initializeSpeaker();
+    playStartup();
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
@@ -153,6 +175,8 @@ bool FED4::begin()
                   statuses.size() - failCount,
                   statuses.size());
     Serial.println("================================\n");
+
+    return true;
 }
 
 /********************************************************

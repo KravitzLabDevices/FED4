@@ -169,6 +169,7 @@ bool FED4::initializeDisplay()
     if (displayBuffer)
     {
         free(displayBuffer);
+        displayBuffer = nullptr;
     }
     uint16_t bufferSize = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
     displayBuffer = (uint8_t *)malloc(bufferSize);

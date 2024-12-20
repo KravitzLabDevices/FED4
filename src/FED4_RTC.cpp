@@ -19,35 +19,28 @@
 
 bool FED4::initializeRTC()
 {
-    // First check if RTC hardware is working
     if (!rtc.begin(&I2C_2))
     {
+        Serial.println("Couldn't find RTC");
         return false;
     }
 
-    // Open preferences in read-only mode first
-    preferences.begin(PREFS_NAMESPACE, PREFS_RO_MODE);
+    // Single preferences session
+    if (!preferences.begin(PREFS_NAMESPACE, false))
+    {
+        Serial.println("Failed to initialize preferences");
+        return false;
+    }
 
+    bool result = true;
     if (isNewCompilation())
     {
-        // Close read-only mode and reopen in read-write mode
-        preferences.end();
-        preferences.begin(PREFS_NAMESPACE, PREFS_RW_MODE);
-
-        Serial.println("New compilation detected - updating RTC...");
         updateRTC();
         updateCompilationID();
-
-        // Close read-write mode
-        preferences.end();
-    }
-    else
-    {
-        // Close read-only mode
-        preferences.end();
     }
 
-    return true;
+    preferences.end();
+    return result;
 }
 
 void FED4::updateRTC()
@@ -95,35 +88,22 @@ void FED4::serialPrintRTC()
 
 String FED4::getCompileDateTime()
 {
-    String dateTime = String(__DATE__) + " " + String(__TIME__);
+    static String dateTime; // Make static to avoid repeated allocations
+    dateTime = String(__DATE__) + " " + String(__TIME__);
     return dateTime;
 }
 
 bool FED4::isNewCompilation()
 {
-    String currentCompileTime = getCompileDateTime();
-    String storedCompileTime = preferences.getString("compileTime", "");
-
-    // Serial.println("Checking compilation status:");
-    // Serial.println(" - Stored time: " + storedCompileTime);
-    // Serial.println(" - Current time: " + currentCompileTime);
-    // Serial.println(" - Is new compilation? " + String(storedCompileTime != currentCompileTime));
-
+    const String currentCompileTime = getCompileDateTime();                    // Use const
+    const String storedCompileTime = preferences.getString("compileTime", ""); // Use const
     return (storedCompileTime != currentCompileTime);
 }
 
 void FED4::updateCompilationID()
 {
-    preferences.begin(PREFS_NAMESPACE, PREFS_RW_MODE);
-
-    String currentCompileTime = getCompileDateTime();
-    preferences.putString("compileTime", currentCompileTime);
-
-    Serial.println("Updated stored compilation time to: " + currentCompileTime);
-    String storedTime = preferences.getString("compileTime", "none");
-    Serial.println("Verified stored compilation time: " + storedTime);
-
-    preferences.end();
+    const String currentCompileTime = getCompileDateTime();           // Use const
+    preferences.putString("compileTime", currentCompileTime.c_str()); // Use c_str()
 }
 
 void FED4::adjustRTC(uint32_t timestamp)
