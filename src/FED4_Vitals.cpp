@@ -1,26 +1,24 @@
 #include "FED4.h"
 
-void FED4::initializeVitals()
+bool FED4::initializeVitals()
 {
+    bool success = true;
+
     // Initialize battery monitor
     if (!maxlipo.begin())
     {
-        Serial.println(F("Couldnt find Adafruit MAX17048?\nMake sure a battery is plugged in!\n"));
+        Serial.println(F("Couldn't find Adafruit MAX17048?\nMake sure a battery is plugged in!\n"));
+        success = false;
     }
-    else
-    {
-        Serial.println(F("Found MAX17048"));
-    }
+
     // Initialize temperature/humidity sensor
     if (!aht.begin(&I2C_2))
     {
         Serial.println("Could not find AHT? Check wiring");
-        delay(10);
+        success = false;
     }
-    else
-    {
-        Serial.println("AHT10 or AHT20 found");
-    }
+
+    return success;
 }
 
 float FED4::getBatteryVoltage()

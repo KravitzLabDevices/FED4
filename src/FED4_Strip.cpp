@@ -1,11 +1,12 @@
 #include "FED4.h"
 
-void FED4::initializeStrip()
+bool FED4::initializeStrip()
 {
     strip.begin();
     strip.setBrightness(50); // Default brightness
     strip.clear();
     strip.show();
+    return true;
 }
 
 void FED4::setStripBrightness(uint8_t brightness)

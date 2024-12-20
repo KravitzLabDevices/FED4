@@ -2,6 +2,8 @@
 #define FED4_h
 
 #include <Arduino.h>
+#include <map>
+#include <string>
 #include <Adafruit_MCP23X17.h>
 #include "Adafruit_MAX1704X.h"
 #include <Stepper.h>
@@ -43,6 +45,10 @@ static const uint8_t MOTOR_SPEED = 12;
 static const float TOUCH_THRESHOLD = 0.01; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
 static const char *META_FILE = "/meta.json";
 
+static const char *PREFS_NAMESPACE = "fed4";
+static const bool PREFS_RO_MODE = true;
+static const bool PREFS_RW_MODE = false;
+
 // current verty public-oriented, consider pushing some to private
 class FED4 : public Adafruit_GFX
 {
@@ -51,12 +57,12 @@ public:
     FED4();
 
     // Initialization
-    void begin();
+    bool begin();
     void feed();
     bool checkForPellet();
 
     // Motor functionality (defined in FED4_Motor.cpp)
-    void initializeMotor();
+    bool initializeMotor();
     void releaseMotor();
     void minorJamClear();
     void majorJamClear();
@@ -66,14 +72,14 @@ public:
     void haptic();
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
-    void initializeTouch();
+    bool initializeTouch();
     void calibrateTouchSensors();
     void interpretTouch();
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
 
     // LED control (defined in FED4_LED.cpp)
-    void initializePixel();
+    bool initializePixel();
     void setPixBrightness(uint8_t brightness);
     void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 255);
     void bluePix(uint8_t brightness = 255);
@@ -87,13 +93,13 @@ public:
     void noPix();
 
     // Display functions (defined in FED4_Display.cpp)
-    void initializeDisplay();
+    bool initializeDisplay();
     void updateDisplay();
     void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
     void sleep();
-    void initializeLDOs();
+    bool initializeLDOs();
     void LDO2_ON();
     void LDO2_OFF();
     void LDO3_ON();
@@ -117,14 +123,14 @@ public:
     unsigned long waketime;
 
     // RTC functions
-    void initializeRTC();
+    bool initializeRTC();
     void updateRTC();
     DateTime now();
     void serialPrintRTC();
     void adjustRTC(uint32_t timestamp);
 
     // Vitals functions (defined in FED4_Vitals.cpp)
-    void initializeVitals();
+    bool initializeVitals();
     float getBatteryVoltage();
     float getBatteryPercentage();
     float getTemperature();
@@ -132,7 +138,7 @@ public:
     bool isBatteryConnected();
 
     // Speaker functions (defined in FED4_Speaker.cpp)
-    void initializeSpeaker();
+    bool initializeSpeaker();
     struct Tone
     {
         uint32_t frequency;
@@ -174,7 +180,7 @@ public:
     void drawText(const char *text, uint8_t size = 1);
 
     // LED Strip control (defined in FED4_Strip.cpp)
-    void initializeStrip();
+    bool initializeStrip();
     void setStripBrightness(uint8_t brightness);
     void colorWipe(uint32_t color, unsigned long wait);
     void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases);

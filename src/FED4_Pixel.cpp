@@ -1,11 +1,12 @@
 #include "FED4.h"
 
-void FED4::initializePixel()
+bool FED4::initializePixel()
 {
     pixels.begin(); // Initialize NeoPixel
     pixels.clear();
     pixels.setBrightness(50); // Set a default brightness
     noPix();
+    return true;
 }
 
 void FED4::setPixBrightness(uint8_t brightness)

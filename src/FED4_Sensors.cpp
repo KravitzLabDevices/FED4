@@ -6,40 +6,30 @@ void IRAM_ATTR FED4::onTouchWakeUp()
     // empty
 }
 
-void FED4::initializeTouch()
+bool FED4::initializeTouch()
 {
-    // Initialize touch pad peripheral
-    touch_pad_init();
+    esp_err_t err = touch_pad_init();
+    if (err != ESP_OK)
+    {
+        return false;
+    }
 
     // Configure touch pads
-    touch_pad_config(TOUCH_PAD_LEFT);
-    touch_pad_config(TOUCH_PAD_CENTER);
-    touch_pad_config(TOUCH_PAD_RIGHT);
+    err = touch_pad_config(TOUCH_PAD_LEFT);
+    if (err != ESP_OK)
+        return false;
 
-    // Rest of your existing configuration...
+    err = touch_pad_config(TOUCH_PAD_CENTER);
+    if (err != ESP_OK)
+        return false;
+
+    err = touch_pad_config(TOUCH_PAD_RIGHT);
+    if (err != ESP_OK)
+        return false;
+
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-
-    // // Set measurement time and sleep time
-    // touch_pad_set_meas_time(0x1000, 0xffff);
-
-    // // Set filter config with updated struct name
-    // touch_filter_config_t filter_info = {
-    //     .mode = TOUCH_PAD_FILTER_IIR_16,
-    //     .debounce_cnt = 1, // 1 time count
-    //     .noise_thr = 0,    // 50%
-    //     .jitter_step = 4,  // use for jitter mode
-    //     .smh_lvl = TOUCH_PAD_SMOOTH_IIR_2,
-    // };
-    // touch_pad_filter_set_config(&filter_info);
-
-    // // Denoise setting
-    // touch_pad_denoise_t denoise = {
-    //     .grade = TOUCH_PAD_DENOISE_BIT4,
-    //     .cap_level = TOUCH_PAD_DENOISE_CAP_L4};
-    // touch_pad_denoise_set_config(&denoise);
-    // touch_pad_denoise_enable();
-
     delay(200);
+    return true;
 }
 
 void FED4::calibrateTouchSensors()

@@ -37,88 +37,119 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
  ********************************************************/
 // !! this could benefit from every init returning a bool, then
 // !! showing a status report or acting on critical errors
-void FED4::begin()
+bool FED4::begin()
 {
     Serial.begin(115200);
 
-    initializeLDOs(); // turns on LDO2 and LDO3 by default
-    LDO3_OFF();       // only attached to User Pins connnector
+    // Structure to track component status
+    struct ComponentStatus
+    {
+        bool initialized;
+        const char *notes;
+    };
 
-    initializePixel();
+    // Use map to store status by component name
+    std::map<const char *, ComponentStatus, std::less<>> statuses = {
+        {"LDOs", {false, ""}},
+        {"NeoPixel", {false, ""}},
+        {"LED Strip", {false, ""}},
+        {"I2C Primary", {false, ""}},
+        {"I2C Secondary", {false, ""}},
+        {"MCP23017", {false, ""}},
+        {"RTC", {false, ""}},
+        {"Battery Monitor", {false, ""}},
+        {"Temp/Humidity", {false, ""}},
+        {"Touch Sensors", {false, ""}},
+        {"Motor", {false, ""}},
+        {"SD Card", {false, ""}},
+        {"Display", {false, ""}},
+        {"Speaker", {false, ""}}};
+
+    // Initialize components and track status
+    statuses["LDOs"].initialized = initializeLDOs();
+    LDO3_OFF(); // only attached to User Pins connector
+
+    statuses["NeoPixel"].initialized = initializePixel();
     bluePix();
-    initializeStrip();
+
+    statuses["LED Strip"].initialized = initializeStrip();
     stripRainbow(1, 1);
 
-    // Initialize primary I2C bus
-    if (!Wire.begin())
-    {
-        Serial.println("I2C Error - check I2C Address");
-    }
+    // I2C Systems
+    statuses["I2C Primary"].initialized = Wire.begin();
 
-    // Initialize I2C on the second bus
     if (!I2C_2.begin(SDA_2, SCL_2))
     {
+        statuses["I2C Secondary"].initialized = false;
+        statuses["I2C Secondary"].notes = "Critical Error";
         Serial.println("I2C_2 Error - check I2C Address");
         while (1)
             ;
     }
+    statuses["I2C Secondary"].initialized = true;
 
-    // Initialize GPIO expander
-    if (!mcp.begin_I2C())
-    {
-        Serial.println("mcp error");
-    }
-    else
-    {
-        Serial.println("mcp ok");
-    }
-
-    initializeRTC();
-    initializeVitals();
+    statuses["MCP23017"].initialized = mcp.begin_I2C();
 
     // Configure GPIO pins
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
-
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_2, INPUT);
     pinMode(AUDIO_TRRS_3, INPUT);
-
     pinMode(BUTTON_1, INPUT);
     pinMode(BUTTON_2, INPUT);
     pinMode(BUTTON_3, INPUT);
     pinMode(USER_PIN_18, OUTPUT);
-    digitalWrite(USER_PIN_18, LOW); // using as wakeup pulse in FED_Power.cpp
+    digitalWrite(USER_PIN_18, LOW);
 
-    initializeTouch();
+    // Core systems
+    statuses["RTC"].initialized = initializeRTC();
+
+    // Split vitals into two components
+    bool vitalsResult = initializeVitals();
+    statuses["Battery Monitor"].initialized = maxlipo.begin();
+    statuses["Battery Monitor"].notes = isBatteryConnected() ? "Connected" : "Missing";
+    statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
+
+    statuses["Touch Sensors"].initialized = initializeTouch();
     calibrateTouchSensors();
-    initializeMotor();
 
-    // Initialize SPI once for all devices
+    statuses["Motor"].initialized = initializeMotor();
+
+    // SPI Systems
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-    SPI.setFrequency(1000000); // Set SPI clock to 1MHz
 
-    // Initialize SPI for SD card
-    initializeSD();      // Initialize SD after display is ready
-    initializeDisplay(); // This will initialize our native display
-    updateDisplay();     // Update the display with initial content
-    // still seeing that the screen doesn't turn on sometimes
-    // delay here doesn't seem to help, trying to lower SPI clock above
+    statuses["SD Card"].initialized = initializeSD();
+    statuses["Display"].initialized = initializeDisplay();
+    updateDisplay();
 
-    // example usage of getMetaValue
-    String subjectId = getMetaValue("subject", "id");
-    if (subjectId.length() > 0)
-    {
-        Serial.print("Subject ID: ");
-        Serial.println(subjectId);
-    }
+    statuses["Speaker"].initialized = initializeSpeaker();
+    playStartup();
 
     createLogFile();
     setEvent("Startup");
     logData();
 
-    // not working for some reason, just makes static
-    initializeSpeaker();
-    playStartup();
+    // Print initialization report
+    Serial.println("\n=== FED4 Initialization Report ===");
+    Serial.println("Component          Status  Notes");
+    Serial.println("--------------------------------");
+
+    int failCount = 0;
+    for (const auto &component : statuses)
+    {
+        if (!component.second.initialized)
+            failCount++;
+        Serial.printf("%-18s %s %s\n",
+                      component.first,
+                      component.second.initialized ? "OK   " : "FAIL ",
+                      component.second.notes);
+    }
+
+    Serial.println("--------------------------------");
+    Serial.printf("Summary: %d/%d components initialized\n",
+                  statuses.size() - failCount,
+                  statuses.size());
+    Serial.println("================================\n");
 }
 
 /********************************************************

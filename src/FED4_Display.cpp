@@ -159,7 +159,7 @@ void FED4::serialStatusReport()
     Serial.println(F("\n================================================\n"));
 }
 
-void FED4::initializeDisplay()
+bool FED4::initializeDisplay()
 {
     pinMode(DISPLAY_CS, OUTPUT);
     digitalWrite(DISPLAY_CS, LOW); // Display inactive = LOW
@@ -175,7 +175,7 @@ void FED4::initializeDisplay()
     if (!displayBuffer)
     {
         Serial.println("Failed to allocate display buffer");
-        return;
+        return false;
     }
     memset(displayBuffer, 0xff, bufferSize);
 
@@ -185,7 +185,6 @@ void FED4::initializeDisplay()
     SPI.setBitOrder(LSBFIRST);
     digitalWrite(DISPLAY_CS, HIGH); // Select display
 
-    // Send clear command
     uint8_t cmd = SHARPMEM_BIT_WRITECMD | SHARPMEM_BIT_CLEAR;
     if (vcom)
         cmd |= SHARPMEM_BIT_VCOM;
@@ -198,9 +197,9 @@ void FED4::initializeDisplay()
 
     delay(10); // Give display time to process clear command
 
-    // Set initial display state
     setRotation(2);
     refresh(); // Initial refresh to ensure display is ready
+    return true;
 }
 
 void FED4::sendDisplayCommand(uint8_t cmd)

@@ -13,56 +13,47 @@
  * update only when needed.
  ********************************************************/
 
-// Debug flag for RTC-related messages
-static const bool debugRTC = false;
-
 /********************************************************
  * RTC Functions
  ********************************************************/
 
-void FED4::initializeRTC()
+bool FED4::initializeRTC()
 {
     // First check if RTC hardware is working
     if (!rtc.begin(&I2C_2))
     {
-        Serial.println("Couldn't find RTC");
-        return; // Exit early if RTC hardware isn't found
+        return false;
     }
-    Serial.println("RTC started.");
 
-    preferences.begin("fed4", false); // Open preferences in RW mode
-
-    if (debugRTC)
-    {
-        String storedTime = preferences.getString("compileTime", "none");
-        Serial.println("Stored compilation time: " + storedTime);
-        Serial.println("Current compilation time: " + getCompileDateTime());
-    }
+    // Open preferences in read-only mode first
+    preferences.begin(PREFS_NAMESPACE, PREFS_RO_MODE);
 
     if (isNewCompilation())
     {
-        if (debugRTC)
-            Serial.println("New compilation detected - updating RTC...");
+        // Close read-only mode and reopen in read-write mode
+        preferences.end();
+        preferences.begin(PREFS_NAMESPACE, PREFS_RW_MODE);
+
+        Serial.println("New compilation detected - updating RTC...");
         updateRTC();
         updateCompilationID();
+
+        // Close read-write mode
+        preferences.end();
     }
     else
     {
-        if (debugRTC)
-            Serial.println("No new compilation detected - maintaining current RTC time");
+        // Close read-only mode
+        preferences.end();
     }
 
-    // Always show current RTC time
-    Serial.print("Current RTC time: ");
-    serialPrintRTC();
-    Serial.println();
+    return true;
 }
 
 void FED4::updateRTC()
 {
     String compileDateTime = getCompileDateTime();
-    if (debugRTC)
-        Serial.println("Updating RTC with compilation time: " + compileDateTime);
+    Serial.println("Updating RTC with compilation time: " + compileDateTime);
 
     // Parse __DATE__ and __TIME__ strings
     char monthStr[4];
@@ -73,21 +64,15 @@ void FED4::updateRTC()
     month = (strstr(month_names, monthStr) - month_names) / 3 + 1;
     sscanf(__TIME__, "%d:%d:%d", &hour, &minute, &second);
 
-    if (debugRTC)
-    {
-        Serial.printf("Parsed date/time: %04d-%02d-%02d %02d:%02d:%02d\n",
-                      year, month, day, hour, minute, second);
-    }
+    Serial.printf("Parsed date/time: %04d-%02d-%02d %02d:%02d:%02d\n",
+                  year, month, day, hour, minute, second);
 
     // Update RTC with compilation time
     rtc.adjust(DateTime(year, month, day, hour, minute, second));
 
-    if (debugRTC)
-    {
-        Serial.print("RTC time after update: ");
-        serialPrintRTC();
-        Serial.println();
-    }
+    Serial.print("RTC time after update: ");
+    serialPrintRTC();
+    Serial.println();
 }
 
 // enables use of fed4.now() when fed4 is instantiated; use rtc.now() internally
@@ -119,41 +104,32 @@ bool FED4::isNewCompilation()
     String currentCompileTime = getCompileDateTime();
     String storedCompileTime = preferences.getString("compileTime", "");
 
-    if (debugRTC)
-    {
-        Serial.println("Checking compilation status:");
-        Serial.println(" - Stored time: " + storedCompileTime);
-        Serial.println(" - Current time: " + currentCompileTime);
-        Serial.println(" - Is new compilation? " + String(storedCompileTime != currentCompileTime));
-    }
+    // Serial.println("Checking compilation status:");
+    // Serial.println(" - Stored time: " + storedCompileTime);
+    // Serial.println(" - Current time: " + currentCompileTime);
+    // Serial.println(" - Is new compilation? " + String(storedCompileTime != currentCompileTime));
 
     return (storedCompileTime != currentCompileTime);
 }
 
 void FED4::updateCompilationID()
 {
+    preferences.begin(PREFS_NAMESPACE, PREFS_RW_MODE);
+
     String currentCompileTime = getCompileDateTime();
     preferences.putString("compileTime", currentCompileTime);
 
-    if (debugRTC)
-    {
-        Serial.println("Updated stored compilation time to: " + currentCompileTime);
-        String storedTime = preferences.getString("compileTime", "none");
-        Serial.println("Verified stored compilation time: " + storedTime);
-    }
+    Serial.println("Updated stored compilation time to: " + currentCompileTime);
+    String storedTime = preferences.getString("compileTime", "none");
+    Serial.println("Verified stored compilation time: " + storedTime);
+
+    preferences.end();
 }
 
 void FED4::adjustRTC(uint32_t timestamp)
 {
-    if (debugRTC)
-        Serial.println("Adjusting RTC with Unix timestamp: " + String(timestamp));
-
+    Serial.println("Adjusting RTC with Unix timestamp: " + String(timestamp));
     rtc.adjust(DateTime(timestamp));
-
-    if (debugRTC)
-    {
-        Serial.print("RTC time after adjustment: ");
-        serialPrintRTC();
-        Serial.println();
-    }
+    Serial.print("RTC time after adjustment: ");
+    serialPrintRTC();
 }

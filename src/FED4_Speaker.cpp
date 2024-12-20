@@ -1,7 +1,7 @@
 // src/FED4_Speaker.cpp
 #include "FED4.h"
 
-void FED4::initializeSpeaker()
+bool FED4::initializeSpeaker()
 {
     // I2S configuration for MAX98357A
     i2s_config_t i2sConfig = {
@@ -33,7 +33,7 @@ void FED4::initializeSpeaker()
     if (err != ESP_OK)
     {
         Serial.println("Failed to install I2S driver");
-        return;
+        return false;
     }
 
     err = i2s_set_pin(I2S_NUM_0, &pinConfig);
@@ -41,8 +41,10 @@ void FED4::initializeSpeaker()
     {
         Serial.println("Failed to set I2S pins");
         i2s_driver_uninstall(I2S_NUM_0); // Cleanup on error
-        return;
+        return false;
     }
+
+    return true;
 }
 
 void FED4::enableAmp(bool enable)
