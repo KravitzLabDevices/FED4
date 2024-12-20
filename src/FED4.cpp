@@ -62,7 +62,10 @@ bool FED4::begin()
         {"SD Card", {false, ""}},
         {"Display", {false, ""}},
         {"Speaker", {false, ""}},
-        {"Accelerometer", {false, ""}}};
+        {"Accelerometer", {false, ""}},
+        {"Magnet", {false, ""}},
+        {"Motion", {false, ""}},
+        {"ToF Sensors", {false, ""}}};
 
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
@@ -142,6 +145,24 @@ bool FED4::begin()
     }
 
     statuses["Accelerometer"].initialized = initializeAccel();
+
+    statuses["Magnet"].initialized = initializeMagnet();
+    if (!statuses["Magnet"].initialized)
+    {
+        Serial.println("Magnet sensor initialization failed");
+    }
+
+    statuses["Motion"].initialized = initializeMotionSensor();
+    if (!statuses["Motion"].initialized)
+    {
+        Serial.println("Motion sensor initialization failed");
+    }
+
+    statuses["ToF Sensors"].initialized = initializeToF();
+    if (!statuses["ToF Sensors"].initialized)
+    {
+        Serial.println("ToF sensors initialization failed");
+    }
 
     statuses["Display"].initialized = initializeDisplay();
     updateDisplay();

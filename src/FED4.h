@@ -26,12 +26,21 @@
 #include <ArduinoJson.h>
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_Sensor.h>
+#include "Adafruit_MLX90393.h"
+#include "SparkFun_STHS34PF80_Arduino_Library.h"
+#include <Adafruit_MCP23X17.h>
+#include <Adafruit_VL6180X.h>
 
 // Pin Definitions
 #include "FED4_Pins.h"
 
 // Device Constants
-static const uint8_t LIS3DH_I2C_ADDRESS = 0x19; // Default I2C address for LIS3DH accelerometer
+static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;        // Default I2C address for LIS3DH accelerometer
+static const uint8_t MLX90393_I2C_ADDRESS = 0x0C;      // Default I2C address for MLX90393 magnetometer
+static const uint8_t MOTION_SENSOR_I2C_ADDRESS = 0x5A; // Default I2C address for STHS34PF80 motion sensor
+static const uint8_t LOX1_ADDRESS = 0x30;
+static const uint8_t LOX2_ADDRESS = 0x31;
+static const uint8_t LOX3_ADDRESS = 0x32;
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -201,6 +210,30 @@ public:
     void readAccel(float &x, float &y, float &z);
     bool accelDataReady();
 
+    // Magnet functions (defined in FED4_Magnet.cpp)
+    bool initializeMagnet();
+    void setMagnetGain(mlx90393_gain_t gain);
+    mlx90393_gain_t getMagnetGain();
+    bool readMagnetData(float &x, float &y, float &z);
+    bool getMagnetEvent(sensors_event_t *event);
+    void configureMagnet(mlx90393_gain_t gain = MLX90393_GAIN_5X);
+
+    // Motion sensor functions (defined in FED4_Motion.cpp)
+    bool initializeMotionSensor();
+    void configureMotionSensor(uint16_t threshold = 1000, uint8_t hysteresis = 100);
+    bool isMotionDataReady();
+    bool getMotionStatus(sths34pf80_tmos_func_status_t *status);
+    bool getPresenceValue(int16_t *presenceVal);
+    bool getMotionValue(int16_t *motionVal);
+    bool getTemperatureValue(float *tempVal);
+
+    // ToF sensor functions (defined in FED4_ToF.cpp)
+    bool initializeToF();
+    uint8_t readToFSensor(Adafruit_VL6180X &sensor, uint8_t *status = nullptr);
+    uint8_t readRightToF(uint8_t *status = nullptr);
+    uint8_t readMiddleToF(uint8_t *status = nullptr);
+    uint8_t readLeftToF(uint8_t *status = nullptr);
+
     ~FED4()
     {
         if (displayBuffer)
@@ -222,6 +255,11 @@ private:
     TwoWire I2C_2;
     Adafruit_NeoPixel strip;
     Adafruit_LIS3DH accel;
+    Adafruit_MLX90393 magnet;
+    STHS34PF80_I2C motionSensor;
+    Adafruit_VL6180X tofSensor1;
+    Adafruit_VL6180X tofSensor2;
+    Adafruit_VL6180X tofSensor3;
 
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
@@ -238,6 +276,8 @@ private:
     uint8_t *displayBuffer = nullptr;
     bool vcom;
     void sendDisplayCommand(uint8_t cmd);
+
+    void setToFIDs(); // Internal function to set sensor addresses
 
     friend class FED4_Display;
     friend class FED4_LED;
