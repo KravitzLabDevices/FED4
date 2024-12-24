@@ -59,8 +59,14 @@ void FED4::createLogFile()
     digitalWrite(SD_CS, HIGH); // Deselect after operations
 }
 
-void FED4::logData()
+void FED4::logData(const String &newEvent)
 {
+    // Set new event if provided
+    if (newEvent.length() > 0)
+    {
+        setEvent(newEvent);
+    }
+
     File dataFile;
     SPI.setBitOrder(MSBFIRST);
     greenPix();

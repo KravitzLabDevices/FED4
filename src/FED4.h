@@ -122,7 +122,7 @@ public:
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
     void createLogFile();
-    void logData();
+    void logData(const String &newEvent = "");
     String getMetaValue(const char *rootKey, const char *subKey);
 
     // Public counters and timing
