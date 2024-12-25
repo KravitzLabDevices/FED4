@@ -10,7 +10,11 @@
 #include <Adafruit_NeoPixel.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
+#include <Fonts/FreeSans9pt7b.h>
+#include <Fonts/Org_01.h>
+
 // #include <Adafruit_SharpMem.h>
+
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
 #include "RTClib.h"
@@ -72,8 +76,19 @@ public:
 
     // Initialization
     bool begin();
+    
+    //Corefunctions
     void feed();
+    void run();
+
+    // Pellet functions
     bool checkForPellet();
+
+    // Clock variables
+    int  currentHour;
+    int  currentMinute;
+    int currentSecond;
+    unsigned long unixtime; 
 
     // Motor functionality (defined in FED4_Motor.cpp)
     bool initializeMotor();
@@ -92,7 +107,7 @@ public:
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
 
-    // LED control (defined in FED4_LED.cpp)
+    // Side LED control (defined in FED4_LED.cpp)
     bool initializePixel();
     void setPixBrightness(uint8_t brightness);
     void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 255);
@@ -109,6 +124,12 @@ public:
     // Display functions (defined in FED4_Display.cpp)
     bool initializeDisplay();
     void updateDisplay();
+    void displayDateTime();
+    void displayEnvironmental();
+    void displayBattery();
+    void displayIndicators();
+    void startupAnimation();
+    
     void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
@@ -270,6 +291,7 @@ private:
     String getCompileDateTime();
     bool isNewCompilation();
     void updateCompilationID();
+    void updateTime();
 
     uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 

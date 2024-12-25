@@ -3,15 +3,13 @@
 FED4 fed;
 
 void setup() {
-  Serial.begin(115200);
   fed.begin();
-  // fed.playStartup();
 }
 
 void loop() {
-  if (fed.leftTouch) {
+  fed.run();  // run this once per loop
+  
+  if (fed.leftTouch) {    //if Left poke is touched:
     fed.feed();
   }
-
-  fed.sleep();
 }

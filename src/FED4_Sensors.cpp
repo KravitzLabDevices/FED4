@@ -64,9 +64,9 @@ void FED4::interpretTouch()
     uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
 
     // Reset all touch states, they should be cleared elsewhere before this too
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
+    // leftTouch = false;
+    // centerTouch = false;
+    // rightTouch = false;
 
     Serial.printf("Touch values - Left: %d/%d, Center: %d/%d, Right: %d/%d\n",
                   leftVal, touchPadLeftBaseline,
@@ -85,7 +85,7 @@ void FED4::interpretTouch()
         setEvent("Left");
         leftCount++;
         greenPix();
-        feedReady = true;
+//        feedReady = true;
         leftTouch = true;
     }
     else if (centerDev >= leftDev && centerDev >= rightDev)

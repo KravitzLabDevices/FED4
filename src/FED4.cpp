@@ -1,8 +1,19 @@
 #include "FED4.h"
 
-// (o)(o)--.
-//  \../ (  )
-//  m\/m--m'`--.
+/*
+ (o)(o)--.
+  \../ (  )
+  m\/m--m'`--.
+
+This is the library for FED4, an open source device for training mice.
+Written by Matt Gaidica and Lex Kravitz
+Updated Dec 2024
+
+The FED4 library relies on code from Adafruit and Sparkfun, who invest
+significant time and money developing open-source hardware and software.
+Please support them!
+
+*/
 
 /********************************************************
  * Constructor
@@ -165,7 +176,7 @@ bool FED4::begin()
     }
 
     statuses["Display"].initialized = initializeDisplay();
-    updateDisplay();
+    startupAnimation();
 
     // Initialize logging
     createLogFile();
@@ -174,7 +185,7 @@ bool FED4::begin()
 
     // Initialize Speaker last (as in original)
     statuses["Speaker"].initialized = initializeSpeaker();
-    playStartup();
+   // playStartup();  move to main sketch to easily turn off while working on a plane :)  
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
@@ -206,71 +217,81 @@ bool FED4::begin()
 /********************************************************
  * Core Functions
  ********************************************************/
+void FED4::run(){
+    updateTime();
+    updateDisplay();
+    sleep();    
+}
+
+void FED4::updateTime(){
+  DateTime current = rtc.now();
+  currentHour = current.hour(); //useful for timed feeding sessions
+  currentMinute = current.minute(); //useful for timed feeding sessions
+  currentSecond = current.second(); //useful for timed feeding sessions
+  unixtime = current.unixtime();
+}
+
 void FED4::feed()
 {
-    if (feedReady)
-    {
-        bool pelletPresent = checkForPellet();
+    bool pelletPresent = checkForPellet();
 
-        Serial.println("Feeding!");
-        while (pelletPresent)
-        {                     // while pellet well is empty
-            stepper.step(-2); // small movement
-            delay(10);
-            pelletPresent = checkForPellet();
-            pelletReady = true;
-            motorTurns++;
+    Serial.println("Feeding!");
+    while (pelletPresent)
+    {                     // while pellet well is empty
+        stepper.step(-2); // small movement
+        delay(10);
+        pelletPresent = checkForPellet();
+        pelletReady = true;
+        motorTurns++;
 
-            // delay for 1s roughly each pellet position
-            if (motorTurns % 125 == 0)
-            {
-                delay(1000);
-            }
-
-            // if stepper is called too many times without a dispense do a small movement to remove jam
-            if (motorTurns % 500 == 0)
-            {
-                minorJamClear();
-            }
-
-            if (motorTurns % 1000 == 0)
-            {
-                vibrateJamClear();
-            }
-        }
-        motorTurns = 0;
-
-        if (pelletReady)
+        // delay for 1s roughly each pellet position
+        if (motorTurns % 125 == 0)
         {
-            pelletCount++;
-            pelletReady = false;
+            delay(1000);
         }
 
-        feedReady = false;
-        releaseMotor();
-        setEvent("PelletDrop");
-        //        logData();
-
-        // Monitor retrieval
-        unsigned long pelletDrop = millis();
-        while (!pelletPresent)
-        { // while pellet well is full
-            bluePix();
-            pelletPresent = checkForPellet();
-            retrievalTime = millis() - pelletDrop;
-            if (retrievalTime > 10000)
-                break;
+        // if stepper is called too many times without a dispense do a small movement to remove jam
+        if (motorTurns % 500 == 0)
+        {
+            minorJamClear();
         }
-        redPix();
-        setEvent("PelletTaken");
-        //        logData();
-        retrievalTime = 0;
 
-        // Reset touch states after handling the feed
-        leftTouch = false;
-        centerTouch = false;
-        rightTouch = false;
+        if (motorTurns % 1000 == 0)
+        {
+            vibrateJamClear();
+        }
     }
+    motorTurns = 0;
+
+    if (pelletReady)
+    {
+        pelletCount++;
+        pelletReady = false;
+    }
+
+    releaseMotor();
+    setEvent("PelletDrop");
+    //        logData();
+
+    // Monitor retrieval
+    unsigned long pelletDrop = millis();
+    while (!pelletPresent)
+    { // while pellet well is full
+        bluePix(); 
+        pelletPresent = checkForPellet();
+        retrievalTime = millis() - pelletDrop;
+        if (retrievalTime > 10000)
+            break;
+    }
+    redPix();
+    setEvent("PelletTaken");
+    //        logData();
+    retrievalTime = 0;
+
+    // Reset touch states after handling the feed
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
 
     updateDisplay();
 
@@ -281,7 +302,6 @@ void FED4::feed()
         calibrateTouchSensors();
     }
 }
-
 bool FED4::checkForPellet()
 {
     return mcp.digitalRead(EXP_PHOTOGATE_1);

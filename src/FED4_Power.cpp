@@ -2,8 +2,6 @@
 
 void FED4::sleep()
 {
-    noPix();
-
     // Enter sleep
     Serial.println("Entering light sleep...");
     Serial.flush();
