@@ -80,12 +80,15 @@ void FED4::displayBattery(){
   if (cellPercent > 100){
     cellPercent = 100;
   }
-  //cellPercent = 50;  //for testing battery graphic
+//   cellPercent = 50;  //for testing battery graphic
 
   //battery graphic
   fillRect (80, 1, 18, 10, DISPLAY_WHITE); //body
+  fillRect (82, 3, 14, 6, DISPLAY_BLACK); //body
+  
   fillRect (99, 3, 2, 6, DISPLAY_WHITE);   //terminal
-  fillRect (82, 2, (int)(cellPercent/7), 8, DISPLAY_BLACK);  //fill
+
+  fillRect (82, 2, (int)((cellPercent)/7), 8, DISPLAY_WHITE);  //fill
 
   //battery text
   setFont(&Org_01);
