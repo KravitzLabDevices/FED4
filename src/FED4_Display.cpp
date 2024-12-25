@@ -22,14 +22,11 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
 
 
 void FED4::updateDisplay() {
+  //TODO: Stop clearing display and just clear needed areas 
   clearDisplay();
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-
-  // get program and mouseID from JSON and display on screen  
-  String program = getMetaValue("fed", "program");     // returns 
-  String mouseId = getMetaValue("subject", "id");      // returns 
 
   setCursor(6, 35);
   print("Task: ");
@@ -54,33 +51,22 @@ void FED4::updateDisplay() {
 
 void FED4::displayEnvironmental(){
   //try to make text inverse white on black
-  fillRect (0, 0, 144, 15, DISPLAY_BLACK);
+  fillRect (0, 0, 144, 17, DISPLAY_BLACK);
   
   setFont(&Org_01);
   setTextSize(2);
   setTextColor(DISPLAY_WHITE);
 
   setCursor(5, 9);
-  print((int)getTemperature());
+  print((int)temperature); 
   drawCircle(30, 3, 2, DISPLAY_WHITE); 
   drawCircle(31, 3, 2, DISPLAY_WHITE); 
   setCursor(35, 9);
   print("C");
-
-//   setCursor(54, 9);
-//   print((int)getHumidity());
-//   print("%");
 }
 
-
 void FED4::displayBattery(){
-  //get battery data
-  float cellVoltage = getBatteryVoltage();
-  float cellPercent = getBatteryPercentage();
-  if (cellPercent > 100){
-    cellPercent = 100;
-  }
-//   cellPercent = 50;  //for testing battery graphic
+  //   cellPercent = 50;  //for testing battery graphic
 
   //battery graphic
   fillRect (80, 1, 18, 10, DISPLAY_WHITE); //body
@@ -151,7 +137,7 @@ void FED4::displayDateTime(){
   setTextColor(DISPLAY_WHITE);
 
   // Print date and time at bottom of the screen
-  fillRect (0, 148, 144, 20, DISPLAY_BLACK);
+  fillRect (0, 146, 144, 22, DISPLAY_BLACK);
   DateTime current = rtc.now();
 
   setCursor(5, 160);
@@ -186,19 +172,19 @@ void FED4::serialStatusReport()
     // Environmental Data section
        Serial.println(F("\n► Environmental Data"));
     Serial.print(F("  • Temperature:  "));
-    Serial.print(getTemperature(), 1);
+    Serial.print(temperature, 1);
     Serial.println(F(" °C"));
     Serial.print(F("  • Humidity:     "));
-    Serial.print(getHumidity(), 1);
+    Serial.print(humidity, 1);
     Serial.println(F("%"));
 
     // Battery Status section
     Serial.println(F("\n► Battery Status"));
     Serial.print(F("  • Voltage: "));
-    Serial.print(getBatteryVoltage(), 1);
+    Serial.print(cellVoltage, 1);
     Serial.println(F("V"));
     Serial.print(F("  • Charge:  "));
-    Serial.print(getBatteryPercentage(), 1);
+    Serial.print(cellPercent, 1);
     Serial.println(F("%"));
 
     // Pellet counts section
@@ -225,6 +211,9 @@ void FED4::serialStatusReport()
     Serial.print(F("  • Min Free Heap: "));
     Serial.print(ESP.getMinFreeHeap());
     Serial.println(F(" bytes"));
+
+    Serial.println();
+    Serial.print(millis()-lastPollTime);
 
     Serial.println(F("\n================================================\n"));
 }

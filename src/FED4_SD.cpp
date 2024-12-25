@@ -95,8 +95,8 @@ void FED4::logData(const String &newEvent)
                     pelletCount, leftCount, rightCount, centerCount, wakeCount);
 
     dataFile.printf("%.2f,%.1f,",
-                    getBatteryVoltage(),
-                    getTemperature());
+                    cellVoltage,
+                    temperature);
 
     dataFile.printf("%d,%d,%d\n",
                     ESP.getFreeHeap(),

@@ -183,6 +183,10 @@ bool FED4::begin()
     setEvent("Startup");
     logData();
 
+    //get JSON data from SD card
+    program = getMetaValue("fed", "program");     // returns 
+    mouseId = getMetaValue("subject", "id");      // returns 
+
     // Initialize Speaker last (as in original)
     statuses["Speaker"].initialized = initializeSpeaker();
    // playStartup();  move to main sketch to easily turn off while working on a plane :)  
@@ -209,8 +213,7 @@ bool FED4::begin()
                   statuses.size());
     Serial.println("================================\n");
 
-    serialStatusReport();
-
+    pollSensors(); 
     return true;
 }
 
@@ -220,7 +223,8 @@ bool FED4::begin()
 void FED4::run(){
     updateTime();
     updateDisplay();
-    sleep();    
+    serialStatusReport();
+    sleep();
 }
 
 void FED4::updateTime(){
@@ -229,6 +233,26 @@ void FED4::updateTime(){
   currentMinute = current.minute(); //useful for timed feeding sessions
   currentSecond = current.second(); //useful for timed feeding sessions
   unixtime = current.unixtime();
+}
+
+void FED4::pollSensors(){
+  int minToUpdateSensors = 10;  //update sensors every 10 minutes
+  if (millis()-lastPollTime > (minToUpdateSensors * 60000)){
+    //get temp and humidity
+    temperature = getTemperature();
+    humidity = getHumidity();
+    if (temperature < 0){  //if bad reading try again
+      temperature = getTemperature();
+    }
+    delay (5); 
+    //get battery info 
+    cellVoltage = getBatteryVoltage();
+    cellPercent = getBatteryPercentage();
+    if (cellPercent > 100){
+      cellPercent = 100;
+    }
+    lastPollTime = millis();
+  }
 }
 
 void FED4::feed()
@@ -283,6 +307,7 @@ void FED4::feed()
         if (retrievalTime > 10000)
             break;
     }
+
     redPix();
     setEvent("PelletTaken");
     //        logData();
@@ -293,15 +318,16 @@ void FED4::feed()
     centerTouch = false;
     rightTouch = false;
 
-    updateDisplay();
-
     // Rebaseline touch sensors
     reBaselineTouches = 10;
     if ((leftCount + rightCount + centerCount) % reBaselineTouches == 0 && (leftCount + rightCount + centerCount) > 5)
     {
         calibrateTouchSensors();
     }
+
+    pollSensors(); //only poll sensors after a feed event so we don't block responsiveness after pokes
 }
+
 bool FED4::checkForPellet()
 {
     return mcp.digitalRead(EXP_PHOTOGATE_1);

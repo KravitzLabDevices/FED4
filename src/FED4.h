@@ -80,13 +80,14 @@ public:
     //Corefunctions
     void feed();
     void run();
+    void pollSensors();
 
     // Pellet functions
     bool checkForPellet();
 
     // Clock variables
-    int  currentHour;
-    int  currentMinute;
+    int currentHour;
+    int currentMinute;
     int currentSecond;
     unsigned long unixtime; 
 
@@ -171,6 +172,13 @@ public:
     float getBatteryPercentage();
     float getTemperature();
     float getHumidity();
+
+    //variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
+    float temperature;
+    float humidity;
+    float cellVoltage;
+    float cellPercent;
+    unsigned long lastPollTime = -10000000; //make this a large negative so FED polls sensors at first startup
 
     // Speaker functions (defined in FED4_Speaker.cpp)
     bool initializeSpeaker();
@@ -286,6 +294,8 @@ private:
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
+    String program;
+    String mouseId;
 
     // RTC functions
     Preferences preferences;

@@ -10,7 +10,6 @@ void loop() {
   fed4.run();                   // run this once per loop
   
   if (fed4.leftTouch) {         // if left poke is touched
-    // fed4.sound1();
     fed4.feed();                // feed one pellet
   }
 }

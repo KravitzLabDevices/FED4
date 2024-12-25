@@ -85,7 +85,6 @@ void FED4::interpretTouch()
         setEvent("Left");
         leftCount++;
         greenPix();
-//        feedReady = true;
         leftTouch = true;
     }
     else if (centerDev >= leftDev && centerDev >= rightDev)
