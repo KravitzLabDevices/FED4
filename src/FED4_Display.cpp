@@ -19,239 +19,154 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                                       (uint8_t)~8, (uint8_t)~16, (uint8_t)~32,
                                       (uint8_t)~64, (uint8_t)~128};
 
-// void FED4::updateDisplay()
-// {
-//     // Step 1: Initial setup
-//     clearDisplay();
-//     setRotation(2);
-//     setTextColor(DISPLAY_BLACK);
-
-//     // Step 2: Title
-//     setTextSize(3);
-//     setCursor(12, 20);
-//     print("FED4");
-//     refresh();
-
-//     // Step 3: Status information
-//     setTextSize(1);
-
-//     // Counts
-//     setCursor(12, 56);
-//     print("Pellets: ");
-//     print(pelletCount);
-//     refresh();
-
-//     setCursor(12, 72);
-//     print("L:");
-//     print(leftCount);
-//     print("   C:");
-//     print(centerCount);
-//     print("   R:");
-//     print(rightCount);
-//     refresh();
-
-//     // Environmental
-//     setCursor(12, 90);
-//     print("Temp: ");
-//     print(getTemperature(), 1);
-//     print("C");
-//     print(" Hum: ");
-//     print(getHumidity(), 1);
-//     println("%");
-//     refresh();
-
-//     // Battery
-//     float cellVoltage = getBatteryVoltage();
-//     float cellPercent = getBatteryPercentage();
-//     setCursor(12, 122);
-//     print("Fuel: ");
-//     print(cellVoltage, 1);
-//     print("V, ");
-//     print(cellPercent, 1);
-//     println("%");
-//     refresh();
-
-//     // Time
-//     DateTime currentTime = now();
-//     setCursor(12, 140);
-//     print(currentTime.month());
-//     print("/");
-//     print(currentTime.day());
-//     print("/");
-//     print(currentTime.year());
-//     print(" ");
-//     print(currentTime.hour());
-//     print(":");
-//     if (currentTime.minute() < 10)
-//         print('0');
-//     print(currentTime.minute());
-//     refresh();
-
-//     // Wake count
-//     setCursor(12, 156);
-//     print("Unclear:");
-//     print(wakeCount);
-//     refresh();
-// }
 
 
 void FED4::updateDisplay() {
   clearDisplay();
-
-  //Box around data area of screen
-  drawRect (5, 56, 134, 86, DISPLAY_BLACK);
-  
-  setTextSize(2);
-  setFont(&Org_01);
- 
-  setCursor(5, 13);
-  print("FED4");
-  setCursor(6, 13);  // this doubling is a way to do bold type
-  print("FED4");
-//  fillRect (6, 20, 200, 22, WHITE);  //erase text under battery row without clearing the entire screen
-//  fillRect (35, 46, 120, 68, WHITE);  //erase the pellet data on screen without clearing the entire screen 
-//   setCursor(5, 36); //display which sketch is running
-  
-  //write the first 8 characters of sessiontype:
-//   print(sessiontype.charAt(0));
-//   print(sessiontype.charAt(1));
-//   print(sessiontype.charAt(2));
-//   print(sessiontype.charAt(3));
-//   print(sessiontype.charAt(4));
-//   print(sessiontype.charAt(5));
-//   print(sessiontype.charAt(6));
-//   print(sessiontype.charAt(7));
-
   setFont(&FreeSans9pt7b);
   setTextSize(1);
-  setCursor(30, 75);
-  print("Left: ");
-  setCursor(90, 75);
-  print(leftCount);
-  setCursor(30, 95);
-  print("Center: ");
-  setCursor(90, 95);
-  print(centerCount);
-  setCursor(30, 115);
-  print("Right:  ");
-  setCursor(90, 115);
-  print(rightCount);
-  setCursor(30, 135);
-  print("Pellets:");
-  setCursor(90, 135);
-  print(pelletCount);
+  setTextColor(DISPLAY_BLACK);
+
+  // get program and mouseID from JSON and display on screen  
+  String program = getMetaValue("fed", "program");     // returns 
+  String mouseId = getMetaValue("subject", "id");      // returns 
+
+  setCursor(6, 35);
+  print("Task: ");
+  print(program);
+
+  setCursor(6, 53);
+  print("ID: ");
+  print(mouseId); 
     
-  displayBattery();
-  displayDateTime();
-  displayIndicators();
+  // draw line to split on screen text 
+  drawLine(0,59,168,59, DISPLAY_BLACK);  
+  drawLine(0,60,168,60, DISPLAY_BLACK);  
+
+  // draw screen elements
   displayEnvironmental();
+  displayBattery();
+  displayCounters();
+  displayIndicators();
+  displayDateTime();
   refresh();
 }
 
+void FED4::displayEnvironmental(){
+  //try to make text inverse white on black
+  fillRect (0, 0, 144, 15, DISPLAY_BLACK);
+  
+  setFont(&Org_01);
+  setTextSize(2);
+  setTextColor(DISPLAY_WHITE);
+
+  setCursor(5, 9);
+  print((int)getTemperature());
+  drawCircle(30, 3, 2, DISPLAY_WHITE); 
+  drawCircle(31, 3, 2, DISPLAY_WHITE); 
+  setCursor(35, 9);
+  print("C");
+
+//   setCursor(54, 9);
+//   print((int)getHumidity());
+//   print("%");
+}
+
+
+void FED4::displayBattery(){
+  //get battery data
+  float cellVoltage = getBatteryVoltage();
+  float cellPercent = getBatteryPercentage();
+  if (cellPercent > 100){
+    cellPercent = 100;
+  }
+  //cellPercent = 50;  //for testing battery graphic
+
+  //battery graphic
+  fillRect (80, 1, 18, 10, DISPLAY_WHITE); //body
+  fillRect (99, 3, 2, 6, DISPLAY_WHITE);   //terminal
+  fillRect (82, 2, (int)(cellPercent/7), 8, DISPLAY_BLACK);  //fill
+
+  //battery text
+  setFont(&Org_01);
+  setTextSize(2);
+  setTextColor(DISPLAY_WHITE);
+ 
+ 
+  setCursor(105, 9);
+  print((int)cellPercent);
+  print("%");
+}
+
+void FED4::displayCounters()
+{
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+
+  setCursor(30, 80);
+  print("Left: ");
+  setCursor(90, 80);
+  print(leftCount);
+  setCursor(30, 100);
+  print("Center: ");
+  setCursor(90, 100);
+  print(centerCount);
+  setCursor(30, 120);
+  print("Right:  ");
+  setCursor(90, 120);
+  print(rightCount);
+  setCursor(30, 140);
+  print("Pellets:");
+  setCursor(90, 140);
+  print(pelletCount);
+}
+
+void FED4::displayIndicators(){
+  //TODO: add indicators for when touch flags are set
+
+  //Left 
+  fillCircle(17, 75, 5, DISPLAY_WHITE); 
+  drawCircle(17, 75, 5, DISPLAY_BLACK);
+
+  //Center
+  fillCircle(17, 95, 5, DISPLAY_WHITE); 
+  drawCircle(17, 95, 5, DISPLAY_BLACK);
+
+  //Right
+  fillCircle(17, 115, 5, DISPLAY_WHITE);
+  drawCircle(17, 115, 5, DISPLAY_BLACK);
+
+  //Pellets 
+  fillCircle(17, 135, 5, DISPLAY_WHITE);
+  drawCircle(17, 135, 5, DISPLAY_BLACK);
+}
+
 void FED4::displayDateTime(){
-  DateTime current = rtc.now();
+  setFont(&Org_01);
+  setTextSize(2);
+  setTextColor(DISPLAY_WHITE);
 
   // Print date and time at bottom of the screen
-  setCursor(0, 160);
-  //  fillRect (0, 123, 200, 60, WHITE);
+  fillRect (0, 148, 144, 20, DISPLAY_BLACK);
+  DateTime current = rtc.now();
+
+  setCursor(5, 160);
   print(current.month());
-  print("/");
+  print(".");
   print(current.day());
-  print("/");
+  print(".");
   print(current.year()-2000);
-  print("     ");
+
+  setCursor(99, 160);
   if (current.hour() < 10)
-    print(' ');      // Trick to add leading zero for formatting
+    print('  ');      // Trick to add leading zero for formatting
   print(current.hour());
   print(":");
   if (current.minute() < 10)
     print('0');      // Trick to add leading zero for formatting
   print(current.minute());
 }
-
-void FED4::displayIndicators(){
-  //Left 
-  fillCircle(17, 70, 5, DISPLAY_WHITE); 
-  drawCircle(17, 70, 5, DISPLAY_BLACK);
-
-  //Center
-  fillCircle(17, 90, 5, DISPLAY_WHITE); 
-  drawCircle(17, 90, 5, DISPLAY_BLACK);
-
-  //Right
-  fillCircle(17, 110, 5, DISPLAY_WHITE);
-  drawCircle(17, 110, 5, DISPLAY_BLACK);
-
-  //Pellets 
-  fillCircle(17, 130, 5, DISPLAY_WHITE);
-  drawCircle(17, 130, 5, DISPLAY_BLACK);
-
-  //add triangles to indicate which poke is active
-  // TO DO
-}
-
-void FED4::displayBattery(){
-  float cellVoltage = getBatteryVoltage();
-  float cellPercent = getBatteryPercentage();
-
-  //  Battery graphic showing bars indicating voltage levels
-//   display.fillRect (117, 2, 40, 16, WHITE);
-//   display.drawRect (116, 1, 42, 18, BLACK);
-//   display.drawRect (157, 6, 6, 8, BLACK);
-  
-//   //4 bars
-//   if (cellVoltage > 3.85) {
-//     fillRect (120, 4, 7, 12, BLACK);
-//     fillRect (129, 4, 7, 12, BLACK);
-//     fillRect (138, 4, 7, 12, BLACK);
-//     fillRect (147, 4, 7, 12, BLACK);
-//   }
-
-//   //3 bars
-//   else if (cellVoltage > 3.7) {
-//     fillRect (119, 3, 26, 13, WHITE);
-//     fillRect (120, 4, 7, 12, BLACK);
-//     fillRect (129, 4, 7, 12, BLACK);
-//     fillRect (138, 4, 7, 12, BLACK);
-//   }
-
-//   //2 bars
-//   else if (cellVoltage > 3.55) {
-//     fillRect (119, 3, 26, 13, WHITE);
-//     fillRect (120, 4, 7, 12, BLACK);
-//     fillRect (129, 4, 7, 12, BLACK);
-//   }
-
-//   //1 bar
-//   else {
-//     fillRect (119, 3, 26, 13, WHITE);
-//     fillRect (120, 4, 7, 12, BLACK);
-//   }
-  
-  //display voltage
-//  fillRect (86, 0, 28, 12, WHITE);
-  setTextSize(2);
-  setFont(&Org_01);
-  setCursor(85, 13);
-  print(cellVoltage, 1);
-  print("V");
-  setTextSize(1);
-  setFont(&FreeSans9pt7b);
-}
-
-void FED4::displayEnvironmental(){
-  setFont(&Org_01);
-  setTextSize(2);
-  setCursor(85, 28);
-  print(getTemperature(), 1);
-  print("C, ");
-  setCursor(85, 43);
-  print(getHumidity(), 1);
-  print("%");
-  setFont(&FreeSans9pt7b);
-  setTextSize(1);
-}
-
 
 void FED4::serialStatusReport()
 {
@@ -472,17 +387,17 @@ void FED4::startupAnimation(){
   int textX = 144;   // Start position off the screen (right side)
   int mouseX = 0;
   int centerX = (144 - strlen(text) * textWidth) / 2; // Center X position
-  int textY = (168 - 32) / 2; // Vertical center for the text
+  int textY = 60;        // Vertical height of the text
 
   while (textX > centerX) {
     clearDisplay();
 
     //draw FED4
-    fillRect(110, 102, 32, 20, DISPLAY_BLACK);    //FED4
-    fillRect(122, 92, 16, 8, DISPLAY_BLACK);     //hopper
-    fillCircle(118, 108, 3, DISPLAY_WHITE);       //poke 1
-    fillCircle(134, 108, 3, DISPLAY_WHITE);       //poke 2
-    fillCircle(126, 114, 2, DISPLAY_WHITE);       //poke 3
+    fillRect(100, 92, 32, 20, DISPLAY_BLACK);    //FED4
+    fillRect(112, 82, 16, 8, DISPLAY_BLACK);     //hopper
+    fillCircle(108, 98, 3, DISPLAY_WHITE);       //poke 1
+    fillCircle(124, 98, 3, DISPLAY_WHITE);       //poke 2
+    fillCircle(116, 104, 2, DISPLAY_WHITE);       //poke 3
 
     // Draw the text sliding in from the right
     setCursor(textX, textY);
@@ -519,7 +434,7 @@ void FED4::startupAnimation(){
     }
     // Update the display
     refresh();
-    delay(30);   // Adjust the frame rate by changing this delay
+    delay(1);   // Adjust the frame rate by changing this delay
   }
 
   // Display the text in the center and hold
@@ -528,5 +443,5 @@ void FED4::startupAnimation(){
   print(text);
   refresh();
   setTextSize(1);
-  delay(2000); // Pause to keep "FED4" displayed for 2s
+  delay(1500); // Pause to keep "FED4" displayed for 2s
 }

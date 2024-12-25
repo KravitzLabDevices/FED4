@@ -124,6 +124,7 @@ public:
     // Display functions (defined in FED4_Display.cpp)
     bool initializeDisplay();
     void updateDisplay();
+    void displayCounters();
     void displayDateTime();
     void displayEnvironmental();
     void displayBattery();
