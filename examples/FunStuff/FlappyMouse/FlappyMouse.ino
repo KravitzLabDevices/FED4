@@ -169,12 +169,8 @@ void Flappy() {
       display.fillRoundRect(5, py + 9, 4, 4, 1, DISPLAY_BLACK);    //back foot
     }
 
-    //Control wall speed  (lower the divisor number to speed up).  This will automatically speed up to a pretty impossible rate as score goes up to 11
+    //Control wall speed  (lower the divisor number to speed up).
     if (score < 4) wallPos[i] -= deltaTime / (20 - (score * 3));  // move walls
-
-    Serial.println(wallPos[0]);
-    Serial.println(wallPos[1]);
-
     if (score >= 4) wallPos[i] -= deltaTime / 9;  // move walls
   }
 
