@@ -56,7 +56,7 @@ void FED4::enableAmp(bool enable)
     }
 }
 
-void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp = true)
+void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp)
 {
     if (controlAmp)
     {

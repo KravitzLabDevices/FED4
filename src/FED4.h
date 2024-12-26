@@ -99,7 +99,7 @@ public:
     void vibrateJamClear();
 
     // Haptic motor
-    void haptic();
+    void haptic(uint8_t duration = 100);
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
     bool initializeTouch();
@@ -187,7 +187,7 @@ public:
         uint32_t frequency;
         uint32_t duration_ms;
     };
-    void playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp);
+    void playTone(uint32_t frequency = 500, uint32_t duration_ms = 200, bool controlAmp = true);
     void playTones(const Tone *tones, size_t count);
     void enableAmp(bool enable);
     void resetSpeaker();

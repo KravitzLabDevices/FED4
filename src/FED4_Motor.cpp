@@ -45,9 +45,9 @@ void FED4::vibrateJamClear()
     }
 }
 
-void FED4::haptic()
+void FED4::haptic(uint8_t duration)
 {
     mcp.digitalWrite(EXP_HAPTIC, HIGH);
-    delay(100);
+    delay(duration);
     mcp.digitalWrite(EXP_HAPTIC, LOW);
 }
