@@ -191,7 +191,15 @@ public:
     void playTones(const Tone *tones, size_t count);
     void enableAmp(bool enable);
     void resetSpeaker();
+
+    //Sound stimuli
     void playStartup();
+    void bopBeep();
+    void lowBeep();
+    void highBeep();
+    void higherBeep();
+    void click();
+    void soundSweep();
 
     void setEvent(const String &newEvent)
     {

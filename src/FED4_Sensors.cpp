@@ -64,9 +64,9 @@ void FED4::interpretTouch()
     uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
 
     // Reset all touch states, they should be cleared elsewhere before this too
-    // leftTouch = false;
-    // centerTouch = false;
-    // rightTouch = false;
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
 
     Serial.printf("Touch values - Left: %d/%d, Center: %d/%d, Right: %d/%d\n",
                   leftVal, touchPadLeftBaseline,
@@ -78,7 +78,7 @@ void FED4::interpretTouch()
     float centerDev = abs((float)centerVal / touchPadCenterBaseline - 1.0);
     float rightDev = abs((float)rightVal / touchPadRightBaseline - 1.0);
 
-    // Always count a touch - just determine which one had the largest deviation
+    // Always count a touch - just determine which one had the largest deviation, set others to false
     if (leftDev >= centerDev && leftDev >= rightDev)
     {
         Serial.println("Left Poke detected.");
@@ -102,6 +102,7 @@ void FED4::interpretTouch()
         rightCount++;
         redPix();
         rightTouch = true;
+
     }
 
     // Clear any pending touch pad interrupts

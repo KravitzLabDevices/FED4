@@ -6,11 +6,18 @@ void FED4::sleep()
   Serial.println("Entering light sleep...");
   Serial.flush();
   LDO2_OFF();
+  enableAmp(false); 
+
   esp_light_sleep_start();
 
   // after wake
-  interpretTouch(); // do first to capture accurate touch values -
   LDO2_ON();
+
+  //turn on audio amp (this takes a bit of time to warm up)
+  esp_err_t err = i2s_start(I2S_NUM_0);
+  enableAmp(true); 
+  interpretTouch(); // do first to capture accurate touch values -
+
   Serial.println("Woke up!");
   purplePix();
 }

@@ -52,19 +52,20 @@ void FED4::enableAmp(bool enable)
     digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
     if (enable)
     {
-        delay(1); // stabilize amp
+        delay(5); // stabilize amp
     }
 }
 
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp)
 {
-    if (controlAmp)
-    {
-        enableAmp(true);
-    }
+    //CONTROLLING THIS IN SLEEP NOW - POWER UP AMP AT WAKE AND DOWN AT SLEEP 
+    // if (controlAmp)      
+    // {
+    //     enableAmp(true);
+    // }
 
     // Generate and play tone
-    const uint32_t sampleRate = 44100;
+    const uint32_t sampleRate = 22050;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
     const float amplitude = 0.5;
     const float twoPiF = 2.0 * M_PI * frequency;
@@ -92,10 +93,10 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp)
         i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
     }
 
-    if (controlAmp)
-    {
-        enableAmp(false);
-    }
+    // if (controlAmp)
+    // {
+    //     enableAmp(false);
+    // }
 }
 
 struct Tone
@@ -116,14 +117,14 @@ void FED4::playTones(const Tone *tones, size_t count)
         return;
     }
 
-    enableAmp(true);
+    // enableAmp(true); 
 
     for (size_t i = 0; i < count; i++)
     {
         playTone(tones[i].frequency, tones[i].duration_ms, false);
     }
 
-    enableAmp(false);
+    // enableAmp(false);
 }
 
 void FED4::playStartup()
@@ -151,6 +152,7 @@ void FED4::playStartup()
 void FED4::resetSpeaker()
 {
     esp_err_t err = i2s_driver_uninstall(I2S_NUM_0);
+    delay(50);
     if (err != ESP_OK)
     {
         Serial.println("Error uninstalling I2S driver");
@@ -158,4 +160,34 @@ void FED4::resetSpeaker()
     }
 
     initializeSpeaker();
+}
+
+void FED4::bopBeep(){
+    playTone(587,600,true);
+    delay (600);
+    playTone(1175,300,true);
+}
+
+void FED4::lowBeep(){
+    playTone(500,300,true);
+}
+
+void FED4::highBeep(){
+    playTone(1000,300,true);
+}
+
+void FED4::higherBeep(){
+    playTone(2000,300,true);
+}
+
+void FED4::click(){
+    playTone(500,20,true);
+}
+
+void FED4::soundSweep() {
+    playTone(450, 200, true); // Play tone for 10ms at current frequency
+    delay (200);
+    playTone(850, 200, true); // Play tone for 10ms at current frequency
+    delay (200);
+    playTone(1250, 100, true); // Play tone for 10ms at current frequency
 }
