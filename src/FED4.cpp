@@ -178,10 +178,12 @@ bool FED4::begin()
     statuses["Display"].initialized = initializeDisplay();
     startupAnimation();
 
-    // Initialize logging
+    // check battery and environmental sensors
+    pollSensors(); 
+
+    // initialize logging
     createLogFile();
-    setEvent("Startup");
-    logData();
+    logData("Startup");
 
     //get JSON data from SD card
     program = getMetaValue("fed", "program");     // returns 
@@ -213,7 +215,6 @@ bool FED4::begin()
                   statuses.size());
     Serial.println("================================\n");
 
-    pollSensors(); 
     return true;
 }
 

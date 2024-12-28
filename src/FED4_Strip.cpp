@@ -69,3 +69,32 @@ void FED4::setStripPixel(uint8_t pixel, uint32_t color)
     strip.setPixelColor(pixel, color);
     strip.show();
 }
+
+void FED4::leftLight(uint32_t color) //can these accept String arguments like "red", "blue", "green", etc?
+{
+    strip.clear();
+    strip.setPixelColor(5, color);
+    strip.setPixelColor(6, color);
+    strip.setPixelColor(7, color);
+    strip.show();
+}
+
+void FED4::centerLight(uint32_t color) //can these accept String arguments like "red", "blue", "green", etc?
+{
+    strip.clear();
+    strip.setPixelColor(3, color);
+    strip.setPixelColor(4, color);
+    strip.show();
+}
+
+void FED4::rightLight(uint32_t color) //can these accept String arguments like "red", "blue", "green", etc?
+{
+    strip.clear();
+    strip.setPixelColor(0, color);
+    strip.setPixelColor(1, color);
+    strip.setPixelColor(2, color);
+    strip.show();
+}
+
+
+

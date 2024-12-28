@@ -91,15 +91,17 @@ public:
     int currentSecond;
     unsigned long unixtime; 
 
-    // Motor functionality (defined in FED4_Motor.cpp)
+    // Stepper motor functionality (defined in FED4_Motor.cpp)
     bool initializeMotor();
     void releaseMotor();
     void minorJamClear();
     void majorJamClear();
     void vibrateJamClear();
 
-    // Haptic motor
-    void haptic(uint8_t duration = 100);
+    // Haptic motor vibration stimuli
+    void hapticBuzz(uint8_t duration = 100);
+    void hapticDoubleBuzz(uint8_t duration = 100);
+    void hapticTripleBuzz(uint8_t duration = 100);
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
     bool initializeTouch();
@@ -238,6 +240,9 @@ public:
     void stripRainbow(unsigned long wait, unsigned int numLoops);
     void clearStrip();
     void setStripPixel(uint8_t pixel, uint32_t color);
+    void leftLight(uint32_t color);
+    void centerLight(uint32_t color);
+    void rightLight(uint32_t color);
 
     // Accelerometer functions (defined in FED4_Accel.cpp)
     bool initializeAccel();

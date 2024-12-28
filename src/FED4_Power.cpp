@@ -7,16 +7,22 @@ void FED4::sleep()
   Serial.flush();
   LDO2_OFF();
   enableAmp(false); 
-
+  
+  // put FED4 to sleep
   esp_light_sleep_start();
 
-  // after wake
+  // power on LDO2
   LDO2_ON();
+
+  // re-start port expander
+  mcp.begin_I2C();
 
   //turn on audio amp (this takes a bit of time to warm up)
   esp_err_t err = i2s_start(I2S_NUM_0);
-  enableAmp(true); 
-  interpretTouch(); // do first to capture accurate touch values -
+  enableAmp(true);
+
+  // return which touch pad woke FED4 
+  interpretTouch();
 
   Serial.println("Woke up!");
   purplePix();
