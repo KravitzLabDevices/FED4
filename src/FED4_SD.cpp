@@ -46,7 +46,7 @@ void FED4::createLogFile()
         File dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
-            dataFile.println("DateTime,Event,PelletCount,LeftCount,RightCount,CenterCount,WakeCount,"
+            dataFile.println("DateTime,Millis,Event,PelletCount,LeftCount,RightCount,CenterCount,WakeCount,"
                              "Battery,Temperature,FreeHeap,HeapSize,MinFreeHeap");
             dataFile.close();
             Serial.println("Created new data file with headers");
@@ -72,6 +72,7 @@ void FED4::logData(const String &newEvent)
     greenPix();
 
     DateTime now = rtc.now();
+    unsigned long currentMillis = millis(); // Get current milliseconds
 
     // Open file for writing
     digitalWrite(SD_CS, LOW); // Select SD card for operation
@@ -86,9 +87,10 @@ void FED4::logData(const String &newEvent)
     }
 
     // Write all data
-    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%s,",
+    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%lu,%s,",
                     now.year(), now.month(), now.day(),
                     now.hour(), now.minute(), now.second(),
+                    currentMillis,
                     event.c_str());
 
     dataFile.printf("%d,%d,%d,%d,%d,",
