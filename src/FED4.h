@@ -76,8 +76,8 @@ public:
 
     // Initialization
     bool begin();
-    
-    //Corefunctions
+
+    // Corefunctions
     void feed();
     void run();
     void pollSensors();
@@ -89,7 +89,7 @@ public:
     int currentHour;
     int currentMinute;
     int currentSecond;
-    unsigned long unixtime; 
+    unsigned long unixtime;
 
     // Stepper motor functionality (defined in FED4_Motor.cpp)
     bool initializeMotor();
@@ -110,10 +110,27 @@ public:
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
 
-    // Side LED control (defined in FED4_LED.cpp)
+    // Pixel an Strip control (defined in FED4_LEDs.cpp)
+    // (strip)
+    bool initializeStrip();
+    void setStripBrightness(uint8_t brightness);
+    void colorWipe(uint32_t color, unsigned long wait);
+    void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases);
+    void stripRainbow(unsigned long wait, unsigned int numLoops);
+    void clearStrip();
+    void setStripPixel(uint8_t pixel, uint32_t color);
+    void leftLight(uint32_t color);
+    void centerLight(uint32_t color);
+    void rightLight(uint32_t color);
+    void setStripPixel(uint8_t pixel, const char *colorName);
+    void leftLight(const char *colorName);
+    void centerLight(const char *colorName);
+    void rightLight(const char *colorName);
+    // (pixel)
     bool initializePixel();
     void setPixBrightness(uint8_t brightness);
     void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 255);
+    void setPixColor(const char *colorName, uint8_t brightness = 64);
     void bluePix(uint8_t brightness = 255);
     void greenPix(uint8_t brightness = 255);
     void redPix(uint8_t brightness = 255);
@@ -123,6 +140,8 @@ public:
     void whitePix(uint8_t brightness = 255);
     void orangePix(uint8_t brightness = 255);
     void noPix();
+    // (shared)
+    uint32_t getColorFromString(const char *colorName);
 
     // Display functions (defined in FED4_Display.cpp)
     bool initializeDisplay();
@@ -133,7 +152,7 @@ public:
     void displayBattery();
     void displayIndicators();
     void startupAnimation();
-    
+
     void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)
@@ -175,12 +194,12 @@ public:
     float getTemperature();
     float getHumidity();
 
-    //variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
+    // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature;
     float humidity;
     float cellVoltage;
     float cellPercent;
-    unsigned long lastPollTime = -10000000; //make this a large negative so FED polls sensors at first startup
+    unsigned long lastPollTime = -10000000; // make this a large negative so FED polls sensors at first startup
 
     // Speaker functions (defined in FED4_Speaker.cpp)
     bool initializeSpeaker();
@@ -194,7 +213,7 @@ public:
     void enableAmp(bool enable);
     void resetSpeaker();
 
-    //Sound stimuli
+    // Sound stimuli
     void playStartup();
     void bopBeep();
     void lowBeep();
@@ -231,18 +250,6 @@ public:
 
     void drawChar(int16_t x, int16_t y, unsigned char c, uint8_t size = 1);
     void drawText(const char *text, uint8_t size = 1);
-
-    // LED Strip control (defined in FED4_Strip.cpp)
-    bool initializeStrip();
-    void setStripBrightness(uint8_t brightness);
-    void colorWipe(uint32_t color, unsigned long wait);
-    void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases);
-    void stripRainbow(unsigned long wait, unsigned int numLoops);
-    void clearStrip();
-    void setStripPixel(uint8_t pixel, uint32_t color);
-    void leftLight(uint32_t color);
-    void centerLight(uint32_t color);
-    void rightLight(uint32_t color);
 
     // Accelerometer functions (defined in FED4_Accel.cpp)
     bool initializeAccel();
