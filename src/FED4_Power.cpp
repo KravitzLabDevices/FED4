@@ -17,7 +17,7 @@ void FED4::sleep()
   // re-start port expander
   mcp.begin_I2C();
 
-  //turn on audio amp (this takes a bit of time to warm up)
+  //turn on audio amp (this takes a bit of time to warm up so do it early)
   esp_err_t err = i2s_start(I2S_NUM_0);
   enableAmp(true);
 

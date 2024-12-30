@@ -97,6 +97,7 @@ public:
     void minorJamClear();
     void majorJamClear();
     void vibrateJamClear();
+    void jammed();
 
     // Haptic motor vibration stimuli
     void hapticBuzz(uint8_t duration = 100);
@@ -179,6 +180,7 @@ public:
     bool centerTouch;
     bool rightTouch;
     unsigned long waketime;
+    unsigned long pelletDropTime;
 
     // RTC functions
     bool initializeRTC();
@@ -197,6 +199,7 @@ public:
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature;
     float humidity;
+    float lux;
     float cellVoltage;
     float cellPercent;
     unsigned long lastPollTime = -10000000; // make this a large negative so FED polls sensors at first startup

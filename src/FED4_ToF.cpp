@@ -58,6 +58,8 @@ uint8_t FED4::readToFSensor(Adafruit_VL6180X &sensor, uint8_t *status)
     uint8_t range = sensor.readRange();
     uint8_t sensorStatus = sensor.readRangeStatus();
 
+    lux = sensor.readLux(VL6180X_ALS_GAIN_5);
+
     if (status != nullptr)
     {
         *status = sensorStatus;

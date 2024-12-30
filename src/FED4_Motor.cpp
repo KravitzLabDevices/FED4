@@ -45,6 +45,30 @@ void FED4::vibrateJamClear()
     }
 }
 
+void FED4::jammed(){
+
+  fillRect (0, 0, 144, 17, DISPLAY_BLACK);
+  
+  setFont(&Org_01);
+  setTextSize(2);
+  setTextColor(DISPLAY_WHITE);
+
+  setCursor(0, 9);
+  print("DISPENSE ERR"); 
+  refresh();
+  releaseMotor();
+  logData("DispenseError");
+  
+  while(1) {
+    // Infinite loop to hang the program
+    LDO2_OFF();
+    enableAmp(false); 
+    // put FED4 to sleep
+    esp_light_sleep_start();
+    delay(1000);
+  }
+}
+
 void FED4::hapticBuzz(uint8_t duration)
 {
     mcp.digitalWrite(EXP_HAPTIC, HIGH);

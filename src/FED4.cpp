@@ -237,21 +237,32 @@ void FED4::updateTime(){
 }
 
 void FED4::pollSensors(){
-  int minToUpdateSensors = 10;  //update sensors every 10 minutes
+  int minToUpdateSensors = 10;  //update sensors every N minutes
   if (millis()-lastPollTime > (minToUpdateSensors * 60000)){
     //get temp and humidity
+    float temp = getTemperature();
+    float hum = getHumidity();
+    
+    if (temp > 5){  //only update temp if it's a good reading
     temperature = getTemperature();
-    humidity = getHumidity();
-    if (temperature < 0){  //if bad reading try again
-      temperature = getTemperature();
+        }
+    if (hum > 5){  //only update humidity if it's a good reading
+        humidity = getHumidity();
     }
-    delay (5); 
+
+    //get lux
+    lux = tofSensor1.readLux(VL6180X_ALS_GAIN_5);
+    Serial.print ("Lux: ");
+    Serial.println(lux);
+
     //get battery info 
     cellVoltage = getBatteryVoltage();
     cellPercent = getBatteryPercentage();
+    
     if (cellPercent > 100){
       cellPercent = 100;
     }
+    
     lastPollTime = millis();
   }
 }
@@ -272,6 +283,7 @@ void FED4::feed()
         // delay for 1s roughly each pellet position
         if (motorTurns % 125 == 0)
         {
+            releaseMotor();
             delay(1000);
         }
 
@@ -285,33 +297,36 @@ void FED4::feed()
         {
             vibrateJamClear();
         }
+
+        if (motorTurns > 10000)  //how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
+        {
+            jammed();
+        }
     }
-    motorTurns = 0;
 
     if (pelletReady)
     {
+        // Monitor retrieval
+        pelletDropTime = millis();
         pelletCount++;
         pelletReady = false;
+        logData("PelletDrop");                  
     }
 
+    motorTurns = 0;
     releaseMotor();
-    setEvent("PelletDrop");
-    //        logData();
 
-    // Monitor retrieval
-    unsigned long pelletDrop = millis();
     while (!pelletPresent)
     { // while pellet well is full
         bluePix(); 
         pelletPresent = checkForPellet();
-        retrievalTime = millis() - pelletDrop;
+        retrievalTime = millis() - pelletDropTime;
         if (retrievalTime > 10000)
             break;
     }
 
     redPix();
-    setEvent("PelletTaken");
-    //        logData();
+    logData("PelletTaken");                   
     retrievalTime = 0;
 
     // Reset touch states after handling the feed

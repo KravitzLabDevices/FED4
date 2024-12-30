@@ -81,28 +81,27 @@ void FED4::interpretTouch()
     // Always count a touch - just determine which one had the largest deviation, set others to false
     if (leftDev >= centerDev && leftDev >= rightDev)
     {
+        logData("Left");                   // log data, setting Event to "Left"
         Serial.println("Left Poke detected.");
-        setEvent("Left");
         leftCount++;
         greenPix();
         leftTouch = true;
     }
     else if (centerDev >= leftDev && centerDev >= rightDev)
     {
+        logData("Center");                   // log data, setting Event to "Center"
         Serial.println("Center Poke detected.");
-        setEvent("Center");
         centerCount++;
         bluePix();
         centerTouch = true;
     }
     else
     {
+        logData("Right");                   // log data, setting Event to "Right"
         Serial.println("Right Poke detected.");
-        setEvent("Right");
         rightCount++;
         redPix();
         rightTouch = true;
-
     }
 
     // Clear any pending touch pad interrupts

@@ -46,8 +46,8 @@ void FED4::createLogFile()
         File dataFile = SD.open(filename, FILE_WRITE);
         if (dataFile)
         {
-            dataFile.println("DateTime,Millis,Event,PelletCount,LeftCount,RightCount,CenterCount,WakeCount,"
-                             "Battery,Temperature,FreeHeap,HeapSize,MinFreeHeap");
+            dataFile.println("DateTime,ElapsedSeconds,Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,"
+                             "Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
             dataFile.close();
             Serial.println("Created new data file with headers");
         }
@@ -72,7 +72,7 @@ void FED4::logData(const String &newEvent)
     greenPix();
 
     DateTime now = rtc.now();
-    unsigned long currentMillis = millis(); // Get current milliseconds
+    float currentSeconds = millis()/1000.000; // Get current seconds
 
     // Open file for writing
     digitalWrite(SD_CS, LOW); // Select SD card for operation
@@ -87,23 +87,25 @@ void FED4::logData(const String &newEvent)
     }
 
     // Write all data
-    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%lu,%s,",
+    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,%s,",
                     now.year(), now.month(), now.day(),
                     now.hour(), now.minute(), now.second(),
-                    currentMillis,
+                    currentSeconds,
                     event.c_str());
-
+                
     dataFile.printf("%d,%d,%d,%d,%d,",
-                    pelletCount, leftCount, rightCount, centerCount, wakeCount);
+                    pelletCount, leftCount, rightCount, centerCount, retrievalTime);
 
-    dataFile.printf("%.2f,%.1f,",
-                    cellVoltage,
-                    temperature);
+    dataFile.printf("%.1f,%.1f,%.1f,",
+                    temperature, humidity, lux);
 
-    dataFile.printf("%d,%d,%d\n",
+    dataFile.printf("%d,%d,%d,",
                     ESP.getFreeHeap(),
                     ESP.getHeapSize(),
                     ESP.getMinFreeHeap());
+
+    dataFile.printf("%d,%d,%.1f,%.1f\n",
+                    wakeCount, (int)motorTurns/125, cellVoltage, cellPercent);  //it takes about 125 motorTurns to move one pellet position
 
     Serial.print("Data logged to: ");
     Serial.println(filename);
