@@ -1,0 +1,33 @@
+{
+  "hublink": {
+    "advertise": "HUBLINK",
+    "advertise_every": 300,
+    "advertise_for": 30,
+    "try_reconnect": true,
+    "reconnect_attempts": 3,
+    "reconnect_every": 30000,
+    "disable": false
+  },
+  "subject": {
+    "id": "mouse001",
+    "strain": "C57BL/6",
+    "strain_options": [
+      "C57BL/6",
+      "BALB/c",
+      "129S1/SvImJ",
+      "F344",
+      "Long Evans",
+      "Sprague Dawley"
+    ],
+    "sex": "male",
+    "sex_options": [
+      "male",
+      "female"
+    ],
+    "program": "FR1",
+    "program_options": [
+      "FR1",
+      "PR1"
+    ]
+  }
+}
