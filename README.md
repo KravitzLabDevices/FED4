@@ -26,6 +26,8 @@ The SD card should include a meta.json file containing metadata for the device. 
 }
 ```
 
+Here is an [example meta.json](https://github.com/KravitzLabDevices/FED4/blob/main/extras/meta.json_examples/meta.json) for download
+
 These meta data will be parsed in Arduino and other languages as well for post-analysis. Other JSON resources:
 - [ArduinoJson Assistant 7](https://arduinojson.org/v7/assistant/#/step1)
 - [JSON to Graph Converter](https://jsonviewer.tools/editor)
