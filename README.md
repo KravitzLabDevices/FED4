@@ -5,6 +5,8 @@ An Arduino library for the Feeding Experimentation Device version 4 (FED4), an o
 ### Meta Data Configuration File (meta.json)
 The SD card should include a meta.json file containing metadata for the device. We use [bblanchon/ArduinoJson](https://github.com/bblanchon/ArduinoJson) to parse the JSON file. This format is compatible with [https://hublink.cloud](https://hublink.cloud). Here is the base schema:
 
+![image](https://github.com/user-attachments/assets/c4a5b3f2-3347-4b75-b2be-a023ba61648d)
+
 ```json
 {
     "subject": {
