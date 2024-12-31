@@ -77,6 +77,7 @@ void readSensor(Adafruit_VL6180X &vl, const char *sensorName)
 {
 	uint8_t range = vl.readRange();
 	uint8_t status = vl.readRangeStatus();
+  float lux = vl.readLux(VL6180X_ALS_GAIN_40);
 
 	Serial.print(sensorName);
 	Serial.print(": ");
@@ -86,6 +87,8 @@ void readSensor(Adafruit_VL6180X &vl, const char *sensorName)
 		Serial.print(range);
 		Serial.print(" mm ");
 		Serial.print(" ");
+    Serial.print("Lux: "); 
+    Serial.print(lux);
 	}
 	else
 	{
