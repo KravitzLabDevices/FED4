@@ -85,6 +85,10 @@ public:
     // Pellet functions
     bool checkForPellet();
 
+    //TRSS input/output connector functions
+    bool initializeTRSS();
+    void outputPulse(uint8_t trss, uint8_t duration);
+
     // Clock variables
     int currentHour;
     int currentMinute;

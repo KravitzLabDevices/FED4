@@ -19,9 +19,9 @@
 #define TOUCH_PAD_LEFT TOUCH_PAD_NUM6   // Touch pad - Left
 
 // Audio Interface
-#define AUDIO_TRRS_1 4
+#define AUDIO_TRRS_1 2
 #define AUDIO_TRRS_2 3
-#define AUDIO_TRRS_3 2
+#define AUDIO_TRRS_3 4
 #define AUDIO_LRCLK 48
 #define AUDIO_BCLK 45
 #define AUDIO_DIN 41
