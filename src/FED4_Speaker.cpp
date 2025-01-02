@@ -1,12 +1,16 @@
 // src/FED4_Speaker.cpp
 #include "FED4.h"
 
+/**
+ * Initializes the speaker and configures the I2S driver
+ * return true if initialization is successful, false otherwise
+ */
 bool FED4::initializeSpeaker()
 {
     // I2S configuration for MAX98357A
     i2s_config_t i2sConfig = {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate = 22050,   // Reduced from 44100 to 22050 to reduce latency
+        .sample_rate = 22050,   // Reduced from 44100 to 22050 to improve responsiveness
         .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
         .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
@@ -48,6 +52,10 @@ bool FED4::initializeSpeaker()
     return true;
 }
 
+/**
+ * Enables or disables the speaker amplifier
+ * @param enable true to enable the amplifier, false to disable it
+ */
 void FED4::enableAmp(bool enable)
 {
     digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
@@ -57,15 +65,20 @@ void FED4::enableAmp(bool enable)
     }
 }
 
+/**
+ * Plays a single tone at a specified frequency for a given duration
+ * @param frequency Frequency of the tone in Hz
+ * @param duration_ms Duration of the tone in milliseconds
+ * @param amplitude Amplitude of the tone between 0.0 and 1.0 (default 0.25)
+ */
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
     // Generate and play tone
     const uint32_t sampleRate = 22050;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
-    amplitude = 0.25;  //reduced from 0.5 to 0.25 to reduce volume
     const float twoPiF = 2.0 * M_PI * frequency;
 
-    int16_t sampleBuffer[256];
+    int16_t sampleBuffer[256];  
     size_t samplesInBuffer = 0;
 
     for (uint32_t i = 0; i < sampleCount; i++)
@@ -89,6 +102,9 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
     }
 }
 
+/**
+ * Represents a tone with a frequency and duration
+ */
 struct Tone
 {
     uint32_t frequency;
@@ -111,12 +127,15 @@ void FED4::playTones(const Tone *tones, size_t count)
 
     for (size_t i = 0; i < count; i++)
     {
-        playTone(tones[i].frequency, tones[i].duration_ms, false);
+        playTone(tones[i].frequency, tones[i].duration_ms, 0.25);
     }
 
     // enableAmp(false);
 }
 
+/**
+ * Plays a startup sequence of tones 
+ */
 void FED4::playStartup()
 {
     esp_err_t err = i2s_start(I2S_NUM_0);
@@ -139,6 +158,9 @@ void FED4::playStartup()
     playTones(startupSequence, 7);
 }
 
+/**
+ * Resets the speaker by uninstalling the I2S driver and reinitializing it
+ */
 void FED4::resetSpeaker()
 {
     esp_err_t err = i2s_driver_uninstall(I2S_NUM_0);
@@ -152,32 +174,98 @@ void FED4::resetSpeaker()
     initializeSpeaker();
 }
 
+/**
+ * Plays a two-tone beep sequence - a lower tone (500 Hz) followed by a higher tone (800 Hz)
+ */
 void FED4::bopBeep(){
-    playTone(587, 400, true);
-    delay (200);
-    playTone(1175, 200, true);
+    playTone(500, 300, 0.25);  // Play 500 Hz for 300ms at 25% amplitude
+    playTone(800, 100, 0.5);     // Play 800 Hz for 200ms at full amplitude
 }
 
+/**
+ * Plays a single low-pitched beep at 300 Hz
+ */
 void FED4::lowBeep(){
-    playTone(300, 200, true);
+    playTone(300, 200, 0.25);  // Play 300 Hz for 200ms at 25% amplitude
 }
 
+/**
+ * Plays a single high-pitched beep at 1000 Hz
+ */
 void FED4::highBeep(){
-    playTone(1000, 200, true);
+    playTone(1000, 200, 0.25); // Play 1000 Hz for 200ms at 25% amplitude
 }
 
+/**
+ * Plays a single very high-pitched beep at 2000 Hz
+ */
 void FED4::higherBeep(){
-    playTone(2000, 200, true);
+    playTone(2000, 200, 0.25); // Play 2000 Hz for 200ms at 25% amplitude
 }
 
+/**
+ * Plays a very short high-pitched click sound
+ * Used for immediate feedback on button presses or quick events
+ */
 void FED4::click(){
-    playTone(500, 20, true);
+    playTone(1000, 5, 0.25);  
 }
 
-void FED4::soundSweep() {
-    playTone(450, 200, true); // Play tone for 10ms at current frequency
-    delay (200);
-    playTone(850, 200, true); // Play tone for 10ms at current frequency
-    delay (200);
-    playTone(1250, 100, true); // Play tone for 10ms at current frequency
+/**
+ * Creates a smooth frequency sweep between two frequencies over a specified duration
+ * @param startFreq Starting frequency in Hz (default 500)
+ * @param endFreq Ending frequency in Hz (default 1500) 
+ * @param duration_ms Total duration of the sweep in milliseconds (default 1000)
+ * 
+ * The sweep is broken into 50 discrete steps, with each step playing a tone
+ * at an incrementally higher/lower frequency to create a smooth transition.
+ * Each tone is played at 25% amplitude to avoid distortion.
+ */
+void FED4::soundSweep(uint32_t startFreq, uint32_t endFreq, uint32_t duration_ms) {
+    // Create a smooth frequency sweep from startFreq to endFreq
+    const int steps = 50; // Number of frequency steps
+    const int freqStart = startFreq;
+    const int freqEnd = endFreq;
+    const int stepDuration = duration_ms / steps; // Total duration_ms divided into steps
+    
+    for (int i = 0; i < steps; i++) {
+        int freq = freqStart + ((freqEnd - freqStart) * i / steps);
+        playTone(freq, stepDuration, 0.25);
+    }
+}
+
+/**
+ * Generates white noise by playing random samples for a specified duration
+ * @param duration_ms Duration of the noise in milliseconds (default 1000)
+ * @param amplitude Amplitude of the noise between 0.0 and 1.0 (default 1.0)
+ * 
+ * Uses random number generation to create white noise samples that are played
+ * through the speaker. Each sample is scaled by the amplitude parameter to
+ * control the volume of the noise.
+ */
+void FED4::noise(uint32_t duration_ms, float amplitude){
+    const uint32_t sampleRate = 22050;
+    const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
+    
+    int16_t sampleBuffer[256];
+    size_t samplesInBuffer = 0;
+
+    // Use random numbers to generate white noise
+    for (uint32_t i = 0; i < sampleCount; i++) {
+        // Generate random value between -1 and 1
+        float sample = (((float)random(0, 65536) / 32768.0f) - 1.0f) * amplitude;
+        sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
+
+        if (samplesInBuffer >= 256) {
+            size_t bytes_written;
+            i2s_write(I2S_NUM_0, sampleBuffer, sizeof(sampleBuffer), &bytes_written, portMAX_DELAY);
+            samplesInBuffer = 0;
+        }
+    }
+
+    // Write any remaining samples
+    if (samplesInBuffer > 0) {
+        size_t bytes_written;
+        i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
+    }
 }

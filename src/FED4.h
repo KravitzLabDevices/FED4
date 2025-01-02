@@ -81,6 +81,7 @@ public:
     void feed();
     void run();
     void pollSensors();
+    void startupPollSensors();
 
     // Pellet functions
     bool checkForPellet();
@@ -206,7 +207,7 @@ public:
     float lux;
     float cellVoltage;
     float cellPercent;
-    unsigned long lastPollTime = -10000000; // make this a large negative so FED polls sensors at first startup
+    unsigned long lastPollTime = 0; // make this a large negative so FED polls sensors at first startup
 
     // Speaker functions (defined in FED4_Speaker.cpp)
     bool initializeSpeaker();
@@ -228,7 +229,8 @@ public:
     void highBeep();
     void higherBeep();
     void click();
-    void soundSweep();
+    void soundSweep(uint32_t startFreq=500, uint32_t endFreq=1500, uint32_t duration_ms=1000);
+    void noise(uint32_t duration_ms=500, float amplitude=1);
 
     void setEvent(const String &newEvent)
     {

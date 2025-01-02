@@ -179,7 +179,7 @@ bool FED4::begin()
     startupAnimation();
 
     // check battery and environmental sensors
-    pollSensors(); 
+    startupPollSensors(); 
 
     // initialize logging
     createLogFile();
@@ -236,48 +236,99 @@ void FED4::updateTime(){
   unixtime = current.unixtime();
 }
 
-void FED4::pollSensors(){
+void FED4::startupPollSensors(){
+    unsigned long startTime = millis();
+    float temp = -1;
+    float hum = -1;
+
+     //get temp with timeout
+     while (millis() - startTime < 1000) {  // 1 second timeout
+         temp = getTemperature();
+         if (temp > 5) break;  // Valid reading obtained
+         delay(10);
+     }
+     if (temp > 5) temperature = temp;
+    
+     //get humidity with timeout
+     startTime = millis();  // Reset timer for humidity
+     while (millis() - startTime < 1000) {  // 1 second timeout
+         hum = getHumidity();
+         if (hum > 5) break;  // Valid reading obtained
+         delay(10);
+     }
+     if (hum > 5) humidity = hum;
+
+     //get battery info with timeout
+     startTime = millis();
+     while (millis() - startTime < 1000) {  // 1 second timeout
+         cellVoltage = getBatteryVoltage();
+         cellPercent = getBatteryPercentage();
+         if (cellVoltage > 0) break;  // Valid reading obtained
+         delay(10);
+     }
+    
+     if (cellPercent > 100) {
+         cellPercent = 100;
+     }
+}
+
+void FED4::pollSensors() {
   int minToUpdateSensors = 10;  //update sensors every N minutes
-  if (millis()-lastPollTime > (minToUpdateSensors * 60000)){
-    //get temp and humidity
-    float temp = getTemperature();
-    float hum = getHumidity();
+  if (millis()-lastPollTime > (minToUpdateSensors * 60000)) {
+    // get temp and humidity with timeouts
+    unsigned long startTime = millis();
+    float temp = -1;
+    float hum = -1;
     
-    if (temp > 5){  //only update temp if it's a good reading
-    temperature = getTemperature();
-        }
-    if (hum > 5){  //only update humidity if it's a good reading
-        humidity = getHumidity();
+    //get temp with timeout
+    while (millis() - startTime < 1000) {  // 1 second timeout
+      temp = getTemperature();
+      if (temp > 5) break;  // Valid reading obtained
+      delay(10);
+    //}
+    if (temp > 5) temperature = temp;
+    
+    //get humidity with timeout
+    startTime = millis();  // Reset timer for humidity
+    while (millis() - startTime < 1000) {  // 1 second timeout
+      hum = getHumidity();
+      if (hum > 5) break;  // Valid reading obtained
+      delay(10);
     }
+    if (hum > 5) humidity = hum;
 
-    //get lux
-    lux = tofSensor1.readLux(VL6180X_ALS_GAIN_5);
-    Serial.print ("Lux: ");
-    Serial.println(lux);
-
-    //get battery info 
-    cellVoltage = getBatteryVoltage();
-    cellPercent = getBatteryPercentage();
+    //get battery info with timeout
+    startTime = millis();
+    while (millis() - startTime < 1000) {  // 1 second timeout
+      cellVoltage = getBatteryVoltage();
+      cellPercent = getBatteryPercentage();
+      if (cellVoltage > 0) break;  // Valid reading obtained
+      delay(10);
+    }
     
-    if (cellPercent > 100){
+    if (cellPercent > 100) {
       cellPercent = 100;
     }
     
     lastPollTime = millis();
+    }
   }
 }
 
+
+/**
+ * Feeds the mouse by dispensing a pellet from the hopper
+ */
 void FED4::feed()
 {
     bool pelletPresent = checkForPellet();
 
     Serial.println("Feeding!");
-    while (pelletPresent)
-    {                     // while pellet well is empty
+    while (pelletPresent) // while pellet well is empty
+    {                     
         stepper.step(-2); // small movement
         delay(10);
         pelletPresent = checkForPellet();
-        pelletReady = true;
         motorTurns++;
 
         // delay for 1s roughly each pellet position
@@ -304,15 +355,11 @@ void FED4::feed()
         }
     }
 
-    if (pelletReady)
-    {
-        // Monitor retrieval
-        pelletDropTime = millis();
-        pelletCount++;
-        pelletReady = false;
-        logData("PelletDrop");                  
-    }
-
+    // After the pellet is dispensed, log the event and reset the motorTurns counter
+    pelletDropTime = millis();
+    pelletCount++;
+    pelletReady = false;
+    logData("PelletDrop");                  
     motorTurns = 0;
     releaseMotor();
 
