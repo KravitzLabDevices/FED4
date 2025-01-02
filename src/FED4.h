@@ -214,8 +214,9 @@ public:
     {
         uint32_t frequency;
         uint32_t duration_ms;
+        float amplitude = 0.25;
     };
-    void playTone(uint32_t frequency = 500, uint32_t duration_ms = 200, bool controlAmp = true);
+    void playTone(uint32_t frequency = 500, uint32_t duration_ms = 200, float amplitude = 0.25);
     void playTones(const Tone *tones, size_t count);
     void enableAmp(bool enable);
     void resetSpeaker();

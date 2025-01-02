@@ -6,16 +6,17 @@ bool FED4::initializeSpeaker()
     // I2S configuration for MAX98357A
     i2s_config_t i2sConfig = {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate = 44100,
+        .sample_rate = 22050,   // Reduced from 44100 to 22050 to reduce latency
         .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
         .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count = 8,
-        .dma_buf_len = 1024,
-        .use_apll = false,
+        .dma_buf_count = 2,     // Reduced from 8 to improve responsiveness
+        .dma_buf_len = 256,     // Reduced from 1024 to improve responsiveness
+        .use_apll = true,       // Changed to true for better clock accuracy
         .tx_desc_auto_clear = true,
-        .fixed_mclk = 0};
+        .fixed_mclk = 0
+    };
 
     // I2S pin configuration
     i2s_pin_config_t pinConfig = {
@@ -52,22 +53,16 @@ void FED4::enableAmp(bool enable)
     digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
     if (enable)
     {
-        delay(5); // stabilize amp
+        delay(1); // stabilize amp
     }
 }
 
-void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp)
+void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
-    //CONTROLLING THIS IN SLEEP NOW - POWER UP AMP AT WAKE AND DOWN AT SLEEP 
-    // if (controlAmp)      
-    // {
-    //     enableAmp(true);
-    // }
-
     // Generate and play tone
     const uint32_t sampleRate = 22050;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
-    const float amplitude = 0.5;
+    amplitude = 0.25;  //reduced from 0.5 to 0.25 to reduce volume
     const float twoPiF = 2.0 * M_PI * frequency;
 
     int16_t sampleBuffer[256];
@@ -92,11 +87,6 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, bool controlAmp)
         size_t bytes_written;
         i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
     }
-
-    // if (controlAmp)
-    // {
-    //     enableAmp(false);
-    // }
 }
 
 struct Tone
@@ -163,25 +153,25 @@ void FED4::resetSpeaker()
 }
 
 void FED4::bopBeep(){
-    playTone(587,600,true);
-    delay (600);
-    playTone(1175,300,true);
+    playTone(587, 400, true);
+    delay (200);
+    playTone(1175, 200, true);
 }
 
 void FED4::lowBeep(){
-    playTone(500,300,true);
+    playTone(300, 200, true);
 }
 
 void FED4::highBeep(){
-    playTone(1000,300,true);
+    playTone(1000, 200, true);
 }
 
 void FED4::higherBeep(){
-    playTone(2000,300,true);
+    playTone(2000, 200, true);
 }
 
 void FED4::click(){
-    playTone(500,20,true);
+    playTone(500, 20, true);
 }
 
 void FED4::soundSweep() {
