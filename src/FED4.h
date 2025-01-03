@@ -60,7 +60,7 @@ static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 12;
 
-static const float TOUCH_THRESHOLD = 0.01; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
+static const float TOUCH_THRESHOLD = 0.1; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
 static const char *META_FILE = "/meta.json";
 
 static const char *PREFS_NAMESPACE = "fed4";
@@ -85,6 +85,12 @@ public:
 
     // Pellet functions
     bool checkForPellet();
+    bool didPelletDrop();
+    bool pelletPresent;
+    bool pelletDropped;
+    unsigned long pelletDropTime;
+    unsigned long pelletWellTime;
+    bool dispenseError = false;
 
     //TRSS input/output connector functions
     bool initializeTRSS();
@@ -185,7 +191,6 @@ public:
     bool centerTouch;
     bool rightTouch;
     unsigned long waketime;
-    unsigned long pelletDropTime;
 
     // RTC functions
     bool initializeRTC();
@@ -246,13 +251,13 @@ public:
     bool feedReady;
     int photogate1State;
     String event = "";
-    int retrievalTime;
+    float retrievalTime;
     int touchPadLeftBaseline;
     int touchPadCenterBaseline;
     int touchPadRightBaseline;
     int motorTurns;
     int reBaselineTouches;
-    char filename[20];
+    char filename[32];
 
     void clearDisplay();
     void refresh();

@@ -8,6 +8,10 @@
  * SD Card Functions
  ********************************************************/
 
+/**
+ * Initializes the SD card
+ * @return true if successful, false otherwise
+ */
 bool FED4::initializeSD()
 {
     pinMode(SD_CS, OUTPUT);
@@ -31,26 +35,41 @@ bool FED4::initializeSD()
     return false;
 }
 
+/**
+ * Creates a new log file with headers
+ */
 void FED4::createLogFile()
 {
     DateTime now = rtc.now();
-    sprintf(filename, "/%04d%02d%02d.CSV", now.year(), now.month(), now.day());
+    String id = mouseId.length() > 0 ? mouseId : "nan";
+    char baseFilename[50];
+    int fileNumber = 0;
 
+    // Keep trying filenames with incrementing numbers until we find one that doesn't exist
+    do {
+        snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV", 
+                id.c_str(), now.year(), now.month(), now.day(), fileNumber);
+        Serial.print("Trying filename: ");
+        Serial.println(baseFilename);
+        fileNumber++;
+    } while (SD.exists(baseFilename) && fileNumber < 100);
+
+    // Copy final filename to class member - ensure null termination
+    strncpy(filename, baseFilename, sizeof(filename) - 1);
+    filename[sizeof(filename) - 1] = '\0';
+    
     // Just change bit order for SD operations
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW);
 
-    // Check if file exists, if not create it and write headers
-    if (!SD.exists(filename))
+    // Create new file and write headers
+    File dataFile = SD.open(filename, FILE_WRITE);
+    if (dataFile)
     {
-        File dataFile = SD.open(filename, FILE_WRITE);
-        if (dataFile)
-        {
-            dataFile.println("DateTime,ElapsedSeconds,Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,"
-                             "Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
-            dataFile.close();
-            Serial.println("Created new data file with headers");
-        }
+        dataFile.print("DateTime,ElapsedSeconds,Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
+        dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
+        dataFile.close();
+        Serial.println("Created new data file with headers");
     }
 
     Serial.print("New file created: ");
@@ -59,6 +78,10 @@ void FED4::createLogFile()
     digitalWrite(SD_CS, HIGH); // Deselect after operations
 }
 
+/**
+ * Logs data to the SD card
+ * @param newEvent the event to log
+ */
 void FED4::logData(const String &newEvent)
 {
     // Set new event if provided
@@ -93,8 +116,8 @@ void FED4::logData(const String &newEvent)
                     currentSeconds,
                     event.c_str());
                 
-    dataFile.printf("%d,%d,%d,%d,%d,",
-                    pelletCount, leftCount, rightCount, centerCount, retrievalTime);
+    dataFile.printf("%d,%d,%d,%d,%d,%d,",
+                    pelletCount, leftCount, rightCount, centerCount, retrievalTime, dispenseError);
 
     dataFile.printf("%.1f,%.1f,%.1f,",
                     temperature, humidity, lux);

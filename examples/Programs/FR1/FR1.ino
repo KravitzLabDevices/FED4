@@ -23,17 +23,16 @@ FED4 fed4;  // start FED4 object
 ///////////////////////////////////////////////////////////////////
 
 void setup() {
-  fed4.begin();  // initialize FED4 hardware
+  fed4.begin();                 // initialize FED4 hardware
 }
 
 void loop() {
-  fed4.run();  // run this once per loop
+  fed4.run();                   // run this once per loop
 
   if (fed4.leftTouch) {         // if left poke is touched
     fed4.leftLight("red");      // light LEDs around left poke red
     fed4.lowBeep();             // 500hz 200ms beep
     fed4.feed();                // feed one pellet, logging drop and retrieval
-    fed4.outputPulse(2, 300);   // Give an output line and duration (output 2 works for a mono 3.5mm output connector)
   }
 
   if (fed4.centerTouch) {       // if center poke is touched

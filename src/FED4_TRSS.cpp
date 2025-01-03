@@ -9,10 +9,13 @@ bool FED4::initializeTRSS()
 }
 
 // Output a pulse to the TRRS output. Function is blocking unfortunately.
-void FED4::outputPulse(uint8_t trss, uint8_t duration)
+void FED4::outputPulse(uint8_t trrs, uint8_t duration)
 {
+    Serial.print("Debug - TRSS value received: ");  // Add debug output
+    Serial.println(trrs);
+    
     uint8_t pin;
-    switch (trss) {
+    switch (trrs) {
         case 1:
             pin = AUDIO_TRRS_1;
             break;

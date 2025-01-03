@@ -157,6 +157,19 @@ void FED4::displayDateTime(){
   print(current.minute());
 }
 
+
+/**
+ * Initializes the Sharp Memory Display
+ * 
+ * @return bool - true if initialization successful, false if buffer allocation fails
+ * 
+ * This function:
+ * - Sets up the display CS pin and SPI bit order
+ * - Allocates display buffer memory
+ * - Sends initial clear command to display
+ * - Configures default display settings (rotation, font, text properties)
+ * - Performs initial refresh
+ */
 bool FED4::initializeDisplay()
 {
     pinMode(DISPLAY_CS, OUTPUT);
