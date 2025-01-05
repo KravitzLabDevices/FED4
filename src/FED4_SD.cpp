@@ -110,33 +110,37 @@ void FED4::logData(const String &newEvent)
         return;
     }
 
-    // Write all data
-    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,%s,",
+    // Write timestamp
+    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,",
                     now.year(), now.month(), now.day(),
                     now.hour(), now.minute(), now.second(),
-                    currentSeconds,
-                    mouseId.c_str());
-    
-    dataFile.print(libraryVer);
-    dataFile.print(",");
-    dataFile.print(program);
-    dataFile.print(",");
-    dataFile.print(event);
-    dataFile.print(",");
-                
-    dataFile.printf("%d,%d,%d,%d,%d,%d,",
-                    pelletCount, leftCount, rightCount, centerCount, retrievalTime, dispenseError);
+                    currentSeconds);
 
+    // Write mouse ID and other info
+    dataFile.printf("%s,%s,%s,%s,",
+                    mouseId.c_str(),
+                    libraryVer,
+                    program.c_str(),
+                    event.c_str());
+
+    // Write counters and status
+    dataFile.printf("%d,%d,%d,%d,%d,%d,",
+                    pelletCount, leftCount, rightCount, centerCount, 
+                    retrievalTime, dispenseError);
+
+    // Write environmental data
     dataFile.printf("%.1f,%.1f,%.1f,",
                     temperature, humidity, lux);
 
-    dataFile.printf("%d,%d,%d,",
+    // Write system stats
+    dataFile.printf("%d,%d,%d,%d,%d,%.1f,%.1f\n",
                     ESP.getFreeHeap(),
-                    ESP.getHeapSize(),
-                    ESP.getMinFreeHeap());
-
-    dataFile.printf("%d,%d,%.1f,%.1f\n",
-                    wakeCount, (int)motorTurns/125, cellVoltage, cellPercent);  //it takes about 125 motorTurns to move one pellet position
+                    ESP.getHeapSize(), 
+                    ESP.getMinFreeHeap(),
+                    wakeCount,
+                    (int)motorTurns/125, // 125 turns = 1 pellet position
+                    cellVoltage,
+                    cellPercent);
 
     Serial.print("Data logged to: ");
     Serial.println(filename);
