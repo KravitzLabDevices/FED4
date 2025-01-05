@@ -9,34 +9,34 @@ int threshold = 300;                      // Adjust touch sensitivity
 const unsigned long debounceDelay = 100;  // Debounce time in milliseconds
 
 // Start global touch flags as false
-volatile bool touch1detected = false;
-volatile bool touch5detected = false;
-volatile bool touch6detected = false;
+volatile bool leftTouchDetected = false;
+volatile bool rightTouchDetected = false;
+volatile bool centerTouchDetected = false;
 
 int touchCount = 0;
 unsigned long lastTouchTime = 0;  // Track the last touch time for debouncing
 
 // Interrupt service routines for touch
-void IRAM_ATTR gotTouch1() {
+void IRAM_ATTR leftTouch() {
   unsigned long now = millis();
   if (now - lastTouchTime > debounceDelay) {  // Debounce check
-    touch1detected = true;
+    leftTouchDetected = true;
     lastTouchTime = now;  // Update last touch time
   }
 }
 
-void IRAM_ATTR gotTouch5() {
+void IRAM_ATTR rightTouch() {
   unsigned long now = millis();
   if (now - lastTouchTime > debounceDelay) {  // Debounce check
-    touch5detected = true;
+    rightTouchDetected = true;
     lastTouchTime = now;  // Update last touch time
   }
 }
 
-void IRAM_ATTR gotTouch6() {
+void IRAM_ATTR centerTouch() {
   unsigned long now = millis();
   if (now - lastTouchTime > debounceDelay) {  // Debounce check
-    touch6detected = true;
+    centerTouchDetected = true;
     lastTouchTime = now;  // Update last touch time
   }
 }
@@ -64,26 +64,26 @@ void initializeTouchpads() {
   esp_sleep_enable_touchpad_wakeup();
 
   // Configure touchpad sensitivity and attach independent interrupts to each touchpad
-  touchAttachInterrupt(T1, gotTouch1, threshold);
-  touchAttachInterrupt(T5, gotTouch5, threshold);
-  touchAttachInterrupt(T6, gotTouch6, threshold);
+  touchAttachInterrupt(T1, leftTouch, threshold);
+  touchAttachInterrupt(T5, rightTouch, threshold);
+  touchAttachInterrupt(T6, centerTouch, threshold);
 }
 
 void checkInput() {
   // Check which touchpad caused the wake-up
-  if (touch1detected) {
-    Serial.println("Touch 1 detected");
+  if (leftTouchDetected) {
+    Serial.println("Left Touch detected");
   }
-  if (touch5detected) {
-    Serial.println("Touch 5 detected");
+  if (rightTouchDetected) {
+    Serial.println("Right Touch detected");
   }
-  if (touch6detected) {
-    Serial.println("Touch 6 detected");
+  if (centerTouchDetected) {
+    Serial.println("Center Touch detected");
   }
   //clear touch flags
-  touch1detected = false;
-  touch5detected = false;
-  touch6detected = false;
+  leftTouchDetected = false;
+  rightTouchDetected = false;
+  centerTouchDetected = false;
 }
 
 void goToSleep() {

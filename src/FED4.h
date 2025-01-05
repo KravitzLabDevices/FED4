@@ -12,9 +12,6 @@
 #include <Adafruit_GFX.h>
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/Org_01.h>
-
-// #include <Adafruit_SharpMem.h>
-
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
 #include "RTClib.h"
@@ -32,8 +29,8 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
 #include "SparkFun_STHS34PF80_Arduino_Library.h"
-#include <Adafruit_MCP23X17.h>
 #include <Adafruit_VL6180X.h>
+#include <ESP32Time.h>
 
 // Pin Definitions
 #include "FED4_Pins.h"
@@ -315,6 +312,7 @@ private:
     Adafruit_MCP23X17 mcp;
     Adafruit_MAX17048 maxlipo;
     RTC_DS3231 rtc;
+    ESP32Time Inrtc;
     Adafruit_AHTX0 aht;
     Adafruit_NeoPixel pixels;
     Stepper stepper;

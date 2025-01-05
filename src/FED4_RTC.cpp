@@ -25,6 +25,10 @@ bool FED4::initializeRTC()
         return false;
     }
 
+    // Set the internal RTC time to the current time
+    DateTime now = rtc.now();
+    Inrtc.setTime(now.unixtime());  
+
     // Single preferences session
     if (!preferences.begin(PREFS_NAMESPACE, false))
     {
