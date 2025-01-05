@@ -1,4 +1,5 @@
 #include "FED4.h"
+const char FED4::libraryVer[] = "1.0.0";
 
 /*
  (o)(o)--.
@@ -28,6 +29,7 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
                stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
+    
     pelletReady = true;
     feedReady = false;
     displayBuffer = nullptr; // Initialize our display buffer pointer

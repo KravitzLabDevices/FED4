@@ -67,12 +67,13 @@ static const char *PREFS_NAMESPACE = "fed4";
 static const bool PREFS_RO_MODE = true;
 static const bool PREFS_RW_MODE = false;
 
-// current verty public-oriented, consider pushing some to private
+// current very public-oriented, consider pushing some to private
 class FED4 : public Adafruit_GFX
 {
 public:
     // Constructor declaration only
     FED4();
+    static const char libraryVer[];
 
     // Initialization
     bool begin();

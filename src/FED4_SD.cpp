@@ -66,7 +66,8 @@ void FED4::createLogFile()
     File dataFile = SD.open(filename, FILE_WRITE);
     if (dataFile)
     {
-        dataFile.print("DateTime,ElapsedSeconds,Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
+        dataFile.print("DateTime,ElapsedSeconds,MouseID,LibraryVer,Program,"); 
+        dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
         dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
         Serial.println("Created new data file with headers");
@@ -114,7 +115,14 @@ void FED4::logData(const String &newEvent)
                     now.year(), now.month(), now.day(),
                     now.hour(), now.minute(), now.second(),
                     currentSeconds,
-                    event.c_str());
+                    mouseId.c_str());
+    
+    dataFile.print(libraryVer);
+    dataFile.print(",");
+    dataFile.print(program);
+    dataFile.print(",");
+    dataFile.print(event);
+    dataFile.print(",");
                 
     dataFile.printf("%d,%d,%d,%d,%d,%d,",
                     pelletCount, leftCount, rightCount, centerCount, retrievalTime, dispenseError);
