@@ -25,7 +25,19 @@ bool FED4::initializeRTC()
         return false;
     }
 
-    // Set the internal RTC time to the current time so SD card modified date is correct
+    /*
+     Set the internal RTC time to the current time so SD card modified date is correct.
+
+     To get the correct DateModified date in Windows Explorer, it is necessary to use the 
+     ESP32Time library, initialize the internal ESP32 RTC, and then set the date/time on that
+    RTC using the date/time from the external RTC, the DS3231.  
+     
+     After this is done, the internal RTC will set the correct date/time for files on the SD card.
+     See: https://github.com/lexkravitz/FED4/issues/21
+     
+     See FED4.h for where ESP32Time is included and Inrtc is initialized. 
+     And then these two lines are needed to set the internal RTC time:
+    */
     DateTime now = rtc.now();
     Inrtc.setTime(now.unixtime());  
 
