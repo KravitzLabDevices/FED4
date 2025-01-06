@@ -2,30 +2,27 @@
 
 void FED4::sleep()
 {
-  // enter sleep
-  Serial.println("Entering light sleep...");
-  Serial.flush();
-  LDO2_OFF();
-  enableAmp(false); 
-  
-  // put FED4 to sleep
-  esp_light_sleep_start();
+    // enter sleep
+    Serial.println("Entering light sleep...");
+    Serial.flush();
+    LDO2_OFF();
+    enableAmp(false);
 
-  // power on LDO2
-  LDO2_ON();
+    // put FED4 to sleep
+    esp_light_sleep_start();
 
-  // re-start port expander
-  mcp.begin_I2C();
+    // After wake
+    LDO2_ON();
+    mcp.begin_I2C();
+    // turn on audio amp (this takes a bit of time to warm up so we do it right after waking up)
+    esp_err_t err = i2s_start(I2S_NUM_0);
+    enableAmp(true);
 
-  //turn on audio amp (this takes a bit of time to warm up so we do it right after waking up)
-  esp_err_t err = i2s_start(I2S_NUM_0);
-  enableAmp(true);
+    // Check which touch caused wake
+    interpretTouch();
 
-  // return which touch pad woke FED4 
-  interpretTouch();
-
-  Serial.println("Woke up!");
-  purplePix();
+    Serial.println("Woke up!");
+    purplePix();
 }
 
 bool FED4::initializeLDOs()

@@ -90,7 +90,7 @@ public:
     unsigned long pelletWellTime;
     bool dispenseError = false;
 
-    //TRSS input/output connector functions
+    // TRSS input/output connector functions
     bool initializeTRSS();
     void outputPulse(uint8_t trss, uint8_t duration);
 
@@ -117,9 +117,6 @@ public:
     bool initializeTouch();
     void calibrateTouchSensors();
     void interpretTouch();
-    static void onLeftTouch();
-    static void onRightTouch();
-    static void onCenterTouch();
     void monitorTouchSensors();
 
     // Pixel an Strip control (defined in FED4_LEDs.cpp)
@@ -234,8 +231,8 @@ public:
     void highBeep();
     void higherBeep();
     void click();
-    void soundSweep(uint32_t startFreq=500, uint32_t endFreq=1500, uint32_t duration_ms=1000);
-    void noise(uint32_t duration_ms=500, float amplitude=1);
+    void soundSweep(uint32_t startFreq = 500, uint32_t endFreq = 1500, uint32_t duration_ms = 1000);
+    void noise(uint32_t duration_ms = 500, float amplitude = 1);
 
     void setEvent(const String &newEvent)
     {
@@ -299,6 +296,8 @@ public:
     uint8_t readMiddleToF(uint8_t *status = nullptr);
     uint8_t readLeftToF(uint8_t *status = nullptr);
 
+    static void clearTouchFlags();
+
     ~FED4()
     {
         if (displayBuffer)
@@ -308,6 +307,11 @@ public:
         }
         preferences.end(); // Ensure preferences is closed
     }
+
+protected:
+    volatile bool leftTouchFlag;
+    volatile bool centerTouchFlag;
+    volatile bool rightTouchFlag;
 
 private:
     // Hardware objects

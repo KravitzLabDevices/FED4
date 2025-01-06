@@ -6,7 +6,15 @@ static volatile bool leftTouchFlag = false;
 static volatile bool centerTouchFlag = false;
 static volatile bool rightTouchFlag = false;
 
-void FED4::onLeftTouch()
+/**
+ * By using IRAM_ATTR, we ensure:
+ * - The ISR code is loaded into ESP32's internal RAM (IRAM)
+ * - The function can execute immediately when triggered
+ * - No potential delays from flash memory access
+ */
+
+// Add IRAM_ATTR to ensure ISR runs from RAM
+static void IRAM_ATTR onLeftTouch()
 {
     static unsigned long lastTouchTime = 0;
     unsigned long currentTime = millis();
@@ -18,7 +26,8 @@ void FED4::onLeftTouch()
     }
 }
 
-void FED4::onRightTouch()
+// Same for other touch handlers
+static void IRAM_ATTR onRightTouch()
 {
     static unsigned long lastTouchTime = 0;
     unsigned long currentTime = millis();
@@ -30,7 +39,7 @@ void FED4::onRightTouch()
     }
 }
 
-void FED4::onCenterTouch()
+static void IRAM_ATTR onCenterTouch()
 {
     static unsigned long lastTouchTime = 0;
     unsigned long currentTime = millis();
@@ -87,19 +96,23 @@ void FED4::calibrateTouchSensors()
     esp_sleep_enable_touchpad_wakeup();
 
     // Set individual thresholds for each pad
-    touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftTouch, left_threshold);
-    touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterTouch, center_threshold);
-    touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightTouch, right_threshold);
+    touchAttachInterrupt(TOUCH_PAD_LEFT, ::onLeftTouch, left_threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, ::onCenterTouch, center_threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, ::onRightTouch, right_threshold);
 }
 
 void FED4::interpretTouch()
 {
+    // are we positive this doesn't work?
+    touch_pad_t wakePad = esp_sleep_get_touchpad_wakeup_status();
+    Serial.printf("Wake pad: %d\n", wakePad);
+
     // Reset all touch states
     leftTouch = false;
     centerTouch = false;
     rightTouch = false;
 
-    // Check flags and update class members
+    // Check flags and handle touches
     if (leftTouchFlag)
     {
         leftTouch = true;
@@ -107,7 +120,7 @@ void FED4::interpretTouch()
         logData("Left");
         greenPix();
         outputPulse(1, 100);
-        leftTouchFlag = false; // Clear the flag
+        leftTouchFlag = false;
         updateDisplay();
     }
 
@@ -118,7 +131,7 @@ void FED4::interpretTouch()
         logData("Center");
         bluePix();
         outputPulse(2, 100);
-        centerTouchFlag = false; // Clear the flag
+        centerTouchFlag = false;
         updateDisplay();
     }
 
@@ -129,7 +142,7 @@ void FED4::interpretTouch()
         logData("Right");
         redPix();
         outputPulse(3, 100);
-        rightTouchFlag = false; // Clear the flag
+        rightTouchFlag = false;
         updateDisplay();
     }
 
