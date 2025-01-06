@@ -1,9 +1,35 @@
 #include "FED4.h"
 #include "driver/touch_pad.h"
 
-void IRAM_ATTR FED4::onTouchWakeUp()
+void FED4::onLeftTouch() 
 {
-    // empty
+    static unsigned long lastTouchTime = 0;
+    unsigned long currentTime = millis();
+    if (currentTime - lastTouchTime >= 100) {
+        Serial.println("Left touch detected");
+        lastTouchTime = currentTime;
+        leftTouch = true;
+    }
+}
+
+void FED4::onRightTouch()
+{
+    static unsigned long lastTouchTime = 0;
+    unsigned long currentTime = millis();
+    if (currentTime - lastTouchTime >= 100) {
+        Serial.println("Right touch detected");
+        lastTouchTime = currentTime;
+    }
+}
+
+void FED4::onCenterTouch()
+{
+    static unsigned long lastTouchTime = 0;
+    unsigned long currentTime = millis();
+    if (currentTime - lastTouchTime >= 100) {
+        Serial.println("Center touch detected");
+        lastTouchTime = currentTime;
+    }
 }
 
 bool FED4::initializeTouch()
@@ -51,9 +77,9 @@ void FED4::calibrateTouchSensors()
     esp_sleep_enable_touchpad_wakeup();
 
     // Set individual thresholds for each pad
-    touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchWakeUp, left_threshold);
-    touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchWakeUp, center_threshold);
-    touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchWakeUp, right_threshold);
+    touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftTouch, left_threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterTouch, center_threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightTouch, right_threshold);
 }
 
 void FED4::interpretTouch()

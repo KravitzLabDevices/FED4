@@ -227,6 +227,8 @@ bool FED4::begin()
                   statuses.size());
     Serial.println("================================\n");
 
+    fed4Instance = this;  // Add this line
+
     return true;
 }
 

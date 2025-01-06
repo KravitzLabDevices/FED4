@@ -117,7 +117,9 @@ public:
     bool initializeTouch();
     void calibrateTouchSensors();
     void interpretTouch();
-    static void IRAM_ATTR onTouchWakeUp();
+    static void onLeftTouch();
+    static void onRightTouch();
+    static void onCenterTouch();
     void monitorTouchSensors();
 
     // Pixel an Strip control (defined in FED4_LEDs.cpp)
