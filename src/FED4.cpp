@@ -29,7 +29,7 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
                stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
-    
+
     pelletReady = true;
     feedReady = false;
     displayBuffer = nullptr; // Initialize our display buffer pointer
@@ -55,9 +55,9 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 
 /**
  * Initializes all components and sets up the FED4 system
- * 
+ *
  * @return bool - true if initialization is successful, false otherwise
- */ 
+ */
 bool FED4::begin()
 {
     Serial.begin(115200);
@@ -191,19 +191,19 @@ bool FED4::begin()
     startupAnimation();
 
     // check battery and environmental sensors
-    startupPollSensors(); 
+    startupPollSensors();
 
-    //get JSON data from SD card
-    program = getMetaValue("subject", "program");     // returns 
-    mouseId = getMetaValue("subject", "id");      // returns 
-    
+    // get JSON data from SD card
+    program = getMetaValue("subject", "program"); // returns
+    mouseId = getMetaValue("subject", "id");      // returns
+
     // initialize logging
     createLogFile();
     logData("Startup");
 
     // Initialize Speaker last (as in original)
     statuses["Speaker"].initialized = initializeSpeaker();
-   // playStartup();  move to main sketch to easily turn off while working on a plane :)  
+    // playStartup();  move to main sketch to easily turn off while working on a plane :)
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
@@ -227,8 +227,6 @@ bool FED4::begin()
                   statuses.size());
     Serial.println("================================\n");
 
-    fed4Instance = this;  // Add this line
-
     return true;
 }
 
@@ -238,7 +236,8 @@ bool FED4::begin()
 /**
  * Main run loop that updates time, display, prints status and handles sleep
  */
-void FED4::run(){
+void FED4::run()
+{
     updateTime();
     updateDisplay();
     serialStatusReport();
@@ -249,51 +248,62 @@ void FED4::run(){
  * Updates time variables from RTC
  */
 
-void FED4::updateTime(){
-  DateTime current = rtc.now();
-  currentHour = current.hour(); //useful for timed feeding sessions
-  currentMinute = current.minute(); //useful for timed feeding sessions
-  currentSecond = current.second(); //useful for timed feeding sessions
-  unixtime = current.unixtime();
+void FED4::updateTime()
+{
+    DateTime current = rtc.now();
+    currentHour = current.hour();     // useful for timed feeding sessions
+    currentMinute = current.minute(); // useful for timed feeding sessions
+    currentSecond = current.second(); // useful for timed feeding sessions
+    unixtime = current.unixtime();
 }
 
 /**
  * Polls sensors at startup to get initial readings
  */
-void FED4::startupPollSensors(){
+void FED4::startupPollSensors()
+{
     unsigned long startTime = millis();
     float temp = -1;
     float hum = -1;
 
-     //get temp with timeout
-     while (millis() - startTime < 1000) {  // 1 second timeout
-         temp = getTemperature();
-         if (temp > 5) break;  // Valid reading obtained
-         delay(10);
-     }
-     if (temp > 5) temperature = temp;
-    
-     //get humidity with timeout
-     startTime = millis();  // Reset timer for humidity
-     while (millis() - startTime < 1000) {  // 1 second timeout
-         hum = getHumidity();
-         if (hum > 5) break;  // Valid reading obtained
-         delay(10);
-     }
-     if (hum > 5) humidity = hum;
+    // get temp with timeout
+    while (millis() - startTime < 1000)
+    { // 1 second timeout
+        temp = getTemperature();
+        if (temp > 5)
+            break; // Valid reading obtained
+        delay(10);
+    }
+    if (temp > 5)
+        temperature = temp;
 
-     //get battery info with timeout
-     startTime = millis();
-     while (millis() - startTime < 1000) {  // 1 second timeout
-         cellVoltage = getBatteryVoltage();
-         cellPercent = getBatteryPercentage();
-         if (cellVoltage > 0) break;  // Valid reading obtained
-         delay(10);
-     }
-    
-     if (cellPercent > 100) {
-         cellPercent = 100;
-     }
+    // get humidity with timeout
+    startTime = millis(); // Reset timer for humidity
+    while (millis() - startTime < 1000)
+    { // 1 second timeout
+        hum = getHumidity();
+        if (hum > 5)
+            break; // Valid reading obtained
+        delay(10);
+    }
+    if (hum > 5)
+        humidity = hum;
+
+    // get battery info with timeout
+    startTime = millis();
+    while (millis() - startTime < 1000)
+    { // 1 second timeout
+        cellVoltage = getBatteryVoltage();
+        cellPercent = getBatteryPercentage();
+        if (cellVoltage > 0)
+            break; // Valid reading obtained
+        delay(10);
+    }
+
+    if (cellPercent > 100)
+    {
+        cellPercent = 100;
+    }
 }
 
 /**
@@ -301,48 +311,58 @@ void FED4::startupPollSensors(){
  * Only updates every 10 minutes to avoid excessive polling.
  * Uses timeouts to prevent hanging if sensors are unresponsive.
  */
-void FED4::pollSensors() {
-  int minToUpdateSensors = 10;  //update sensors every N minutes
-  if (millis()-lastPollTime > (minToUpdateSensors * 60000)) {
-    lastPollTime = millis();
-    // get temp and humidity with timeouts
-    unsigned long startTime = millis();
-    float temp = -1;
-    float hum = -1;
-    
-    //get temp with timeout
-    while (millis() - startTime < 1000) {  // 1 second timeout
-      temp = getTemperature();
-      if (temp > 5) break;  // Valid reading obtained
-      delay(10);
-    }
-    if (temp > 5) temperature = temp;
-    
-    //get humidity with timeout
-    startTime = millis();  // Reset timer for humidity
-    while (millis() - startTime < 1000) {  // 1 second timeout
-      hum = getHumidity();
-      if (hum > 5) break;  // Valid reading obtained
-      delay(10);
-    }
-    
-    if (hum > 5) humidity = hum;
+void FED4::pollSensors()
+{
+    int minToUpdateSensors = 10; // update sensors every N minutes
+    if (millis() - lastPollTime > (minToUpdateSensors * 60000))
+    {
+        lastPollTime = millis();
+        // get temp and humidity with timeouts
+        unsigned long startTime = millis();
+        float temp = -1;
+        float hum = -1;
 
-    //get battery info with timeout
-    startTime = millis();
-    while (millis() - startTime < 1000) {  // 1 second timeout
-      cellVoltage = getBatteryVoltage();
-      cellPercent = getBatteryPercentage();
-      if (cellVoltage > 0) break;  // Valid reading obtained
-      delay(10);
+        // get temp with timeout
+        while (millis() - startTime < 1000)
+        { // 1 second timeout
+            temp = getTemperature();
+            if (temp > 5)
+                break; // Valid reading obtained
+            delay(10);
+        }
+        if (temp > 5)
+            temperature = temp;
+
+        // get humidity with timeout
+        startTime = millis(); // Reset timer for humidity
+        while (millis() - startTime < 1000)
+        { // 1 second timeout
+            hum = getHumidity();
+            if (hum > 5)
+                break; // Valid reading obtained
+            delay(10);
+        }
+
+        if (hum > 5)
+            humidity = hum;
+
+        // get battery info with timeout
+        startTime = millis();
+        while (millis() - startTime < 1000)
+        { // 1 second timeout
+            cellVoltage = getBatteryVoltage();
+            cellPercent = getBatteryPercentage();
+            if (cellVoltage > 0)
+                break; // Valid reading obtained
+            delay(10);
+        }
+
+        if (cellPercent > 100)
+        {
+            cellPercent = 100;
+        }
     }
-    
-    if (cellPercent > 100) {
-      cellPercent = 100;
-    }
-  }
 }
-
 
 /**
  * Feeds the mouse by dispensing a pellet from the hopper
@@ -354,10 +374,10 @@ void FED4::feed()
     pelletReady = false;
     dispenseError = false;
     clearStrip();
-    
+
     Serial.println("Feeding!");
     while (!pelletPresent && !pelletDropped) // while no pellet is present and none has dropped
-    {                     
+    {
         redPix();
         // check if pellet has dropped or is present
         pelletDropped = didPelletDrop();
@@ -365,7 +385,7 @@ void FED4::feed()
         pelletReady = true;
 
         // small motor movement
-        stepper.step(-2); 
+        stepper.step(-2);
         delay(10);
         motorTurns++;
 
@@ -387,7 +407,7 @@ void FED4::feed()
             vibrateJamClear();
         }
 
-        if (motorTurns > 10000)  //how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
+        if (motorTurns > 10000) // how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
         {
             jammed();
         }
@@ -395,33 +415,35 @@ void FED4::feed()
 
     orangePix();
     // think about this: if drop is not detected, we don't want to log an error, but we also don't want to log a pellet drop
-    
-    
-    if (pelletReady) {
+
+    if (pelletReady)
+    {
         Serial.println("PelletDrop");
         pelletDropTime = millis();
         pelletCount++;
         logData("PelletDrop");
         outputPulse(1, 100);
         outputPulse(2, 100);
-        }        
+    }
     motorTurns = 0;
     releaseMotor();
 
     // Wait up to 500ms for pellet to settle in well if 500ms passes without detection, set dispenseError to true
     unsigned long startWait = millis();
     bool pelletDetected = false;
-    while (millis() - startWait < 500) {
-        if (checkForPellet()) {
+    while (millis() - startWait < 500)
+    {
+        if (checkForPellet())
+        {
             pelletDetected = true;
             break; // Exit if pellet is detected
         }
         delay(10);
     }
-    if (!pelletDetected) {
+    if (!pelletDetected)
+    {
         dispenseError = true;
     }
-
 
     // Calculate time since pellet drop
     pelletWellTime = millis();
@@ -430,18 +452,18 @@ void FED4::feed()
 
     cyanPix();
     Serial.println("Pellet in Well");
-        
+
     while (pelletPresent)
     { // while pellet is in well, monitor for pokes and retrieval time
-        bluePix(); 
+        bluePix();
         pelletPresent = checkForPellet();
 
         retrievalTime = (millis() - pelletWellTime) / 1000.0;
         if (retrievalTime > 20)
             break;
 
-        //log pokes while pellet is in well
-        // Read current touch values
+        // log pokes while pellet is in well
+        //  Read current touch values
         uint16_t leftVal = touchRead(TOUCH_PAD_LEFT);
         uint16_t centerVal = touchRead(TOUCH_PAD_CENTER);
         uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
@@ -452,7 +474,8 @@ void FED4::feed()
         float rightDev = abs((float)rightVal / touchPadRightBaseline - 1.0);
 
         // Only log pokes if there's a significant deviation
-        if (leftDev >= TOUCH_THRESHOLD) {
+        if (leftDev >= TOUCH_THRESHOLD)
+        {
             leftCount++;
             retrievalTime = 0.0;
             dispenseError = false;
@@ -462,27 +485,31 @@ void FED4::feed()
             updateDisplay();
             greenPix();
             outputPulse(1, 100);
-            //wait for touch to return to baseline
-            while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
+            // wait for touch to return to baseline
+            while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD)
+            {
                 delay(10);
             }
         }
-        else if (centerDev >= TOUCH_THRESHOLD) {
+        else if (centerDev >= TOUCH_THRESHOLD)
+        {
             centerCount++;
             retrievalTime = 0.0;
             dispenseError = false;
             Serial.println("CenterWithPellet");
-            logData("CenterWithPellet"); 
+            logData("CenterWithPellet");
             click();
             updateDisplay();
             bluePix();
             outputPulse(2, 100);
-            //wait for touch to return to baseline
-            while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
+            // wait for touch to return to baseline
+            while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD)
+            {
                 delay(10);
             }
         }
-        else if (rightDev >= TOUCH_THRESHOLD) {
+        else if (rightDev >= TOUCH_THRESHOLD)
+        {
             rightCount++;
             retrievalTime = 0.0;
             dispenseError = false;
@@ -492,8 +519,9 @@ void FED4::feed()
             updateDisplay();
             redPix();
             outputPulse(3, 100);
-            //wait for touch to return to baseline
-            while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
+            // wait for touch to return to baseline
+            while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD)
+            {
                 delay(10);
             }
         }
@@ -502,10 +530,14 @@ void FED4::feed()
     purplePix();
     Serial.println("Pellet Removed");
 
-    if (pelletReady) {
-        if (dispenseError) {
+    if (pelletReady)
+    {
+        if (dispenseError)
+        {
             logData("PelletNotDetected");
-        } else {
+        }
+        else
+        {
             logData("PelletTaken");
             outputPulse(1, 100);
             outputPulse(3, 100);
@@ -516,7 +548,7 @@ void FED4::feed()
     pelletReady = false;
     retrievalTime = 0;
     dispenseError = false;
-    
+
     // Reset touch states after handling the feed
     leftTouch = false;
     centerTouch = false;
@@ -529,12 +561,12 @@ void FED4::feed()
         calibrateTouchSensors();
     }
 
-    pollSensors(); //only poll sensors after a feed event so we don't block responsiveness after pokes
+    pollSensors(); // only poll sensors after a feed event so we don't block responsiveness after pokes
 }
 
-/** 
+/**
  * Checks if the pellet is present in the center port
- * 
+ *
  * @return bool - true if pellet is present, false otherwise
  */
 bool FED4::checkForPellet()
@@ -542,9 +574,9 @@ bool FED4::checkForPellet()
     return !mcp.digitalRead(EXP_PHOTOGATE_1);
 }
 
-/** 
- * Checks if the pellet is present dropped 
- * 
+/**
+ * Checks if the pellet is present dropped
+ *
  * @return bool - true if pellet dropped, false otherwise
  */
 bool FED4::didPelletDrop()

@@ -1,14 +1,20 @@
 #include "FED4.h"
 #include "driver/touch_pad.h"
 
-void FED4::onLeftTouch() 
+// Static flags to communicate between ISR and main code
+static volatile bool leftTouchFlag = false;
+static volatile bool centerTouchFlag = false;
+static volatile bool rightTouchFlag = false;
+
+void FED4::onLeftTouch()
 {
     static unsigned long lastTouchTime = 0;
     unsigned long currentTime = millis();
-    if (currentTime - lastTouchTime >= 100) {
+    if (currentTime - lastTouchTime >= 100)
+    { // Debounce
         Serial.println("Left touch detected");
+        leftTouchFlag = true; // Set the flag
         lastTouchTime = currentTime;
-        leftTouch = true;
     }
 }
 
@@ -16,8 +22,10 @@ void FED4::onRightTouch()
 {
     static unsigned long lastTouchTime = 0;
     unsigned long currentTime = millis();
-    if (currentTime - lastTouchTime >= 100) {
+    if (currentTime - lastTouchTime >= 100)
+    { // Debounce
         Serial.println("Right touch detected");
+        rightTouchFlag = true; // Set the flag
         lastTouchTime = currentTime;
     }
 }
@@ -26,8 +34,10 @@ void FED4::onCenterTouch()
 {
     static unsigned long lastTouchTime = 0;
     unsigned long currentTime = millis();
-    if (currentTime - lastTouchTime >= 100) {
+    if (currentTime - lastTouchTime >= 100)
+    { // Debounce
         Serial.println("Center touch detected");
+        centerTouchFlag = true; // Set the flag
         lastTouchTime = currentTime;
     }
 }
@@ -84,55 +94,42 @@ void FED4::calibrateTouchSensors()
 
 void FED4::interpretTouch()
 {
-    // Read current values
-    uint16_t leftVal = touchRead(TOUCH_PAD_LEFT);
-    uint16_t centerVal = touchRead(TOUCH_PAD_CENTER);
-    uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
-
-    // Reset all touch states, they should be cleared elsewhere before this too
+    // Reset all touch states
     leftTouch = false;
     centerTouch = false;
     rightTouch = false;
 
-    Serial.printf("Touch values - Left: %d/%d, Center: %d/%d, Right: %d/%d\n",
-                  leftVal, touchPadLeftBaseline,
-                  centerVal, touchPadCenterBaseline,
-                  rightVal, touchPadRightBaseline);
-
-    // Find which sensor had the largest absolute deviation from baseline
-    float leftDev = abs((float)leftVal / touchPadLeftBaseline - 1.0);
-    float centerDev = abs((float)centerVal / touchPadCenterBaseline - 1.0);
-    float rightDev = abs((float)rightVal / touchPadRightBaseline - 1.0);
-
-    // Always count a touch - just determine which one had the largest deviation, set others to false
-    if (leftDev >= centerDev && leftDev >= rightDev)
+    // Check flags and update class members
+    if (leftTouchFlag)
     {
-        Serial.println("Left Poke detected.");
-        leftCount++;
-        logData("Left"); 
-        greenPix();
         leftTouch = true;
+        leftCount++;
+        logData("Left");
+        greenPix();
         outputPulse(1, 100);
+        leftTouchFlag = false; // Clear the flag
         updateDisplay();
     }
-    else if (centerDev >= leftDev && centerDev >= rightDev)
+
+    if (centerTouchFlag)
     {
-        Serial.println("Center Poke detected.");
-        centerCount++;
-        logData("Center"); 
-        bluePix();
         centerTouch = true;
+        centerCount++;
+        logData("Center");
+        bluePix();
         outputPulse(2, 100);
+        centerTouchFlag = false; // Clear the flag
         updateDisplay();
     }
-    else
+
+    if (rightTouchFlag)
     {
-        Serial.println("Right Poke detected.");
-        rightCount++;
-        logData("Right"); 
-        redPix();
         rightTouch = true;
+        rightCount++;
+        logData("Right");
+        redPix();
         outputPulse(3, 100);
+        rightTouchFlag = false; // Clear the flag
         updateDisplay();
     }
 
