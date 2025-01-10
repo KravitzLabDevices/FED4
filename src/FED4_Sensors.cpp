@@ -20,8 +20,7 @@ static void IRAM_ATTR onLeftTouch()
     unsigned long currentTime = millis();
     if (currentTime - lastTouchTime >= 100)
     { // Debounce
-        Serial.println("Left touch detected");
-        leftTouchFlag = true; // Set the flag
+        leftTouchFlag = true;
         lastTouchTime = currentTime;
     }
 }
@@ -33,8 +32,7 @@ static void IRAM_ATTR onRightTouch()
     unsigned long currentTime = millis();
     if (currentTime - lastTouchTime >= 100)
     { // Debounce
-        Serial.println("Right touch detected");
-        rightTouchFlag = true; // Set the flag
+        rightTouchFlag = true;
         lastTouchTime = currentTime;
     }
 }
@@ -45,35 +43,35 @@ static void IRAM_ATTR onCenterTouch()
     unsigned long currentTime = millis();
     if (currentTime - lastTouchTime >= 100)
     { // Debounce
-        Serial.println("Center touch detected");
-        centerTouchFlag = true; // Set the flag
+        centerTouchFlag = true;
         lastTouchTime = currentTime;
     }
 }
 
 bool FED4::initializeTouch()
 {
+    Serial.println("Enabling touchpad wakeup...");
+
+    // Initialize touch pad peripheral
     esp_err_t err = touch_pad_init();
     if (err != ESP_OK)
     {
+        Serial.println("Touch pad init failed");
         return false;
     }
 
-    // Configure touch pads
-    err = touch_pad_config(TOUCH_PAD_LEFT);
+    // Set touch pad interrupt threshold
+    err = touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
     if (err != ESP_OK)
+    {
+        Serial.println("Touch pad voltage config failed");
         return false;
+    }
 
-    err = touch_pad_config(TOUCH_PAD_CENTER);
-    if (err != ESP_OK)
-        return false;
+    // Enable wake-up on touch pads
+    esp_sleep_enable_touchpad_wakeup();
 
-    err = touch_pad_config(TOUCH_PAD_RIGHT);
-    if (err != ESP_OK)
-        return false;
-
-    touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-    delay(200);
+    delay(200); // Wait for touch pad system to stabilize
     return true;
 }
 
