@@ -124,16 +124,23 @@ void FED4::logData(const String &newEvent)
                     event.c_str());
 
     // Write counters and status
-    dataFile.printf("%d,%d,%d,%d,%d,%d,",
-                    pelletCount, leftCount, rightCount, centerCount, 
-                    retrievalTime, dispenseError);
+    dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
+    // Write retrievalTime as string to avoid conversion issues
+    if (retrievalTime > 19.9) {
+        dataFile.print("TimedOut");
+    } else {
+        dataFile.print(String(retrievalTime));
+    }
+    dataFile.write(',');
+    dataFile.write(dispenseError ? '1' : '0');  // Write single character
+    dataFile.write(',');  // Write comma as single character
 
     // Write environmental data
     dataFile.printf("%.1f,%.1f,%.1f,",
                     temperature, humidity, lux);
 
     // Write system stats
-    dataFile.printf("%d,%d,%d,%d,%d,%.1f,%.1f\n",
+    dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",
                     ESP.getFreeHeap(),
                     ESP.getHeapSize(), 
                     ESP.getMinFreeHeap(),

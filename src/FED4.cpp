@@ -47,6 +47,11 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
     leftTouch = false;
     centerTouch = false;
     rightTouch = false;
+
+    // Initialize retrieval time and dispense error
+    pelletDropTime = 0.0f;
+    retrievalTime = 0.0f;
+    dispenseError = false;
 }
 
 /********************************************************
@@ -409,23 +414,23 @@ void FED4::feed()
     // Wait up to 500ms for pellet to settle in well if 500ms passes without detection, set dispenseError to true
     unsigned long startWait = millis();
     bool pelletDetected = false;
+
     while (millis() - startWait < 500) {
         if (checkForPellet()) {
             pelletDetected = true;
+            pelletWellTime = millis();
             break; // Exit if pellet is detected
         }
         delay(10);
     }
+
+    // if pellet is not detected, set dispenseError to true
     if (!pelletDetected) {
         dispenseError = true;
     }
 
-
     // Calculate time since pellet drop
-    pelletWellTime = millis();
-
-    pelletPresent = checkForPellet();
-
+    retrievalTime = (millis() - pelletWellTime) / 1000.0;
     cyanPix();
     Serial.println("Pellet in Well");
         
@@ -434,7 +439,7 @@ void FED4::feed()
         bluePix(); 
         pelletPresent = checkForPellet();
 
-        retrievalTime = (millis() - pelletWellTime) / 1000.0;
+        retrievalTime = (static_cast<float>(millis() - pelletWellTime)) / 1000.0f;
         if (retrievalTime > 20)
             break;
 
@@ -502,6 +507,7 @@ void FED4::feed()
 
     if (pelletReady) {
         if (dispenseError) {
+            retrievalTime = 0.0;
             logData("PelletNotDetected");
         } else {
             logData("PelletTaken");
@@ -512,7 +518,7 @@ void FED4::feed()
 
     // Reset variables
     pelletReady = false;
-    retrievalTime = 0;
+    retrievalTime = 0.0;
     dispenseError = false;
     
     // Reset touch states after handling the feed
