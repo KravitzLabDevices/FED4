@@ -78,6 +78,8 @@ public:
     // Corefunctions
     void feed();
     void run();
+
+    // Sensor polling
     void pollSensors();
     void startupPollSensors();
 
@@ -86,9 +88,15 @@ public:
     bool didPelletDrop();
     bool pelletPresent;
     bool pelletDropped;
+    void initFeeding();
+    void handlePelletSettling();
+    void handlePelletInWell();
+    void finishFeeding();
+    void dispense();
     unsigned long pelletDropTime;
     unsigned long pelletWellTime;
     bool dispenseError = false;
+    void handleJams();
 
     // TRSS input/output connector functions
     bool initializeTRSS();

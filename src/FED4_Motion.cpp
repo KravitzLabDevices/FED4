@@ -4,14 +4,13 @@ bool FED4::initializeMotionSensor()
 {
     // Try to establish communication with sensor
     uint8_t retries = 0;
-    const uint8_t MAX_RETRIES = 5;
+    const uint8_t MAX_RETRIES = 3;
 
     while (!motionSensor.begin(MOTION_SENSOR_I2C_ADDRESS, I2C_2))
     {
         Serial.println("Motion sensor not found, retrying...");
         if (++retries >= MAX_RETRIES)
         {
-            Serial.println("Motion sensor initialization failed");
             return false;
         }
         delay(1000);
