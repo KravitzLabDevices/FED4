@@ -177,5 +177,7 @@ bool FED4::begin()
                   statuses.size());
     Serial.println("================================\n");
 
+    setMetaValue("subject", "id", "mouse001");
+
     return true;
 }

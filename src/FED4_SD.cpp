@@ -344,3 +344,11 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
     digitalWrite(SD_CS, HIGH); // Deselect after operations
     return true;
 }
+
+void FED4::setProgram(String program) {
+    setMetaValue("subject", "program", program.c_str());
+}
+
+void FED4::setMouseId(String mouseId) {
+    setMetaValue("subject", "id", mouseId.c_str());
+}

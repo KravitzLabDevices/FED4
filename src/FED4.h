@@ -188,6 +188,8 @@ public:
     void logData(const String &newEvent = "");
     String getMetaValue(const char *rootKey, const char *subKey);
     bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
+    void setProgram(String program);
+    void setMouseId(String mouseId);
 
     // Public counters and timing
     int pelletCount;

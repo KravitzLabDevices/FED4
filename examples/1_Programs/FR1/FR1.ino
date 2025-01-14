@@ -18,12 +18,9 @@
 
 FED4 fed4;  // start FED4 object
 
-///////////////////////////////////////////////////////////////////
-// TODO: needs a method for updating the JSON "program" item
-///////////////////////////////////////////////////////////////////
-
 void setup() {
   fed4.begin();                 // initialize FED4 hardware
+  fed4.setProgram("FR2");       // set program name on meta.json
 }
 
 void loop() {
