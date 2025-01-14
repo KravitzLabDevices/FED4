@@ -90,7 +90,7 @@ public:
     unsigned long pelletWellTime;
     bool dispenseError = false;
 
-    //TRSS input/output connector functions
+    // TRSS input/output connector functions
     bool initializeTRSS();
     void outputPulse(uint8_t trss, uint8_t duration);
 
@@ -175,9 +175,11 @@ public:
 
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
+    bool createMetaJson();
     void createLogFile();
     void logData(const String &newEvent = "");
     String getMetaValue(const char *rootKey, const char *subKey);
+    bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
 
     // Public counters and timing
     int pelletCount;
@@ -232,8 +234,8 @@ public:
     void highBeep();
     void higherBeep();
     void click();
-    void soundSweep(uint32_t startFreq=500, uint32_t endFreq=1500, uint32_t duration_ms=1000);
-    void noise(uint32_t duration_ms=500, float amplitude=1);
+    void soundSweep(uint32_t startFreq = 500, uint32_t endFreq = 1500, uint32_t duration_ms = 1000);
+    void noise(uint32_t duration_ms = 500, float amplitude = 1);
 
     void setEvent(const String &newEvent)
     {

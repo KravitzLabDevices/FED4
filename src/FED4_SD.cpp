@@ -36,6 +36,74 @@ bool FED4::initializeSD()
 }
 
 /**
+ * Creates the meta.json file with default structure if it doesn't exist
+ * Default structure:
+ * {
+ *     "subject": {
+ *         "id": "",
+ *         "sex": ""
+ *     },
+ *     "fed": {
+ *         "program": ""
+ *     }
+ * }
+ * @return true if successful or file already exists, false if creation failed
+ */
+bool FED4::createMetaJson()
+{
+    SPI.setBitOrder(MSBFIRST);
+    digitalWrite(SD_CS, LOW); // Select SD card for operation
+
+    // Check if file already exists
+    if (SD.exists(META_FILE))
+    {
+        digitalWrite(SD_CS, HIGH);
+        return true;
+    }
+
+    // Create the JSON document
+    const size_t capacity = JSON_OBJECT_SIZE(2) + // For "subject" and "fed"
+                            JSON_OBJECT_SIZE(2) + // For "id" and "sex" under "subject"
+                            JSON_OBJECT_SIZE(1) + // For "program" under "fed"
+                            60;                   // Extra space for strings
+    DynamicJsonDocument doc(capacity);
+
+    // Create the structure
+    JsonObject subject = doc.createNestedObject("subject");
+    subject["id"] = "";
+    subject["sex"] = "";
+
+    JsonObject fed = doc.createNestedObject("fed");
+    fed["program"] = "";
+
+    // Open file for writing
+    File metaFile = SD.open(META_FILE, FILE_WRITE);
+    if (!metaFile)
+    {
+        digitalWrite(SD_CS, HIGH);
+        Serial.println("Failed to create meta.json");
+        return false;
+    }
+
+    // Write the JSON structure
+    bool success = serializeJson(doc, metaFile) > 0;
+    metaFile.close();
+
+    digitalWrite(SD_CS, HIGH); // Deselect after operations
+
+    if (success)
+    {
+        Serial.println("Created meta.json with default structure");
+    }
+    else
+    {
+        Serial.println("Failed to write to meta.json");
+    }
+
+    return success;
+}
+
+/**
  * Creates a new log file with headers
  */
 void FED4::createLogFile()
@@ -46,9 +114,10 @@ void FED4::createLogFile()
     int fileNumber = 0;
 
     // Keep trying filenames with incrementing numbers until we find one that doesn't exist
-    do {
-        snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV", 
-                id.c_str(), now.year(), now.month(), now.day(), fileNumber);
+    do
+    {
+        snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
+                 id.c_str(), now.year(), now.month(), now.day(), fileNumber);
         Serial.print("Trying filename: ");
         Serial.println(baseFilename);
         fileNumber++;
@@ -57,7 +126,7 @@ void FED4::createLogFile()
     // Copy final filename to class member - ensure null termination
     strncpy(filename, baseFilename, sizeof(filename) - 1);
     filename[sizeof(filename) - 1] = '\0';
-    
+
     // Just change bit order for SD operations
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW);
@@ -66,7 +135,7 @@ void FED4::createLogFile()
     File dataFile = SD.open(filename, FILE_WRITE);
     if (dataFile)
     {
-        dataFile.print("DateTime,ElapsedSeconds,MouseID,LibraryVer,Program,"); 
+        dataFile.print("DateTime,ElapsedSeconds,MouseID,LibraryVer,Program,");
         dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
         dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
@@ -96,7 +165,7 @@ void FED4::logData(const String &newEvent)
     greenPix();
 
     DateTime now = rtc.now();
-    float currentSeconds = millis()/1000.000; // Get current seconds
+    float currentSeconds = millis() / 1000.000; // Get current seconds
 
     // Open file for writing
     digitalWrite(SD_CS, LOW); // Select SD card for operation
@@ -126,14 +195,17 @@ void FED4::logData(const String &newEvent)
     // Write counters and status
     dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
     // Write retrievalTime as string to avoid conversion issues
-    if (retrievalTime > 19.9) {
+    if (retrievalTime > 19.9)
+    {
         dataFile.print("TimedOut");
-    } else {
+    }
+    else
+    {
         dataFile.print(String(retrievalTime));
     }
     dataFile.write(',');
-    dataFile.write(dispenseError ? '1' : '0');  // Write single character
-    dataFile.write(',');  // Write comma as single character
+    dataFile.write(dispenseError ? '1' : '0'); // Write single character
+    dataFile.write(',');                       // Write comma as single character
 
     // Write environmental data
     dataFile.printf("%.1f,%.1f,%.1f,",
@@ -142,10 +214,10 @@ void FED4::logData(const String &newEvent)
     // Write system stats
     dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",
                     ESP.getFreeHeap(),
-                    ESP.getHeapSize(), 
+                    ESP.getHeapSize(),
                     ESP.getMinFreeHeap(),
                     wakeCount,
-                    (int)motorTurns/125, // 125 turns = 1 pellet position
+                    (int)motorTurns / 125, // 125 turns = 1 pellet position
                     cellVoltage,
                     cellPercent);
 
@@ -210,4 +282,65 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
 
     Serial.printf("Value not found for %s > %s\n", rootKey, subKey);
     return "";
+}
+
+/**
+ * Sets a value in the meta.json configuration file
+ *
+ * Example usage:
+ *   setMetaValue("subject", "id", "mouse001");     // sets {"subject": {"id": "mouse001"}}
+ *   setMetaValue("fed", "program", "Classic");     // sets {"fed": {"program": "Classic"}}
+ *
+ * @param rootKey The top-level key in the JSON object
+ * @param subKey The nested key under rootKey
+ * @param value The string value to set
+ * @return true if successful, false if failed
+ */
+bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *value)
+{
+    SPI.setBitOrder(MSBFIRST);
+    digitalWrite(SD_CS, LOW); // Select SD card for operation
+
+    // First read existing content
+    File metaFile = SD.open(META_FILE, FILE_READ);
+    const size_t capacity = JSON_OBJECT_SIZE(3) + 120; // Increased for nested objects
+    DynamicJsonDocument doc(capacity);
+
+    if (metaFile)
+    {
+        DeserializationError error = deserializeJson(doc, metaFile);
+        metaFile.close();
+        if (error)
+        {
+            Serial.print("deserializeJson() failed: ");
+            Serial.println(error.c_str());
+            // Don't return yet - we'll create a new object
+        }
+    }
+
+    // Create or update the nested structure
+    JsonObject rootObj = doc[rootKey] | doc.createNestedObject(rootKey);
+    rootObj[subKey] = value;
+
+    // Open file for writing
+    metaFile = SD.open(META_FILE, FILE_WRITE);
+    if (!metaFile)
+    {
+        digitalWrite(SD_CS, HIGH); // Deselect on error
+        Serial.println("Failed to open meta.json for writing");
+        return false;
+    }
+
+    // Write the updated JSON
+    if (serializeJson(doc, metaFile) == 0)
+    {
+        metaFile.close();
+        digitalWrite(SD_CS, HIGH);
+        Serial.println("Failed to write to meta.json");
+        return false;
+    }
+
+    metaFile.close();
+    digitalWrite(SD_CS, HIGH); // Deselect after operations
+    return true;
 }
