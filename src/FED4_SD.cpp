@@ -314,19 +314,30 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
         {
             Serial.print("deserializeJson() failed: ");
             Serial.println(error.c_str());
-            // Don't return yet - we'll create a new object
+            digitalWrite(SD_CS, HIGH);
+            return false;
         }
     }
 
-    // Create or update the nested structure
-    JsonObject rootObj = doc[rootKey] | doc.createNestedObject(rootKey);
+    // Get or create the root object while preserving existing content
+    JsonObject rootObj;
+    if (doc.containsKey(rootKey))
+    {
+        rootObj = doc[rootKey];
+    }
+    else
+    {
+        rootObj = doc.createNestedObject(rootKey);
+    }
+
+    // Update only the specified subkey
     rootObj[subKey] = value;
 
     // Open file for writing
     metaFile = SD.open(META_FILE, FILE_WRITE);
     if (!metaFile)
     {
-        digitalWrite(SD_CS, HIGH); // Deselect on error
+        digitalWrite(SD_CS, HIGH);
         Serial.println("Failed to open meta.json for writing");
         return false;
     }
@@ -345,10 +356,12 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
     return true;
 }
 
-void FED4::setProgram(String program) {
+void FED4::setProgram(String program)
+{
     setMetaValue("subject", "program", program.c_str());
 }
 
-void FED4::setMouseId(String mouseId) {
+void FED4::setMouseId(String mouseId)
+{
     setMetaValue("subject", "id", mouseId.c_str());
 }
