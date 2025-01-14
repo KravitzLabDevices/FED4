@@ -131,3 +131,15 @@ void FED4::adjustRTC(uint32_t timestamp)
     Serial.print("RTC time after adjustment: ");
     serialPrintRTC();
 }
+
+/**
+ * Updates time variables from RTC
+ */
+
+void FED4::updateTime(){
+  DateTime current = rtc.now();
+  currentHour = current.hour(); //useful for timed feeding sessions
+  currentMinute = current.minute(); //useful for timed feeding sessions
+  currentSecond = current.second(); //useful for timed feeding sessions
+  unixtime = current.unixtime();
+}
