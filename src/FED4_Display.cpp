@@ -131,32 +131,37 @@ void FED4::displayIndicators(){
   drawCircle(17, 135, 5, DISPLAY_BLACK);
 }
 
-void FED4::displayDateTime(){
+void FED4::displayDateTime() {
   setFont(&Org_01);
   setTextSize(2);
   setTextColor(DISPLAY_WHITE);
 
   // Print date and time at bottom of the screen
-  fillRect (0, 146, 144, 22, DISPLAY_BLACK);
+  fillRect(0, 146, 144, 22, DISPLAY_BLACK);
   DateTime current = rtc.now();
+  
+  // Buffer for formatting time
+  char timeStr[6];  // HH:MM\0
+  char dateStr[9];  // MM.DD.YY\0
+  
+  // Format date string
+  snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
+           current.month(), 
+           current.day(), 
+           current.year() - 2000);
+           
+  // Format time string
+  snprintf(timeStr, sizeof(timeStr), "%02d:%02d", 
+           current.hour(), 
+           current.minute());
 
+  // Display formatted strings
   setCursor(5, 160);
-  print(current.month());
-  print(".");
-  print(current.day());
-  print(".");
-  print(current.year()-2000);
-
+  print(dateStr);
+  
   setCursor(99, 160);
-  if (current.hour() < 10)
-    print('  ');      // Trick to add leading zero for formatting
-  print(current.hour());
-  print(":");
-  if (current.minute() < 10)
-    print('0');      // Trick to add leading zero for formatting
-  print(current.minute());
+  print(timeStr);
 }
-
 
 /**
  * Initializes the Sharp Memory Display
