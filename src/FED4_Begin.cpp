@@ -8,7 +8,7 @@
  */ 
 //********************************************************
 
-bool FED4::begin()
+bool FED4::begin(const char* programName)
 {
     Serial.begin(115200);
 
@@ -109,6 +109,21 @@ bool FED4::begin()
     // Initialize SD and Display
     statuses["SD Card"].initialized = initializeSD();
 
+    // This is used to set the program name in the meta.json file
+    // and to get the program name from the meta.json file  
+    //
+    // Usage: When begin() is called in the FED4 Arduino script it can be called with a program name:
+    //        begin("programName");
+    //        programName will be used to set the program name in the meta.json file
+    //        and change what shows up on the display and in the log file
+    if (programName != nullptr) {
+        setProgram(programName);
+    }
+
+    //get JSON data from SD card
+    program = getMetaValue("subject", "program");     
+    mouseId = getMetaValue("subject", "id");      
+
     // Check meta value
     String subjectId = getMetaValue("subject", "id");
     if (subjectId.length() > 0)
@@ -143,14 +158,6 @@ bool FED4::begin()
     // check battery and environmental sensors
     startupPollSensors(); 
 
-    //get JSON data from SD card
-    program = getMetaValue("subject", "program");     // returns 
-    mouseId = getMetaValue("subject", "id");      // returns 
-    
-    // initialize logging
-    createLogFile();
-    logData("Startup");
-
     // Initialize Speaker last (as in original)
     statuses["Speaker"].initialized = initializeSpeaker();
    // playStartup();  move to main sketch to easily turn off while working on a plane :)  
@@ -176,8 +183,6 @@ bool FED4::begin()
                   statuses.size() - failCount,
                   statuses.size());
     Serial.println("================================\n");
-
-    setMetaValue("subject", "id", "mouse001");
 
     return true;
 }

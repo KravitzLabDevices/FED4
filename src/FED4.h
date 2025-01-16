@@ -73,7 +73,7 @@ public:
     static const char libraryVer[];
 
     // Initialization
-    bool begin();
+    bool begin(const char* programName = nullptr);
 
     // Corefunctions
     void feed();
@@ -366,6 +366,13 @@ private:
     friend class FED4_SD;
     friend class FED4_Sensors;
     friend class FED4_Vitals;
+    friend class FED4_Feed;
+    friend class FED4_Begin;
+    friend class FED4_Speaker;
+    friend class FED4_Magnet;
+    friend class FED4_Motion;
+    friend class FED4_ToF;
+    friend class FED4_Accel;
 };
 
 // Standard ASCII 5x7 font

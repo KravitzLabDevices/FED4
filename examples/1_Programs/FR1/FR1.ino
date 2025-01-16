@@ -19,8 +19,7 @@
 FED4 fed4;  // start FED4 object
 
 void setup() {
-  fed4.begin();                 // initialize FED4 hardware
-  fed4.setProgram("FR2");       // set program name on meta.json
+  fed4.begin(programName = "NewTask");     // initialize FED4 hardware, setting the name of the task
 }
 
 void loop() {
