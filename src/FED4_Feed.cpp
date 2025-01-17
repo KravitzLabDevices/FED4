@@ -70,7 +70,6 @@ void FED4::handlePelletSettling() {
         pelletDropTime = millis();
         pelletCount++;
         logData("PelletDrop");
-        outputPulse(1, 100);
         }        
     motorTurns = 0;
     releaseMotor();
