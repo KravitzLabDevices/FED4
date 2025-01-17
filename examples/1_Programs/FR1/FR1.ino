@@ -10,7 +10,7 @@
   any prior training, by running this task in their cage overnight for one night.
 
   *** WARNING: If FED4 is their only source of food, ensure mice earn sufficient calories from 
-  the task each day.   For most mice this is ~150 20mg pellets (~3g of food) per 24 hours. *** 
+  the task each day. For most mice this is ~150 20mg pellets (~3g of food) per 24 hours. *** 
 
 */
 

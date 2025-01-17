@@ -177,8 +177,7 @@ void FED4::finishFeeding() {
             logData("PelletNotDetected");
         } else {
             logData("PelletTaken");
-            outputPulse(1, 100);
-            outputPulse(3, 100);
+
         }
     }
 
