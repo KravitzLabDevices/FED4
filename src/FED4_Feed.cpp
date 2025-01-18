@@ -192,7 +192,7 @@ void FED4::finishFeeding() {
     rightTouch = false;
 
     // Rebaseline touch sensors
-    reBaselineTouches = 10;
+    reBaselineTouches = 3;
     if ((leftCount + rightCount + centerCount) % reBaselineTouches == 0 && (leftCount + rightCount + centerCount) > 5)
     {
         calibrateTouchSensors();
@@ -218,5 +218,7 @@ bool FED4::checkForPellet()
  */
 bool FED4::didPelletDrop()
 {
-    return !mcp.digitalRead(EXP_PHOTOGATE_4);
+    return mcp.digitalRead(EXP_PHOTOGATE_4);
 }
+// THIS IS A HACK FOR WHEN SENSOR IS NOT WORKING
+// WITH DROP SENSOR CHANGE TO !mcp.digitalRead(EXP_PHOTOGATE_4);

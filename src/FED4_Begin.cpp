@@ -31,6 +31,7 @@ bool FED4::begin(const char* programName)
         {"Battery Monitor", {false, ""}},
         {"Temp/Humidity", {false, ""}},
         {"Touch Sensors", {false, ""}},
+        {"Buttons", {false, ""}},
         {"Motor", {false, ""}},
         {"SD Card", {false, ""}},
         {"Display", {false, ""}},
@@ -81,9 +82,6 @@ bool FED4::begin(const char* programName)
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_2, INPUT);
     pinMode(AUDIO_TRRS_3, INPUT);
-    pinMode(BUTTON_1, INPUT);
-    pinMode(BUTTON_2, INPUT);
-    pinMode(BUTTON_3, INPUT);
     pinMode(USER_PIN_18, OUTPUT);
     digitalWrite(USER_PIN_18, LOW);
 
@@ -100,6 +98,14 @@ bool FED4::begin(const char* programName)
     // Initialize Touch and Motor
     statuses["Touch Sensors"].initialized = initializeTouch();
     calibrateTouchSensors();
+    
+    // Initialize Buttons
+    statuses["Buttons"].initialized = initializeButtons();
+    if (!statuses["Buttons"].initialized)
+    {
+        Serial.println("Button initialization failed");
+    }
+    
     statuses["Motor"].initialized = initializeMotor();
 
     // Initialize SPI systems
@@ -157,6 +163,10 @@ bool FED4::begin(const char* programName)
 
     // check battery and environmental sensors
     startupPollSensors(); 
+
+    // initialize logging
+    createLogFile();
+    logData("Startup");
 
     // Initialize Speaker last (as in original)
     statuses["Speaker"].initialized = initializeSpeaker();

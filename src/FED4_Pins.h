@@ -9,9 +9,9 @@
 #define MOTOR_PIN_4 38 // A5 motor
 
 // User Buttons
-#define BUTTON_1 14 // User Button 1 - bottom
+#define BUTTON_1 40 // User Button 1 - bottom
 #define BUTTON_2 39 // User Button 2 - middle
-#define BUTTON_3 40 // User Button 3 - top
+#define BUTTON_3 14 // User Button 3 - top
 
 // Touch Sensor Pins
 #define TOUCH_PAD_CENTER TOUCH_PAD_NUM5 // Touch pad - Center

@@ -11,6 +11,9 @@ void FED4::sleep()
   // put FED4 to sleep
   esp_light_sleep_start();
 
+  // Check wake-up cause
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  
   // power on LDO2
   LDO2_ON();
 
@@ -21,8 +24,17 @@ void FED4::sleep()
   esp_err_t err = i2s_start(I2S_NUM_0);
   enableAmp(true);
 
-  // return which touch pad woke FED4 
-  interpretTouch();
+  // Handle different wake-up sources
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    // return which touch pad woke FED4 
+    interpretTouch();
+  } else if (wakeup_reason == ESP_SLEEP_WAKEUP_GPIO) {
+    // Button 1 wake-up
+    if (gpio_get_level((gpio_num_t)BUTTON_1) == 1) {
+      Serial.println("Woke up from Button 1!");
+      click(); // Optional: provide feedback
+    }
+  }
 
   Serial.println("Woke up!");
   purplePix();

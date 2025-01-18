@@ -74,6 +74,8 @@ public:
 
     // Initialization
     bool begin(const char* programName = nullptr);
+    bool initializeButtons();
+    static void IRAM_ATTR onButton1WakeUp();
 
     // Corefunctions
     void feed();

@@ -36,7 +36,7 @@ bool FED4::initializeSD()
 }
 
 /**
- * Creates the meta.json file with default structure if it doesn't exist
+ *  s the meta.json file with default structure if it doesn't exist
  * Default structure:
  * {
  *     "subject": {
