@@ -56,6 +56,12 @@ void FED4::calibrateTouchSensors()
     touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchWakeUp, right_threshold);
 }
 
+/**
+ * Interprets which touch sensor was activated after waking from sleep
+ * Compares readings from left, center, and right touch sensors to their baselines
+ * Sets the appropriate touch flag (leftTouch, centerTouch, rightTouch) 
+ * Increments the corresponding counter, logs the event, updates display and LED
+ */
 void FED4::interpretTouch()
 {
     // Read current values
@@ -68,10 +74,10 @@ void FED4::interpretTouch()
     centerTouch = false;
     rightTouch = false;
 
-    Serial.printf("Touch values - Left: %d/%d, Center: %d/%d, Right: %d/%d\n",
-                  leftVal, touchPadLeftBaseline,
-                  centerVal, touchPadCenterBaseline,
-                  rightVal, touchPadRightBaseline);
+    // Serial.printf("Touch values - Left: %d/%d, Center: %d/%d, Right: %d/%d\n",
+    //               leftVal, touchPadLeftBaseline,
+    //               centerVal, touchPadCenterBaseline,
+    //               rightVal, touchPadRightBaseline);
 
     // Find which sensor had the largest absolute deviation from baseline
     float leftDev = abs((float)leftVal / touchPadLeftBaseline - 1.0);
@@ -81,33 +87,33 @@ void FED4::interpretTouch()
     // Always count a touch - just determine which one had the largest deviation, set others to false
     if (leftDev >= centerDev && leftDev >= rightDev)
     {
-        Serial.println("Left Poke detected.");
         leftCount++;
-        logData("Left"); 
         greenPix();
+        Serial.println("Left Poke detected.");
+        logData("Left"); 
         leftTouch = true;
-        outputPulse(1, 100);
-        updateDisplay();
+        outputPulse(1, 10);
+        //updateDisplay();  //can't do this here, it's too slow
     }
     else if (centerDev >= leftDev && centerDev >= rightDev)
     {
-        Serial.println("Center Poke detected.");
         centerCount++;
-        logData("Center"); 
         bluePix();
+        Serial.println("Center Poke detected.");
+        logData("Center"); 
         centerTouch = true;
-        outputPulse(2, 100);
-        updateDisplay();
+        outputPulse(2, 10);
+        //updateDisplay();
     }
     else
     {
-        Serial.println("Right Poke detected.");
         rightCount++;
-        logData("Right"); 
         redPix();
+        Serial.println("Right Poke detected.");
+        logData("Right"); 
         rightTouch = true;
-        outputPulse(3, 100);
-        updateDisplay();
+        outputPulse(3, 10);
+        //updateDisplay();
     }
 
     // Clear any pending touch pad interrupts

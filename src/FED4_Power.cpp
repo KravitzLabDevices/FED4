@@ -5,15 +5,13 @@ void FED4::sleep()
   // enter sleep
   Serial.println("Entering light sleep...");
   Serial.flush();
+  clearStrip();
   LDO2_OFF();
   enableAmp(false); 
-  
+
   // put FED4 to sleep
   esp_light_sleep_start();
 
-  // Check wake-up cause
-  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
-  
   // power on LDO2
   LDO2_ON();
 
@@ -24,20 +22,34 @@ void FED4::sleep()
   esp_err_t err = i2s_start(I2S_NUM_0);
   enableAmp(true);
 
-  // Handle different wake-up sources
-  if (wakeup_reason == ESP_SLEEP_WAKEUP_TOUCHPAD) {
-    // return which touch pad woke FED4 
-    interpretTouch();
-  } else if (wakeup_reason == ESP_SLEEP_WAKEUP_GPIO) {
-    // Button 1 wake-up
-    if (gpio_get_level((gpio_num_t)BUTTON_1) == 1) {
-      Serial.println("Woke up from Button 1!");
-      click(); // Optional: provide feedback
-    }
-  }
-
   Serial.println("Woke up!");
-  purplePix();
+
+  // interpret touch pad only if button 1 is not pressed
+  // hopefully in future we'll do better with interpreting touch pad
+  // but for now, this is a simple way to not count touches when button 1 is held
+  // this is a bit of a hack, but it works for now
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  Serial.print("Button 1 current state: ");
+  Serial.println(digitalRead(BUTTON_1) == 1 ? "pressed" : "idle");
+  if (digitalRead(BUTTON_1) == 0) {
+    interpretTouch();
+  }
+  
+  // check if button 1 is held for 1 second, if so, feed
+  int holdTime = 0;
+  while (digitalRead(BUTTON_1) == 1) {
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+    delay(100);
+    holdTime += 100;
+    if (holdTime >= 1000) {
+        bopBeep();
+        Serial.println("Button 1 held for 1 second, feeding!");
+        feed();
+        break;
+    }
+  }    
 }
 
 bool FED4::initializeLDOs()

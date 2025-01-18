@@ -45,13 +45,17 @@ bool FED4::begin(const char* programName)
     statuses["LDOs"].initialized = initializeLDOs();
     LDO3_OFF();
 
-    // Initialize LEDs early (as in original)
+    // Initialize LEDs 
     statuses["NeoPixel"].initialized = initializePixel();
     bluePix();
     statuses["LED Strip"].initialized = initializeStrip();
-    stripRainbow(1, 1);
 
-    // Initialize I2C buses
+    // startup LED display
+    //a 25ms delay and 1 loop takes 1.024 seconds to complete - 
+    //this is blocking BTW but OK to take an extra second because it looks cool
+    stripRainbow(25, 1);  
+    
+     // Initialize I2C buses
     statuses["I2C Primary"].initialized = Wire.begin();
     if (!statuses["I2C Primary"].initialized)
     {

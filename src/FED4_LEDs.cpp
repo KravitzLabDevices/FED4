@@ -21,21 +21,23 @@
  * Usage Examples:
  *
  * 1. Single NeoPixel:
- *    fed.setPixColor("red");           // Default brightness (64)
- *    fed.setPixColor("red", 255);      // Custom brightness
- *    fed.setPixColor("blue", 128);     // Half brightness blue
+ *    setPixColor("red");           // Default brightness (64)
+ *    setPixColor("red", 255);      // Custom brightness
+ *    setPixColor("blue", 128);     // Half brightness blue
  *
  * 2. LED Strip:
- *    fed.setStripPixel(0, "green");    // First LED green
- *    fed.leftLight("blue");            // Left poke blue
- *    fed.centerLight("yellow");        // Center poke yellow
- *    fed.rightLight("red");            // Right poke red
+ *    setStripPixel(0, "green");    // First LED green
+ *    leftLight("blue");            // Left poke blue
+ *    centerLight("yellow");        // Center poke yellow
+ *    rightLight("red");            // Right poke red
  *
  * Note: If an unrecognized color is provided, the LED(s)
  * will default to off.
  ********************************************************/
 
 // STRIP FUNCTIONS
+
+// Initialize the strip
 bool FED4::initializeStrip()
 {
     strip.begin();
@@ -45,11 +47,14 @@ bool FED4::initializeStrip()
     return true;
 }
 
+// Set the strip brightness
 void FED4::setStripBrightness(uint8_t brightness)
 {
     strip.setBrightness(brightness);
 }
 
+// Example usage:
+// colorWipe("white", 10); // Fast white wipe
 void FED4::colorWipe(uint32_t color, unsigned long wait)
 {
     for (unsigned int i = 0; i < strip.numPixels(); i++)
@@ -60,6 +65,9 @@ void FED4::colorWipe(uint32_t color, unsigned long wait)
     }
 }
 
+// Example usage:
+// Theater chase animations with different colors and timing:
+// stripTheaterChase("white", 50, 3, 10);    // Red chase, 50ms delay, groups of 3, 10 cycles
 void FED4::stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases)
 {
     for (unsigned int chase = 0; chase < numChases; chase++)
@@ -77,11 +85,16 @@ void FED4::stripTheaterChase(uint32_t color, unsigned long wait, unsigned int gr
     }
 }
 
+// Example usage:
+// Rainbow animation with different speeds and repetitions:
+// stripRainbow(50, 1);     // Rainbow animation with 50ms delay, 1 loop
+// stripRainbow(100, 2);    // Rainbow animation with 100ms delay, 2 loops
+// stripRainbow(25, 3);     // Fast rainbow animation with 25ms delay, 3 loops
 void FED4::stripRainbow(unsigned long wait, unsigned int numLoops)
 {
     for (unsigned int count = 0; count < numLoops; count++)
     {
-        for (long firstPixelHue = 0; firstPixelHue < 5 * 65536; firstPixelHue += 256)
+        for (long firstPixelHue = 0; firstPixelHue < 65536; firstPixelHue += 1024)
         {
             for (int i = 0; i < strip.numPixels(); i++)
             {
@@ -94,18 +107,31 @@ void FED4::stripRainbow(unsigned long wait, unsigned int numLoops)
     }
 }
 
+// Clear the strip
+// Example usage:
+// clearStrip();    // Clears the strip 
 void FED4::clearStrip()
 {
     strip.clear();
     strip.show();
 }
 
+// Example usage:
+// Set individual pixels to different colors:
+// setStripPixel(0, "red");    // Set first pixel to red
+// setStripPixel(3, "green");    // Set fourth pixel to green
+// setStripPixel(7, "blue");    // Set eighth pixel to blue
 void FED4::setStripPixel(uint8_t pixel, uint32_t color)
 {
     strip.setPixelColor(pixel, color);
     strip.show();
 }
 
+// Example usage:
+// Light up left port with specific colors:
+// leftLight("red");    // Set left port to red
+// leftLight("green");    // Set left port to green
+// leftLight("blue");    // Set left port to blue
 void FED4::leftLight(uint32_t color)
 {
     strip.clear();
@@ -115,6 +141,11 @@ void FED4::leftLight(uint32_t color)
     strip.show();
 }
 
+// Example usage:
+// Light up center port with specific colors:
+// centerLight("red");    // Set center port to red
+// centerLight("green");    // Set center port to green
+// centerLight("blue");    // Set center port to blue
 void FED4::centerLight(uint32_t color)
 {
     strip.clear();
@@ -123,6 +154,11 @@ void FED4::centerLight(uint32_t color)
     strip.show();
 }
 
+// Example usage:
+// Light up right port with specific colors:
+// rightLight("red");    // Set right port to red
+// rightLight("green");    // Set right port to green
+// rightLight("blue");    // Set right port to blue
 void FED4::rightLight(uint32_t color)
 {
     strip.clear();
@@ -132,27 +168,49 @@ void FED4::rightLight(uint32_t color)
     strip.show();
 }
 
+// Example usage:
+// Set individual pixels using color names:
+// setStripPixel(0, "red");     // Set first pixel to red
+// setStripPixel(3, "green");   // Set fourth pixel to green
+// setStripPixel(7, "blue");    // Set eighth pixel to blue
 void FED4::setStripPixel(uint8_t pixel, const char *colorName)
 {
     setStripPixel(pixel, getColorFromString(colorName));
 }
 
+// Example usage:
+// Light up left port using color names:
+// leftLight("red");     // Set left port to red
+// leftLight("green");   // Set left port to green
+// leftLight("blue");    // Set left port to blue
 void FED4::leftLight(const char *colorName)
 {
     leftLight(getColorFromString(colorName));
 }
 
+// Example usage:
+// Light up center port using color names:
+// centerLight("red");     // Set center port to red
+// centerLight("green");   // Set center port to green
+// centerLight("blue");    // Set center port to blue
 void FED4::centerLight(const char *colorName)
 {
     centerLight(getColorFromString(colorName));
 }
 
+// Example usage:
+// Light up right port using color names:
+// rightLight("red");     // Set right port to red
+// rightLight("green");   // Set right port to green
+// rightLight("blue");    // Set right port to blue
 void FED4::rightLight(const char *colorName)
 {
     rightLight(getColorFromString(colorName));
 }
 
-// PIXEL FUNCTIONS
+// Example usage:
+// Initialize the NeoPixel:
+// FED4.initializePixel();    // Sets up the NeoPixel with default brightness
 bool FED4::initializePixel()
 {
     pixels.begin(); // Initialize NeoPixel
@@ -162,11 +220,19 @@ bool FED4::initializePixel()
     return true;
 }
 
+// Example usage:
+// Set NeoPixel brightness:
+// setPixBrightness(100);    // Set brightness to 100 (max 255)
+// setPixBrightness(25);     // Set brightness to 25 (dimmer)
 void FED4::setPixBrightness(uint8_t brightness)
 {
     pixels.setBrightness(brightness);
 }
 
+// Example usage:
+// Set NeoPixel color with RGB values and brightness:
+// setPixColor(255, 0, 0, 100);    // Set to red with brightness 100
+// setPixColor(0, 255, 0, 50);     // Set to green with brightness 50
 void FED4::setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness)
 {
     setPixBrightness(brightness);
@@ -174,52 +240,90 @@ void FED4::setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness)
     pixels.show();
 }
 
-// Colors with brightness control
+// Example usage:
+// Set NeoPixel to blue with custom brightness:
+// bluePix(100);    // Set blue with brightness 100
+// bluePix(50);     // Set blue with brightness 50
 void FED4::bluePix(uint8_t brightness)
 {
     setPixColor(0, 0, 255, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to green with custom brightness:
+// greenPix(100);    // Set green with brightness 100
+// greenPix(50);     // Set green with brightness 50
 void FED4::greenPix(uint8_t brightness)
 {
     setPixColor(0, 255, 0, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to red with custom brightness:
+// redPix(100);    // Set red with brightness 100
+// redPix(50);     // Set red with brightness 50
 void FED4::redPix(uint8_t brightness)
 {
     setPixColor(255, 0, 0, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to purple with custom brightness:
+// purplePix(100);    // Set purple with brightness 100
+// purplePix(50);     // Set purple with brightness 50
 void FED4::purplePix(uint8_t brightness)
 {
     setPixColor(128, 0, 128, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to yellow with custom brightness:
+// yellowPix(100);    // Set yellow with brightness 100
+// yellowPix(50);     // Set yellow with brightness 50
 void FED4::yellowPix(uint8_t brightness)
 {
     setPixColor(255, 255, 0, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to cyan with custom brightness:
+// cyanPix(100);    // Set cyan with brightness 100
+// cyanPix(50);     // Set cyan with brightness 50
 void FED4::cyanPix(uint8_t brightness)
 {
     setPixColor(0, 255, 255, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to white with custom brightness:
+// whitePix(100);    // Set white with brightness 100
+// whitePix(50);     // Set white with brightness 50
 void FED4::whitePix(uint8_t brightness)
 {
     setPixColor(255, 255, 255, brightness);
 }
 
+// Example usage:
+// Set NeoPixel to orange with custom brightness:
+// orangePix(100);    // Set orange with brightness 100
+// orangePix(50);     // Set orange with brightness 50
 void FED4::orangePix(uint8_t brightness)
 {
     setPixColor(255, 165, 0, brightness);
 }
 
+// Example usage:
+// Turn off NeoPixel:
+// noPix();    // Sets pixel to black (off)
 void FED4::noPix()
 {
     setPixColor(0, 0, 0, 255);
 }
 
+// Example usage:
+// Set NeoPixel color using color name and brightness:
+// setPixColor("red", 100);      // Set to red with brightness 100
+// setPixColor("green", 50);     // Set to green with brightness 50
 void FED4::setPixColor(const char *colorName, uint8_t brightness)
 {
     uint32_t color = getColorFromString(colorName);
@@ -229,7 +333,10 @@ void FED4::setPixColor(const char *colorName, uint8_t brightness)
     setPixColor(r, g, b, brightness);
 }
 
-// SHARED FUNCTIONS
+// Example usage:
+// Convert color name to RGB value:
+// uint32_t redColor = getColorFromString("red");       // Get red color value
+// uint32_t blueColor = getColorFromString("blue");     // Get blue color value
 uint32_t FED4::getColorFromString(const char *colorName)
 {
     if (strcasecmp(colorName, "red") == 0)

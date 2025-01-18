@@ -2,7 +2,6 @@
 
 // Interrupt handler for BUTTON_1
 void IRAM_ATTR FED4::onButton1WakeUp() {
-    // Empty - just for waking up
 }
 
 bool FED4::initializeButtons() {
@@ -35,7 +34,7 @@ bool FED4::initializeButtons() {
     
     Serial.print("Button 1 current state: ");
     Serial.println(gpio_get_level((gpio_num_t)BUTTON_1));
-    Serial.println("Button wake-up initialized successfully");
+    Serial.println("Button 1 wake-up interrupt has been set");
     
     return true;
 }
