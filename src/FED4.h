@@ -137,8 +137,10 @@ public:
     // (strip)
     bool initializeStrip();
     void setStripBrightness(uint8_t brightness);
+    void colorWipe(const char* colorName, unsigned long wait);
     void colorWipe(uint32_t color, unsigned long wait);
-    void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases);
+    void stripTheaterChase(const char* colorName, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
+    void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripRainbow(unsigned long wait, unsigned int numLoops);
     void clearStrip();
     void setStripPixel(uint8_t pixel, uint32_t color);

@@ -55,10 +55,15 @@ void FED4::setStripBrightness(uint8_t brightness)
 
 // Example usage:
 // colorWipe("white", 10); // Fast white wipe
+void FED4::colorWipe(const char* colorName, unsigned long wait)
+{
+    colorWipe(getColorFromString(colorName), wait);
+}
+
+// New overloaded function that takes uint32_t color value
 void FED4::colorWipe(uint32_t color, unsigned long wait)
 {
-    for (unsigned int i = 0; i < strip.numPixels(); i++)
-    {
+    for(int i=0; i<strip.numPixels(); i++) {
         strip.setPixelColor(i, color);
         strip.show();
         delay(wait);
@@ -67,20 +72,25 @@ void FED4::colorWipe(uint32_t color, unsigned long wait)
 
 // Example usage:
 // Theater chase animations with different colors and timing:
-// stripTheaterChase("white", 50, 3, 10);    // Red chase, 50ms delay, groups of 3, 10 cycles
+// stripTheaterChase("white", 50, 3, 10);    // White chase, 50ms delay, groups of 3, 10 cycles
+void FED4::stripTheaterChase(const char* colorName, unsigned long wait, unsigned int groupSize, unsigned int numChases)
+{
+    stripTheaterChase(getColorFromString(colorName), wait, groupSize, numChases);
+}
+
+// New overloaded function that takes uint32_t color value
 void FED4::stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize, unsigned int numChases)
 {
-    for (unsigned int chase = 0; chase < numChases; chase++)
-    {
-        for (unsigned int pos = 0; pos < groupSize; pos++)
-        {
-            strip.clear();
-            for (unsigned int i = pos; i < strip.numPixels(); i += groupSize)
-            {
-                strip.setPixelColor(i, color);
+    for(int chase = 0; chase < numChases; chase++) {
+        for(int q=0; q < groupSize; q++) {
+            for(int i=0; i < strip.numPixels(); i=i+groupSize) {
+                strip.setPixelColor(i+q, color);
             }
             strip.show();
             delay(wait);
+            for(int i=0; i < strip.numPixels(); i=i+groupSize) {
+                strip.setPixelColor(i+q, 0);
+            }
         }
     }
 }

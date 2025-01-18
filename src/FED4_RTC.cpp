@@ -25,39 +25,30 @@ bool FED4::initializeRTC()
         return false;
     }
 
-    /*
-     To set the "Date modified" field of an SD logfile it is necessary to use the ESP32Time 
-     library to initialize and set the date/time on the *internal* ESP32 RTC, using the 
-     date/time from the *external* DS3231 RTC. See: https://github.com/lexkravitz/FED4/issues/21
-     
-     Making this work takes 4 lines of code:
-     - In FED4.h:
-     #include <ESP32Time.h>
-     ESP32Time Inrtc;
-     
-     - In FED4_RTC.cpp:
-     DateTime now = rtc.now();
-     Inrtc.setTime(now.unixtime());       
-    */
-    
+    // Initialize internal RTC from external RTC
     DateTime now = rtc.now();
     Inrtc.setTime(now.unixtime());  
 
-    // Single preferences session
+    bool result = false;  // Initialize result variable
+    
+    // Start preferences session
     if (!preferences.begin(PREFS_NAMESPACE, false))
     {
         Serial.println("Failed to initialize preferences");
         return false;
     }
 
-    bool result = true;
-    if (isNewCompilation())
-    {
-        updateRTC();
-        updateCompilationID();
-    }
+    // Try-catch like pattern to ensure preferences.end() is always called
+    do {
+        if (isNewCompilation())
+        {
+            updateRTC();
+            updateCompilationID();
+        }
+        result = true;  // If we get here, everything succeeded
+    } while (false);
 
-    preferences.end();
+    preferences.end();  // Always end the preferences session
     return result;
 }
 
