@@ -16,7 +16,6 @@ void FED4::startSleep() {
   clearStrip();
   LDO2_OFF();
   enableAmp(false);
-//   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);  // Clear pending interrupts
   esp_light_sleep_start();
 }
 
