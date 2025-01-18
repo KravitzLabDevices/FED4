@@ -1,41 +1,31 @@
 #include "FED4.h"
 
-void FED4::sleep()
-{
-  // enter sleep
+void FED4::sleep() {
+  startSleep();
+  wakeUp();
+  setupTouch();
+  checkFeed();
+  checkReset();
+}
+
+void FED4::startSleep() {
   Serial.println("Entering light sleep...");
   Serial.flush();
   clearStrip();
   LDO2_OFF();
   enableAmp(false); 
-
-  // put FED4 to sleep
   esp_light_sleep_start();
+}
 
-  // power on LDO2
+void FED4::wakeUp() {
   LDO2_ON();
-
-  // re-start port expander
   mcp.begin_I2C();
-
-  //turn on audio amp (this takes a bit of time to warm up so we do it right after waking up)
   esp_err_t err = i2s_start(I2S_NUM_0);
   enableAmp(true);
-
   Serial.println("Woke up!");
+}
 
-  // interpret touch pad only if button 1 is not pressed
-  // hopefully in future we'll do better with interpreting touch pad
-  // but for now, this is a simple way to not count touches when button 1 is held
-  // this is a bit of a hack, but it works for now
-  pinMode(BUTTON_1, INPUT_PULLDOWN);
-  Serial.print("Button 1 current state: ");
-  Serial.println(digitalRead(BUTTON_1) == 1 ? "pressed" : "idle");
-  if (digitalRead(BUTTON_1) == 0) {
-    interpretTouch();
-  }
-  
-  // check if button 1 is held for 1 second, if so, feed
+void FED4::checkFeed() {
   int holdTime = 0;
   while (digitalRead(BUTTON_1) == 1) {
     leftTouch = false;
@@ -45,11 +35,41 @@ void FED4::sleep()
     holdTime += 100;
     if (holdTime >= 1000) {
         bopBeep();
-        Serial.println("Button 1 held for 1 second, feeding!");
+        Serial.println("********** TEST PELLET DISPENSE **********");
         feed();
         break;
     }
-  }    
+  }
+}
+
+void FED4::checkReset() {
+  int holdTime = 0;
+  while (digitalRead(BUTTON_2) == 1) {
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+    delay(100);
+    holdTime += 100;
+    if (holdTime >= 3000) {
+        colorWipe(0xFF0000, 100); // red
+        resetJingle();
+        Serial.println("********** BUTTON 2 FORCED RESET! **********");
+        esp_restart();
+        break;
+    }
+  }
+}
+
+void FED4::setupTouch() {
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  pinMode(BUTTON_2, INPUT_PULLDOWN);
+  Serial.print("Button 1 current state: ");
+  Serial.println(digitalRead(BUTTON_1) == 1 ? "pressed" : "idle");
+  Serial.print("Button 2 current state: ");
+  Serial.println(digitalRead(BUTTON_2) == 1 ? "pressed" : "idle");
+  if (digitalRead(BUTTON_1) == 0 && digitalRead(BUTTON_2) == 0) {
+    interpretTouch();
+  }
 }
 
 bool FED4::initializeLDOs()

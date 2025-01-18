@@ -74,8 +74,11 @@ public:
 
     // Initialization
     bool begin(const char* programName = nullptr);
+    
+    // Button functions
     bool initializeButtons();
     static void IRAM_ATTR onButton1WakeUp();
+    static void IRAM_ATTR onButton2WakeUp();
 
     // Corefunctions
     void feed();
@@ -177,6 +180,11 @@ public:
 
     // Power management (defined in FED4_Power.cpp)
     void sleep();
+    void startSleep();
+    void wakeUp();
+    void setupTouch();
+    void checkFeed();
+    void checkReset();
     bool initializeLDOs();
     void LDO2_ON();
     void LDO2_OFF();
@@ -242,6 +250,7 @@ public:
     // Sound stimuli
     void playStartup();
     void bopBeep();
+    void resetJingle();
     void lowBeep();
     void highBeep();
     void higherBeep();
