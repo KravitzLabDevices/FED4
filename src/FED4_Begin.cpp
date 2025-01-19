@@ -130,9 +130,11 @@ bool FED4::begin(const char* programName)
         setProgram(programName);
     }
 
-    //get JSON data from SD card
+    //pull JSON data from SD card to store in log file
     program = getMetaValue("subject", "program");     
-    mouseId = getMetaValue("subject", "id");      
+    mouseId = getMetaValue("subject", "id");    
+    sex = getMetaValue("subject", "sex");    
+    strain = getMetaValue("subject", "strain");    
 
     // Check meta value
     String subjectId = getMetaValue("subject", "id");

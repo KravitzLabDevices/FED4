@@ -89,6 +89,8 @@ public:
     void menu();
     void startMenu();
     void menuMouseId();
+    void menuSex();
+    void menuStrain();
 
     // Sensor polling
     void pollSensors();
@@ -178,6 +180,8 @@ public:
     bool initializeDisplay();
     void updateDisplay();
     void displayTaskandMouseId();
+    void displayStrain();
+    void displaySex();
     void displayCounters();
     void displayDateTime();
     void displayEnvironmental();
@@ -210,6 +214,8 @@ public:
     bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
     void setProgram(String program);
     void setMouseId(String mouseId);
+    void setSex(String sex);        
+    void setStrain(String strain);
 
     // Public counters and timing
     int pelletCount;
@@ -364,6 +370,8 @@ private:
     uint32_t millivolts;
     String program;
     String mouseId;
+    String sex;
+    String strain;
 
     // RTC functions
     Preferences preferences;

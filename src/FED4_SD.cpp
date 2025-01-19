@@ -41,7 +41,8 @@ bool FED4::initializeSD()
  * {
  *     "subject": {
  *         "id": "",
- *         "sex": ""
+ *         "sex": "",
+ *         "strain": ""
  *     },
  *     "fed": {
  *         "program": ""
@@ -72,6 +73,7 @@ bool FED4::createMetaJson()
     JsonObject subject = doc.createNestedObject("subject");
     subject["id"] = "";
     subject["sex"] = "";
+    subject["strain"] = "";
 
     JsonObject fed = doc.createNestedObject("fed");
     fed["program"] = "";
@@ -141,7 +143,7 @@ void FED4::createLogFile()
     File dataFile = SD.open(filename, FILE_WRITE);
     if (dataFile)
     {
-        dataFile.print("DateTime,ElapsedSeconds,MouseID,LibraryVer,Program,");
+        dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
         dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
         dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
@@ -171,7 +173,7 @@ void FED4::logData(const String &newEvent)
     greenPix();
 
     DateTime now = rtc.now();
-    float currentSeconds = millis() / 1000.000; // Get current seconds
+    float currentSeconds = round((millis() / 1000.000) * 1000) / 1000.0; // Get current seconds rounded to 3 decimals
 
     // Open file for writing
     digitalWrite(SD_CS, LOW); // Select SD card for operation
@@ -186,14 +188,17 @@ void FED4::logData(const String &newEvent)
     }
 
     // Write timestamp
-    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,",
+    dataFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,%llX,",
                     now.year(), now.month(), now.day(),
                     now.hour(), now.minute(), now.second(),
-                    currentSeconds);
+                    currentSeconds,
+                    ESP.getEfuseMac());
 
     // Write mouse ID and other info
-    dataFile.printf("%s,%s,%s,%s,",
+    dataFile.printf("%s,%s,%s,%s,%s,%s,",
                     String(mouseId).length() < 4 ? ("0000" + String(mouseId)).substring(String(mouseId).length()) : String(mouseId).c_str(),
+                    sex.c_str(),
+                    strain.c_str(),
                     libraryVer,
                     program.c_str(),
                     event.c_str());
@@ -371,3 +376,15 @@ void FED4::setMouseId(String mouseId)
 {
     setMetaValue("subject", "id", mouseId.c_str());
 }
+
+void FED4::setSex(String sex)
+{
+    setMetaValue("subject", "sex", sex.c_str());
+}
+
+void FED4::setStrain(String strain)
+{
+    setMetaValue("subject", "strain", strain.c_str());
+}
+
+

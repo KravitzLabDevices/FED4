@@ -44,6 +44,9 @@ void FED4::updateDisplay() {
 }
 
 void FED4::displayTaskandMouseId(){
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
    //display program name
   setCursor(6, 35);
   print("Task: ");
@@ -65,6 +68,25 @@ void FED4::displayTaskandMouseId(){
   print(idStr);
 }
 
+void FED4::displaySex(){
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  setCursor(6, 71);
+  print("Sex: ");
+  fillRect(48, 58, 110, 16, DISPLAY_WHITE); // Clear area for sex name
+  print(sex);
+}
+
+void FED4::displayStrain(){
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  setCursor(6, 89);
+  print("Strain: ");
+  fillRect(60, 76, 160, 16, DISPLAY_WHITE); // Clear area for strain name
+  print(strain);
+}
 
 void FED4::displayEnvironmental(){
   //try to make text inverse white on black
@@ -97,8 +119,7 @@ void FED4::displayBattery(){
   setFont(&Org_01);
   setTextSize(2);
   setTextColor(DISPLAY_WHITE);
- 
- 
+  
   setCursor(105, 9);
   print((int)cellPercent);
   print("%");
@@ -109,7 +130,6 @@ void FED4::displayCounters()
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-
   setCursor(30, 80);
   print("Left: ");
   setCursor(90, 80);
