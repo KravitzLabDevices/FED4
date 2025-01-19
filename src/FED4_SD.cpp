@@ -109,7 +109,13 @@ bool FED4::createMetaJson()
 void FED4::createLogFile()
 {
     DateTime now = rtc.now();
-    String id = mouseId.length() > 0 ? mouseId : "nan";
+    char idStr[5];
+    int mouseIdValue = mouseId.toInt();  // Convert String to int
+    if (mouseIdValue <= 0) {
+        mouseIdValue = 0;
+    }
+    sprintf(idStr, "%04d", mouseIdValue);
+    String id = String(idStr);
     char baseFilename[50];
     int fileNumber = 0;
 
@@ -187,7 +193,7 @@ void FED4::logData(const String &newEvent)
 
     // Write mouse ID and other info
     dataFile.printf("%s,%s,%s,%s,",
-                    mouseId.c_str(),
+                    String(mouseId).length() < 4 ? ("0000" + String(mouseId)).substring(String(mouseId).length()) : String(mouseId).c_str(),
                     libraryVer,
                     program.c_str(),
                     event.c_str());
@@ -358,7 +364,7 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
 
 void FED4::setProgram(String program)
 {
-    setMetaValue("subject", "program", program.c_str());
+    setMetaValue("fed", "program", program.c_str());
 }
 
 void FED4::setMouseId(String mouseId)

@@ -96,6 +96,7 @@ void FED4::checkButton3() {
     if (holdTime >= 1000) {
         menuJingle();
         Serial.println("********** BUTTON 3 MENU START **********");
+        menu();
         break;
     }
   }

@@ -98,6 +98,8 @@ void FED4::handlePelletSettling() {
 }   
 
 void FED4::handlePelletInWell() {
+    pelletPresent = checkForPellet();
+    updateDisplay();
     while (pelletPresent)
     { // while pellet is in well, monitor for pokes and retrieval time
         bluePix(); 

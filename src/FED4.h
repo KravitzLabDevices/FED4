@@ -85,6 +85,11 @@ public:
     void feed();
     void run();
 
+    // Menu functions
+    void menu();
+    void startMenu();
+    void menuMouseId();
+
     // Sensor polling
     void pollSensors();
     void startupPollSensors();
@@ -172,6 +177,7 @@ public:
     // Display functions (defined in FED4_Display.cpp)
     bool initializeDisplay();
     void updateDisplay();
+    void displayTaskandMouseId();
     void displayCounters();
     void displayDateTime();
     void displayEnvironmental();
@@ -389,6 +395,7 @@ private:
     friend class FED4_Motion;
     friend class FED4_ToF;
     friend class FED4_Accel;
+    friend class FED4_Menu;
 };
 
 // Standard ASCII 5x7 font

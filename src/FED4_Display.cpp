@@ -28,14 +28,8 @@ void FED4::updateDisplay() {
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
 
-  setCursor(6, 35);
-  print("Task: ");
-  print(program);
+  displayTaskandMouseId();
 
-  setCursor(6, 53);
-  print("ID: ");
-  print(mouseId); 
-    
   // draw line to split on screen text 
   drawLine(0,59,168,59, DISPLAY_BLACK);  
   drawLine(0,60,168,60, DISPLAY_BLACK);  
@@ -48,6 +42,29 @@ void FED4::updateDisplay() {
   displayDateTime();
   refresh();
 }
+
+void FED4::displayTaskandMouseId(){
+   //display program name
+  setCursor(6, 35);
+  print("Task: ");
+  fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
+  print(program);
+
+  //display mouse ID
+  setCursor(6, 53);
+  print("MouseID: ");
+  char idStr[6];  
+  int mouseIdNum = mouseId.toInt();
+  if (mouseIdNum == 0 && mouseId[0] != '0') {
+    // Handle invalid conversion - just display the original string truncated to 4 chars
+    snprintf(idStr, sizeof(idStr), "%.4s", mouseId.c_str());
+  } else {
+    snprintf(idStr, sizeof(idStr), "%04d", mouseIdNum % 10000);
+  }
+  fillRect(82, 40, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
+  print(idStr);
+}
+
 
 void FED4::displayEnvironmental(){
   //try to make text inverse white on black
@@ -117,18 +134,30 @@ void FED4::displayIndicators(){
   //Left 
   fillCircle(17, 75, 5, DISPLAY_WHITE); 
   drawCircle(17, 75, 5, DISPLAY_BLACK);
+  if (leftTouch) {
+    fillCircle(17, 75, 5, DISPLAY_BLACK); 
+  }
 
   //Center
   fillCircle(17, 95, 5, DISPLAY_WHITE); 
   drawCircle(17, 95, 5, DISPLAY_BLACK);
+  if (centerTouch) {
+    fillCircle(17, 95, 5, DISPLAY_BLACK); 
+  }
 
   //Right
   fillCircle(17, 115, 5, DISPLAY_WHITE);
   drawCircle(17, 115, 5, DISPLAY_BLACK);
+  if (rightTouch) { 
+    fillCircle(17, 115, 5, DISPLAY_BLACK); 
+  }
 
   //Pellets 
   fillCircle(17, 135, 5, DISPLAY_WHITE);
   drawCircle(17, 135, 5, DISPLAY_BLACK);
+  if (pelletPresent) {
+    fillCircle(17, 135, 5, DISPLAY_BLACK); 
+  }
 }
 
 void FED4::displayDateTime() {
