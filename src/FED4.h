@@ -79,6 +79,7 @@ public:
     bool initializeButtons();
     static void IRAM_ATTR onButton1WakeUp();
     static void IRAM_ATTR onButton2WakeUp();
+    static void IRAM_ATTR onButton3WakeUp();
 
     // Corefunctions
     void feed();
@@ -184,9 +185,10 @@ public:
     void sleep();
     void startSleep();
     void wakeUp();
-    void setupTouch();
-    void checkFeed();
-    void checkReset();
+    void handleTouch();
+    void checkButton1();
+    void checkButton2();
+    void checkButton3();
     bool initializeLDOs();
     void LDO2_ON();
     void LDO2_OFF();
@@ -253,6 +255,7 @@ public:
     void playStartup();
     void bopBeep();
     void resetJingle();
+    void menuJingle();
     void lowBeep();
     void highBeep();
     void higherBeep();

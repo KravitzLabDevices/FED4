@@ -1,12 +1,13 @@
 #include "FED4.h"
 
-// Main sleep function that handles device sleep and wake cycle
+// High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep() {
   startSleep();
   wakeUp();
-  setupTouch();
-  checkFeed();
-  checkReset();
+  handleTouch();
+  checkButton1();
+  checkButton2();
+  checkButton3();
 }
 
 // Prepares device for sleep mode by disabling components and entering light sleep
@@ -28,21 +29,26 @@ void FED4::wakeUp() {
   Serial.println("Woke up!");
 }
 
-// Configures touch buttons and checks their initial state
-void FED4::setupTouch() {
+// Handles touch inputs and only checks them if a button was not pressed
+void FED4::handleTouch() {
   pinMode(BUTTON_1, INPUT_PULLDOWN);
   pinMode(BUTTON_2, INPUT_PULLDOWN);
+  pinMode(BUTTON_3, INPUT_PULLDOWN);
   Serial.print("Button 1 current state: ");
   Serial.println(digitalRead(BUTTON_1) == 1 ? "pressed" : "idle");
   Serial.print("Button 2 current state: ");
   Serial.println(digitalRead(BUTTON_2) == 1 ? "pressed" : "idle");
-  if (digitalRead(BUTTON_1) == 0 && digitalRead(BUTTON_2) == 0) {
+  Serial.print("Button 3 current state: "); // [ ] remove
+  Serial.println(digitalRead(BUTTON_3) == 1 ? "pressed" : "idle");
+
+  // if no button was pressed, check touch inputs to see which one woke FED4 
+  if (digitalRead(BUTTON_1) == 0 && digitalRead(BUTTON_2) == 0 && digitalRead(BUTTON_3) == 0) {
     interpretTouch();
   }
 }
 
 // Checks if feed button is held and dispenses test pellet after 1 second
-void FED4::checkFeed() {
+void FED4::checkButton1() {
   int holdTime = 0;
   while (digitalRead(BUTTON_1) == 1) {
     leftTouch = false;
@@ -60,7 +66,7 @@ void FED4::checkFeed() {
 }
 
 // Checks if reset button is held and performs device reset after 3 seconds
-void FED4::checkReset() {
+void FED4::checkButton2() {
   int holdTime = 0;
   while (digitalRead(BUTTON_2) == 1) {
     leftTouch = false;
@@ -73,6 +79,23 @@ void FED4::checkReset() {
         resetJingle();
         Serial.println("********** BUTTON 2 FORCED RESET! **********");
         esp_restart();
+        break;
+    }
+  }
+}
+
+// Checks if Button 3 is held and dispenses test pellet after 1 second
+void FED4::checkButton3() {
+  int holdTime = 0;
+  while (digitalRead(BUTTON_3) == 1) {
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+    delay(100);
+    holdTime += 100;
+    if (holdTime >= 1000) {
+        menuJingle();
+        Serial.println("********** BUTTON 3 MENU START **********");
         break;
     }
   }

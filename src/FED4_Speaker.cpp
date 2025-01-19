@@ -205,6 +205,25 @@ void FED4::resetJingle() { // 🎵 Power cycle jingle
     delay(500);
     playTone(1600, 500, 0.4);    // Quick high note
 }
+
+void FED4::menuJingle(){
+    // Playful ascending arpeggio
+    playTone(800, 80, 0.3);   // Root note
+    playTone(1000, 60, 0.3);  // Major third
+    playTone(1200, 40, 0.3);  // Fifth
+    delay(50);                 // Brief pause
+    
+    // Quick descending cascade
+    playTone(2000, 30, 0.25);
+    playTone(1600, 30, 0.25); 
+    playTone(1200, 30, 0.25);
+    
+    delay(30);  // Micro pause
+    
+    // Final cheerful flourish
+    playTone(1500, 120, 0.4);  // Longer ending note
+    playTone(2000, 80, 0.3);   // Quick high finish
+}
     
 /**
  * Plays a single low-pitched beep at 300 Hz
