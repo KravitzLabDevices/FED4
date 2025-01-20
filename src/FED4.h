@@ -181,7 +181,8 @@ public:
     // Display functions (defined in FED4_Display.cpp)
     bool initializeDisplay();
     void updateDisplay();
-    void displayTaskandMouseId();
+    void displayTask();
+    void displayMouseId();
     void displayStrain();
     void displaySex();
     void displayAge();

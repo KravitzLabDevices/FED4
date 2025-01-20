@@ -26,7 +26,8 @@ void FED4::updateDisplay() {
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
 
-  displayTaskandMouseId();
+  displayTask();
+  displayMouseId();
 
   // draw line to split on screen text 
   drawLine(0,59,168,59, DISPLAY_BLACK);  
@@ -41,16 +42,21 @@ void FED4::updateDisplay() {
   refresh();
 }
 
-void FED4::displayTaskandMouseId(){
+void FED4::displayTask() {
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-   //display program name
+  //display program name
   setCursor(6, 35);
   print("Task: ");
   fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
   print(program);
+}
 
+void FED4::displayMouseId() {
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
   //display mouse ID
   setCursor(6, 53);
   print("MouseID: ");

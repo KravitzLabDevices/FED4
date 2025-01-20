@@ -18,7 +18,8 @@ void FED4::startMenu() {
     drawLine(0,59,168,59, DISPLAY_WHITE);  
     drawLine(0,60,168,60, DISPLAY_WHITE);   
     refresh();
-    displayTaskandMouseId();
+    displayTask();
+    displayMouseId();
     displaySex();
     displayStrain();
     displayAge();
@@ -27,10 +28,12 @@ void FED4::startMenu() {
 }
 
 void FED4::menuProgram() {
+    displayTask();
+    refresh();
 }
 
 void FED4::menuMouseId() {
-    displayTaskandMouseId();
+    displayMouseId();
     refresh();
 
     //display mouse ID
@@ -59,7 +62,7 @@ void FED4::menuMouseId() {
         fillRect(82, 40, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
         refresh();
         delay(100);
-        displayTaskandMouseId();
+        displayMouseId();
         refresh();
         delay (100);
 
@@ -84,7 +87,7 @@ void FED4::menuMouseId() {
         else if (digitalRead(BUTTON_2) == HIGH) {
             // Save the new ID and exit
             menuActive = false;
-            displayTaskandMouseId();
+            displayMouseId();
             delay(200); // Debounce
         }
     }  
