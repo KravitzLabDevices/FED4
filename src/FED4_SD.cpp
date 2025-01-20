@@ -387,4 +387,9 @@ void FED4::setStrain(String strain)
     setMetaValue("subject", "strain", strain.c_str());
 }
 
+void FED4::setAge(String age)
+{
+    setMetaValue("subject", "age", age.c_str());
+}
+
 

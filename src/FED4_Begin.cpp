@@ -134,7 +134,8 @@ bool FED4::begin(const char* programName)
     program = getMetaValue("subject", "program");     
     mouseId = getMetaValue("subject", "id");    
     sex = getMetaValue("subject", "sex");    
-    strain = getMetaValue("subject", "strain");    
+    strain = getMetaValue("subject", "strain"); 
+    age = getMetaValue("subject", "age");
 
     // Check meta value
     String subjectId = getMetaValue("subject", "id");

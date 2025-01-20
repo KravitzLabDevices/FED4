@@ -88,9 +88,11 @@ public:
     // Menu functions
     void menu();
     void startMenu();
+    void menuProgram();
     void menuMouseId();
     void menuSex();
     void menuStrain();
+    void menuAge();
 
     // Sensor polling
     void pollSensors();
@@ -182,6 +184,7 @@ public:
     void displayTaskandMouseId();
     void displayStrain();
     void displaySex();
+    void displayAge();
     void displayCounters();
     void displayDateTime();
     void displayEnvironmental();
@@ -216,6 +219,7 @@ public:
     void setMouseId(String mouseId);
     void setSex(String sex);        
     void setStrain(String strain);
+    void setAge(String age);
 
     // Public counters and timing
     int pelletCount;
@@ -372,6 +376,7 @@ private:
     String mouseId;
     String sex;
     String strain;
+    String age;
 
     // RTC functions
     Preferences preferences;

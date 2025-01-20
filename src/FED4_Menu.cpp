@@ -2,9 +2,11 @@
 
 void FED4::menu() {
     startMenu();
+    menuProgram();
     menuMouseId();
     menuSex();
     menuStrain();
+    menuAge();
 }
 
 void FED4::startMenu() {
@@ -19,8 +21,12 @@ void FED4::startMenu() {
     displayTaskandMouseId();
     displaySex();
     displayStrain();
+    displayAge();
     refresh();    
     delay (500); // more debounce
+}
+
+void FED4::menuProgram() {
 }
 
 void FED4::menuMouseId() {
@@ -174,9 +180,49 @@ void FED4::menuStrain() {
         else if (digitalRead(BUTTON_2) == HIGH) {
             menuActive = false;
             delay(200);
+            displayStrain();
+        }
+    }
+}
+
+void FED4::menuAge() {
+    String currentAge = getMetaValue("subject", "age");
+    if (currentAge.isEmpty()) {
+        currentAge = "8"; // Default age if not set
+    }
+    int currentAgeValue = currentAge.toInt();
+    const int maxAge = 36;
+
+    bool menuActive = true;
+    while (menuActive) {
+        fillRect(42, 94, 160, 16, DISPLAY_WHITE);
+        refresh();
+        delay(100);
+        displayAge();
+        refresh();
+        delay(100);
+
+        if (digitalRead(BUTTON_1) == HIGH) {
+            currentAgeValue = max(4, currentAgeValue + 1); // Don't go below 4 weeks
+            setMetaValue("subject", "age", String(currentAgeValue).c_str());
+            age = String(currentAgeValue);
+
+            Serial.print("Current Age: ");
+            Serial.println(currentAgeValue);
+        }
+        else if (digitalRead(BUTTON_3) == HIGH) {
+            currentAgeValue = min(maxAge, currentAgeValue - 1); // Don't exceed maxAge
+            setMetaValue("subject", "age", String(currentAgeValue).c_str());
+            age = String(currentAgeValue);
+
+            Serial.print("Current Age: ");
+            Serial.println(currentAgeValue);
+        }
+        else if (digitalRead(BUTTON_2) == HIGH) {
+            menuActive = false;
+            delay(200);
             resetJingle();
             esp_restart();
         }
     }
 }
-

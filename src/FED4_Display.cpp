@@ -19,8 +19,6 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                                       (uint8_t)~8, (uint8_t)~16, (uint8_t)~32,
                                       (uint8_t)~64, (uint8_t)~128};
 
-
-
 void FED4::updateDisplay() {
   //TODO: Stop clearing display and just clear needed areas 
   clearDisplay();
@@ -87,6 +85,19 @@ void FED4::displayStrain(){
   fillRect(60, 76, 160, 16, DISPLAY_WHITE); // Clear area for strain name
   print(strain);
 }
+
+void FED4::displayAge(){
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  setCursor(6, 107);
+  print("Age:");
+  fillRect(42, 94, 160, 16, DISPLAY_WHITE); // Clear area for age name
+  print(age);
+  print(" months");
+}
+
+
 
 void FED4::displayEnvironmental(){
   //try to make text inverse white on black
