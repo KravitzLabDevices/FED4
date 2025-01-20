@@ -14,8 +14,8 @@ bool FED4::initializeTRSS()
 //                  outputPulse(3, 500);
 void FED4::outputPulse(uint8_t trrs, uint8_t duration)
 {
-    Serial.print("Output pulse on pin ");  // Add debug output
-    Serial.println(trrs);
+    // Serial.print("Output pulse on pin ");  // Add debug output
+    // Serial.println(trrs);
     
     uint8_t pin;
     switch (trrs) {

@@ -232,8 +232,8 @@ void FED4::logData(const String &newEvent)
                     cellVoltage,
                     cellPercent);
 
-    Serial.print("Data logged to: ");
-    Serial.println(filename);
+    // Serial.print("Data logged to: ");
+    // Serial.println(filename);
 
     // Clean up
     dataFile.close();

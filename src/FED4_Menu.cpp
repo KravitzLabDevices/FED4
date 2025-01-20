@@ -85,6 +85,7 @@ void FED4::menuMouseId() {
         }
         
         else if (digitalRead(BUTTON_2) == HIGH) {
+            click();
             // Save the new ID and exit
             menuActive = false;
             displayMouseId();
@@ -124,6 +125,7 @@ void FED4::menuSex() {
             Serial.println(currentSex);
         }
         else if (digitalRead(BUTTON_2) == HIGH) {
+            click();
             // Save and exit
             menuActive = false;
             delay(200); // Debounce
@@ -181,6 +183,7 @@ void FED4::menuStrain() {
             Serial.println(currentStrain);
         }
         else if (digitalRead(BUTTON_2) == HIGH) {
+            click();
             menuActive = false;
             delay(200);
             displayStrain();
@@ -222,6 +225,7 @@ void FED4::menuAge() {
             Serial.println(currentAgeValue);
         }
         else if (digitalRead(BUTTON_2) == HIGH) {
+            click();
             menuActive = false;
             delay(200);
             resetJingle();

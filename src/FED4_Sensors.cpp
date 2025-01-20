@@ -89,7 +89,7 @@ void FED4::interpretTouch()
     {
         leftCount++;
         greenPix();
-        Serial.println("Left Poke detected.");
+        // Serial.println("Left Poke detected.");
         logData("Left"); 
         leftTouch = true;
         outputPulse(1, 10);
@@ -99,7 +99,7 @@ void FED4::interpretTouch()
     {
         centerCount++;
         bluePix();
-        Serial.println("Center Poke detected.");
+        // Serial.println("Center Poke detected.");
         logData("Center"); 
         centerTouch = true;
         outputPulse(2, 10);
@@ -109,7 +109,7 @@ void FED4::interpretTouch()
     {
         rightCount++;
         redPix();
-        Serial.println("Right Poke detected.");
+        // Serial.println("Right Poke detected.");
         logData("Right"); 
         rightTouch = true;
         outputPulse(3, 10);

@@ -18,7 +18,7 @@ void FED4::initFeeding() {
     pelletReady = false;
     dispenseError = false;
     clearStrip();
-    Serial.println("Feeding!");
+    // Serial.println("Feeding!");
 }
 
 void FED4::dispense() {
@@ -66,7 +66,7 @@ void FED4::handleJams() {
 
 void FED4::handlePelletSettling() {
         if (pelletReady) {
-        Serial.println("PelletDrop");
+        // Serial.println("PelletDrop");
         pelletDropTime = millis();
         pelletCount++;
         logData("PelletDrop");
@@ -94,7 +94,7 @@ void FED4::handlePelletSettling() {
 
     // Calculate time since pellet drop
     retrievalTime = (millis() - pelletWellTime) / 1000.0;
-    Serial.println("Pellet in Well");
+    // Serial.println("Pellet in Well");
 }   
 
 void FED4::handlePelletInWell() {
@@ -125,7 +125,7 @@ void FED4::handlePelletInWell() {
             leftCount++;
             retrievalTime = 0.0;
             dispenseError = false;
-            Serial.println("LeftWithPellet");
+            // Serial.println("LeftWithPellet");
             logData("LeftWithPellet");
             click();
             updateDisplay();
@@ -140,7 +140,7 @@ void FED4::handlePelletInWell() {
             centerCount++;
             retrievalTime = 0.0;
             dispenseError = false;
-            Serial.println("CenterWithPellet");
+            // Serial.println("CenterWithPellet");
             logData("CenterWithPellet"); 
             click();
             updateDisplay();
@@ -155,7 +155,7 @@ void FED4::handlePelletInWell() {
             rightCount++;
             retrievalTime = 0.0;
             dispenseError = false;
-            Serial.println("RightWithPellet");
+            // Serial.println("RightWithPellet");
             logData("RightWithPellet");
             click();
             updateDisplay();
@@ -171,7 +171,7 @@ void FED4::handlePelletInWell() {
 
 void FED4::finishFeeding() {
         purplePix();
-    Serial.println("Pellet Removed");
+    // Serial.println("Pellet Removed");
 
     if (pelletReady) {
         if (dispenseError) {

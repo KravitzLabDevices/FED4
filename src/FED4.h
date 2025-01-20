@@ -193,6 +193,7 @@ public:
     void displayIndicators();
     void startupAnimation();
 
+    
     void serialStatusReport();
 
     // Power management (defined in FED4_Power.cpp)

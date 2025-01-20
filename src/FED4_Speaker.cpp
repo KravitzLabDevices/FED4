@@ -229,21 +229,21 @@ void FED4::menuJingle(){
  * Plays a single low-pitched beep at 300 Hz
  */
 void FED4::lowBeep(){
-    playTone(300, 200, 0.25);  // Play 300 Hz for 200ms at 25% amplitude
+    playTone(300, 200, 0.4);  // Play 300 Hz for 200ms at 40% amplitude
 }
 
 /**
  * Plays a single high-pitched beep at 1000 Hz
  */
 void FED4::highBeep(){
-    playTone(1000, 200, 0.25); // Play 1000 Hz for 200ms at 25% amplitude
+    playTone(1000, 200, 0.4); // Play 1000 Hz for 200ms at 40% amplitude
 }
 
 /**
  * Plays a single very high-pitched beep at 2000 Hz
  */
 void FED4::higherBeep(){
-    playTone(2000, 200, 0.25); // Play 2000 Hz for 200ms at 25% amplitude
+    playTone(2000, 200, 0.4); // Play 2000 Hz for 200ms at 40% amplitude
 }
 
 /**
