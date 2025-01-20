@@ -121,15 +121,49 @@ void FED4::createLogFile()
     char baseFilename[50];
     int fileNumber = 0;
 
-    // Keep trying filenames with incrementing numbers until we find one that doesn't exist
+    // Just change bit order for SD operations before file operations
+    SPI.setBitOrder(MSBFIRST);
+    digitalWrite(SD_CS, LOW);
+
     do
     {
         snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
                  id.c_str(), now.year(), now.month(), now.day(), fileNumber);
         Serial.print("Trying filename: ");
         Serial.println(baseFilename);
+        
+        // Check if file exists
+        if (!SD.exists(baseFilename)) {
+            Serial.println("File doesn't exist, using this name");
+            break;
+        }
+        
+        // File exists, count the lines
+        File dataFile = SD.open(baseFilename, FILE_READ);
+        if (!dataFile) {
+            Serial.println("Couldn't open existing file");
+            fileNumber++;
+            continue;
+        }
+        
+        int lineCount = 0;
+        while (dataFile.available()) {
+            if (dataFile.read() == '\n') {
+                lineCount++;
+            }
+        }
+        dataFile.close();
+                
+        if (lineCount <= 2) {
+            // File has 2 or fewer lines, delete and reuse this filename
+            SD.remove(baseFilename);
+            break;
+        }
+        
         fileNumber++;
-    } while (SD.exists(baseFilename) && fileNumber < 100);
+    } while (fileNumber < 100);
+
+    digitalWrite(SD_CS, HIGH); // Deselect after file checks
 
     // Copy final filename to class member - ensure null termination
     strncpy(filename, baseFilename, sizeof(filename) - 1);

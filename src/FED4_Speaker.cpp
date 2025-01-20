@@ -183,46 +183,46 @@ void FED4::bopBeep(){
 }
 
 void FED4::resetJingle() { // 🎵 Power cycle jingle
-    // // Descending sequence to signify "powering down"
-    // playTone(1500, 80, 1);    // Starting even higher
-    // playTone(1300, 80, 1);    // First step down
-    // playTone(1100, 80, 0.9);  // Continuing descent
-    // playTone(900, 80, 0.8);   // Mid-range
-    // playTone(700, 80, 0.7);   // Getting lower
-    // playTone(500, 100, 0.6);  // Lower still
-    // playTone(300, 120, 0.5);  // Almost there
-    // playTone(200, 400, 0.4);  // Final deep note
-    // delay(300);                 // Longer dramatic pause
+    // Descending sequence to signify "powering down"
+    playTone(1500, 80, 1);    // Starting even higher
+    playTone(1300, 80, 1);    // First step down
+    playTone(1100, 80, 0.9);  // Continuing descent
+    playTone(900, 80, 0.8);   // Mid-range
+    playTone(700, 80, 0.7);   // Getting lower
+    playTone(500, 100, 0.6);  // Lower still
+    playTone(300, 120, 0.5);  // Almost there
+    playTone(200, 400, 0.4);  // Final deep note
+    delay(300);                 // Longer dramatic pause
     
-    // // Ascending sequence to signify "powering up" 
-    // playTone(300, 50, 0.2);     // Quick low start
-    // playTone(600, 50, 0.3);     // Building up
-    // playTone(900, 50, 0.4);     // Getting stronger
-    // playTone(1200, 100, 0.5);   // Peak
-    // playTone(1500, 200, 0.6);   // Triumphant final note
+    // Ascending sequence to signify "powering up" 
+    playTone(300, 50, 0.2);     // Quick low start
+    playTone(600, 50, 0.3);     // Building up
+    playTone(900, 50, 0.4);     // Getting stronger
+    playTone(1200, 100, 0.5);   // Peak
+    playTone(1500, 200, 0.6);   // Triumphant final note
     
-    // // Final flourish
-    // delay(500);
-    // playTone(1600, 500, 0.4);    // Quick high note
+    // Final flourish
+    delay(500);
+    playTone(1600, 500, 0.4);    // Quick high note
 }
 
 void FED4::menuJingle(){
-    // // Playful ascending arpeggio
-    // playTone(800, 80, 0.3);   // Root note
-    // playTone(1000, 60, 0.3);  // Major third
-    // playTone(1200, 40, 0.3);  // Fifth
-    // delay(50);                 // Brief pause
+    // Playful ascending arpeggio
+    playTone(800, 80, 0.3);   // Root note
+    playTone(1000, 60, 0.3);  // Major third
+    playTone(1200, 40, 0.3);  // Fifth
+    delay(50);                 // Brief pause
     
-    // // Quick descending cascade
-    // playTone(2000, 30, 0.25);
-    // playTone(1600, 30, 0.25); 
-    // playTone(1200, 30, 0.25);
+    // Quick descending cascade
+    playTone(2000, 30, 0.25);
+    playTone(1600, 30, 0.25); 
+    playTone(1200, 30, 0.25);
     
-    // delay(30);  // Micro pause
+    delay(30);  // Micro pause
     
-    // // Final cheerful flourish
-    // playTone(1500, 120, 0.4);  // Longer ending note
-    // playTone(2000, 80, 0.3);   // Quick high finish
+    // Final cheerful flourish
+    playTone(1500, 120, 0.4);  // Longer ending note
+    playTone(2000, 80, 0.3);   // Quick high finish
 }
     
 /**

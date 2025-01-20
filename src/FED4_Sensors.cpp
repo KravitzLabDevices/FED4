@@ -34,8 +34,6 @@ bool FED4::initializeTouch()
 
 void FED4::calibrateTouchSensors()
 {
-    Serial.println("Touch sensor calibration");
-
     touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
     touchPadCenterBaseline = touchRead(TOUCH_PAD_CENTER);
     touchPadRightBaseline = touchRead(TOUCH_PAD_RIGHT);
@@ -44,7 +42,7 @@ void FED4::calibrateTouchSensors()
     uint16_t center_threshold = touchPadCenterBaseline * TOUCH_THRESHOLD;
     uint16_t right_threshold = touchPadRightBaseline * TOUCH_THRESHOLD;
 
-    Serial.printf("Thresholds - Left: %d, Center: %d, Right: %d\n",
+    Serial.printf("Touch sensor thresholds - Left: %d, Center: %d, Right: %d\n",
                   left_threshold, center_threshold, right_threshold);
 
     // Enable wake-up on touch pads
