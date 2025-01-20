@@ -74,7 +74,7 @@ bool FED4::createMetaJson()
     subject["id"] = "";
     subject["sex"] = "";
     subject["strain"] = "";
-    subject["age"] = ""
+    subject["age"] = "";
 
     JsonObject fed = doc.createNestedObject("fed");
     fed["program"] = "";
