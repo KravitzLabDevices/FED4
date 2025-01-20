@@ -74,6 +74,7 @@ bool FED4::createMetaJson()
     subject["id"] = "";
     subject["sex"] = "";
     subject["strain"] = "";
+    subject["age"] = ""
 
     JsonObject fed = doc.createNestedObject("fed");
     fed["program"] = "";
@@ -134,7 +135,6 @@ void FED4::createLogFile()
         
         // Check if file exists
         if (!SD.exists(baseFilename)) {
-            Serial.println("File doesn't exist, using this name");
             break;
         }
         
@@ -181,7 +181,6 @@ void FED4::createLogFile()
         dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
         dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
-        Serial.println("Created new data file with headers");
     }
 
     Serial.print("New file created: ");
