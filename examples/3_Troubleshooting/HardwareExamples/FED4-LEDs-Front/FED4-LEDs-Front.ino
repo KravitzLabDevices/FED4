@@ -12,10 +12,13 @@ otherwise, just a Data pin of 36 and num leds of 8 should be all you need.
 */
 
 #include <FastLED_NeoPixel.h>
+#include <Adafruit_MCP23X17.h>
+Adafruit_MCP23X17 mcp;
 #define DATA_PIN 36	  // Which pin on the Arduino is connected to the LEDs?
 #define NUM_LEDS 8	  // How many LEDs are there?
 #define BRIGHTNESS 50 // LED brightness, 0 (min) to 255 (max)
 #define BLINK_TIME 1000
+#define LDO3 14
 CRGB leds[NUM_LEDS];
 FastLED_NeoPixel<NUM_LEDS, DATA_PIN, NEO_GRB> strip; // <- FastLED NeoPixel version
 
@@ -23,6 +26,14 @@ void setup()
 {
 	pinMode(47, OUTPUT);
 	digitalWrite(47, HIGH);
+   if (!mcp.begin_I2C())
+	{
+		Serial.println("Error.");
+		while (1)
+			;
+	}
+  	mcp.pinMode(LDO3, OUTPUT);
+	mcp.digitalWrite(LDO3, HIGH);
 	strip.begin(); // initialize strip (required!)
 	strip.setBrightness(BRIGHTNESS);
 }

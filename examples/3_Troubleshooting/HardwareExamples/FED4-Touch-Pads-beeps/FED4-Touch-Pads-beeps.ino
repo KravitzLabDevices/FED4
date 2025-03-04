@@ -7,6 +7,8 @@
 #include "SD.h"
 #include <SPI.h>
 #include <driver/i2s.h>
+#include <Adafruit_MCP23X17.h>
+Adafruit_MCP23X17 mcp;
 
 // Define the I2S pins for audio output
 #define I2S_DATA_IN_PIN 41
@@ -17,7 +19,7 @@
 #define TouchPad 5
 #define TouchPad2 6
 #define TouchPad3 1
-
+#define LDO3 14
 // NeoPixel (RGB LED) setup
 #define PIN 35
 #define NUMPIXELS 1
@@ -93,6 +95,15 @@ void setup() {
   Serial.begin(115200);
   	pinMode(47, OUTPUT);
 	digitalWrite(47, HIGH);
+    if (!mcp.begin_I2C())
+	{
+		Serial.println("Error.");
+		while (1)
+			;
+	}
+
+	mcp.pinMode(LDO3, OUTPUT);
+	mcp.digitalWrite(LDO3, HIGH);
   // Setup NeoPixel
   pixels.begin();
 

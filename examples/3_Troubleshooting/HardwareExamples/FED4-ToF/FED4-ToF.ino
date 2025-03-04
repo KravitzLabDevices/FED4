@@ -1,145 +1,65 @@
-#include <Adafruit_VL6180X.h>
+#include <Arduino.h>
+#include <Wire.h>
+#include <vl53l4cd_class.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <assert.h>
+#include <stdlib.h>
 #include <Adafruit_MCP23X17.h>
+
 Adafruit_MCP23X17 mcp;
+#define DEV_I2C Wire
+#define SerialPort Serial
+#define XSHUT 1
 
-// address we will assign if dual sensor is present
-#define LOX1_ADDRESS 0x30
-#define LOX2_ADDRESS 0x31
-#define LOX3_ADDRESS 0x32
-
-// set the pins to shutdown
-#define SHT_LOX1 1
-#define SHT_LOX2 2
-#define SHT_LOX3 15
-
-// objects for the VL6180X
-Adafruit_VL6180X lox1 = Adafruit_VL6180X();
-Adafruit_VL6180X lox2 = Adafruit_VL6180X();
-Adafruit_VL6180X lox3 = Adafruit_VL6180X();
-
-void setID()
-{
-	// all reset
-	mcp.digitalWrite(SHT_LOX1, LOW);
-	mcp.digitalWrite(SHT_LOX2, LOW);
-	mcp.digitalWrite(SHT_LOX3, LOW);
-	delay(10);
-
-	// all unreset
-	mcp.digitalWrite(SHT_LOX1, HIGH);
-	mcp.digitalWrite(SHT_LOX2, HIGH);
-	mcp.digitalWrite(SHT_LOX3, HIGH);
-	delay(10);
-
-	// activating LOX1 and reseting LOX2
-	mcp.digitalWrite(SHT_LOX1, HIGH);
-	mcp.digitalWrite(SHT_LOX2, LOW);
-	mcp.digitalWrite(SHT_LOX3, LOW);
-
-	// initing LOX1
-	if (!lox1.begin())
-	{
-		Serial.println(F("Failed to boot first VL6180X"));
-		while (1)
-			;
-	}
-	lox1.setAddress(LOX1_ADDRESS);
-	delay(10);
-
-	// activating LOX2
-	mcp.digitalWrite(SHT_LOX2, HIGH);
-	delay(10);
-
-	// initing LOX2
-	if (!lox2.begin())
-	{
-		Serial.println(F("Failed to boot second VL6180X"));
-		while (1)
-			;
-	}
-	lox2.setAddress(LOX2_ADDRESS);
-
-	// activating LOX3
-	mcp.digitalWrite(SHT_LOX3, HIGH);
-	delay(10);
-
-	// initing LOX3
-	if (!lox3.begin())
-	{
-		Serial.println(F("Failed to boot third VL6180X"));
-		while (1)
-			;
-	}
-	lox3.setAddress(LOX3_ADDRESS);
-}
-
-void readSensor(Adafruit_VL6180X &vl, const char *sensorName)
-{
-	uint8_t range = vl.readRange();
-	uint8_t status = vl.readRangeStatus();
-  float lux = vl.readLux(VL6180X_ALS_GAIN_40);
-
-	Serial.print(sensorName);
-	Serial.print(": ");
-
-	if (status == VL6180X_ERROR_NONE)
-	{
-		Serial.print(range);
-		Serial.print(" mm ");
-		Serial.print(" ");
-    Serial.print("Lux: "); 
-    Serial.print(lux);
-	}
-	else
-	{
-		Serial.print("0 ");
-		Serial.print("mm ");
-		Serial.print("  ");
-	}
-}
-
-void read_sensors()
-{
-	readSensor(lox1, "Right");
-	readSensor(lox3, "Middle");
-	readSensor(lox2, "Left");
-	Serial.println();
-}
+VL53L4CD sensor_vl53l4cd_sat(&DEV_I2C, A1);
 
 void setup()
 {
-	Serial.begin(115200);
+  SerialPort.begin(115200);
+  SerialPort.println("Starting...");
+   pinMode(47, OUTPUT);
+  digitalWrite(47, HIGH);
+    if (!mcp.begin_I2C()) {
+        Serial.println("Error initializing MCP23017.");
+        while (1);
+    }
+    mcp.pinMode(XSHUT, OUTPUT);
+    mcp.digitalWrite(XSHUT, HIGH); // XSHUT must be pulled high for the sensor to be found
 
-	pinMode(47, OUTPUT);
-	digitalWrite(47, HIGH);
-	while (!Serial)
-	{
-		delay(1);
-	}
-	if (!mcp.begin_I2C())
-	{
-		Serial.println("Error initializing MCP23017.");
-		while (1)
-			;
-	}
 
-	mcp.pinMode(SHT_LOX1, OUTPUT);
-	mcp.pinMode(SHT_LOX2, OUTPUT);
-	mcp.pinMode(SHT_LOX3, OUTPUT);
-
-	Serial.println("Shutdown pins inited...");
-
-	mcp.digitalWrite(SHT_LOX1, LOW);
-	mcp.digitalWrite(SHT_LOX2, LOW);
-	mcp.digitalWrite(SHT_LOX3, LOW);
-	Serial.println("All in reset mode...(pins are low)");
-
-	Serial.println("Starting...");
-	setID();
+  DEV_I2C.begin();
+  sensor_vl53l4cd_sat.begin();
+  sensor_vl53l4cd_sat.VL53L4CD_Off();
+  sensor_vl53l4cd_sat.InitSensor();
+  sensor_vl53l4cd_sat.VL53L4CD_SetRangeTiming(200, 0);
+  sensor_vl53l4cd_sat.VL53L4CD_StartRanging();
 }
 
 void loop()
 {
-	read_sensors();
-	delay(100);
+  uint8_t NewDataReady = 0;
+  VL53L4CD_Result_t results;
+  uint8_t status;
+  char report[64];
+
+  do {
+    status = sensor_vl53l4cd_sat.VL53L4CD_CheckForDataReady(&NewDataReady);
+  } while (!NewDataReady);
+
+  if ((!status) && (NewDataReady != 0)) {
+    // (Mandatory) Clear HW interrupt to restart measurements
+    sensor_vl53l4cd_sat.VL53L4CD_ClearInterrupt();
+
+    // Read measured distance. RangeStatus = 0 means valid data
+    sensor_vl53l4cd_sat.VL53L4CD_GetResult(&results);
+    snprintf(report, sizeof(report), "Status = %3u, Distance = %5u mm, Signal = %6u kcps/spad\r\n",
+             results.range_status,
+             results.distance_mm,
+             results.signal_per_spad_kcps);
+    SerialPort.print(report);
+  }
+
 }

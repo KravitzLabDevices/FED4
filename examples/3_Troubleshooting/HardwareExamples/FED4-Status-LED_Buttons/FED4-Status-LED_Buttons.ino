@@ -1,10 +1,13 @@
 #include <Adafruit_NeoPixel.h>
+#include <Adafruit_MCP23X17.h>
+Adafruit_MCP23X17 mcp;
 
 #define PIN 35
 #define btn1 39
 #define btn2 40
 #define btn3 14
 #define NUMPIXELS 1
+#define LDO3 14
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
 void setup()
@@ -12,7 +15,16 @@ void setup()
 
 	Serial.begin(115200);
 	pinMode(47, OUTPUT);
-	digitalWrite(47, HIGH); // turn on the 3v rail for the RGB LED
+	digitalWrite(47, HIGH); 
+  if (!mcp.begin_I2C())
+	{
+		Serial.println("Error.");
+		while (1)
+			;
+	}
+
+	mcp.pinMode(LDO3, OUTPUT);
+	mcp.digitalWrite(LDO3, HIGH);
 	pinMode(btn1, INPUT);
 	pinMode(btn2, INPUT);
 	pinMode(btn3, INPUT);

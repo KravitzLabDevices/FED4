@@ -6,20 +6,32 @@
 
 void setup() {
   Serial.begin(115200);
-  // Configure touchpad GPIO pins as inputs
   pinMode(TOUCH_PAD1_PIN, INPUT);
   pinMode(TOUCH_PAD2_PIN, INPUT);
   pinMode(TOUCH_PAD3_PIN, INPUT);
-
-  esp_sleep_enable_gpio_wakeup();
-  gpio_wakeup_enable((gpio_num_t)TOUCH_PAD1_PIN, GPIO_INTR_HIGH_LEVEL);
-  gpio_wakeup_enable((gpio_num_t)TOUCH_PAD2_PIN, GPIO_INTR_HIGH_LEVEL);
-  gpio_wakeup_enable((gpio_num_t)TOUCH_PAD3_PIN, GPIO_INTR_HIGH_LEVEL);
+  esp_sleep_enable_ext1_wakeup((1ULL << TOUCH_PAD1_PIN) | (1ULL << TOUCH_PAD2_PIN) | (1ULL << TOUCH_PAD3_PIN), ESP_EXT1_WAKEUP_ANY_HIGH);
 
   Serial.println("Going to light sleep now...");
+  delay(100);
 }
-void loop() {
-  delay(2000);  
-  esp_light_sleep_start();
-  Serial.println("Going back to sleep...");
+
+void loop() { 
+  
+  esp_sleep_wakeup_cause_t wakeup_reason = esp_sleep_get_wakeup_cause();
+  if (wakeup_reason == ESP_SLEEP_WAKEUP_EXT1) {
+    uint64_t wakeup_pin = esp_sleep_get_ext1_wakeup_status();
+    if (wakeup_pin & (1ULL << TOUCH_PAD1_PIN)) {
+      Serial.println("Woke up by TOUCH_PAD1_PIN");
+    } else if (wakeup_pin & (1ULL << TOUCH_PAD2_PIN)) {
+      Serial.println("Woke up by TOUCH_PAD2_PIN");
+    } else if (wakeup_pin & (1ULL << TOUCH_PAD3_PIN)) {
+      Serial.println("Woke up by TOUCH_PAD3_PIN");
+    }
+      } else {
+        Serial.println("Woke up by other cause");
+      }
+    delay(2000);
+    Serial.println("Going back to sleep...");
+     delay(100);
+    esp_light_sleep_start(); 
 }
