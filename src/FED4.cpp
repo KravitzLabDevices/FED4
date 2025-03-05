@@ -42,6 +42,7 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
     rightCount = 0;
     wakeCount = 0;
     motorTurns = 0;
+    activity = 0;
 
     // Initialize touch states
     leftTouch = false;

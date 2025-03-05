@@ -4,6 +4,11 @@
 #include <Arduino.h>
 #include <map>
 #include <string>
+#include <stdio.h>
+#include <stdint.h>
+#include <assert.h>
+#include <stdlib.h>
+
 #include <Adafruit_MCP23X17.h>
 #include "Adafruit_MAX1704X.h"
 #include <Stepper.h>
@@ -301,6 +306,7 @@ public:
     int touchPadCenterBaseline;
     int touchPadRightBaseline;
     int motorTurns;
+    int activity;
     int reBaselineTouches;
     char filename[32];
 
@@ -339,7 +345,7 @@ public:
 
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
-    uint8_t readToF();
+    void readToF();
 
     ~FED4()
     {
@@ -366,8 +372,6 @@ private:
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
     STHS34PF80_I2C motionSensor;
-    #define DEV_I2C Wire
-    VL53L4CD sensor_vl53l4cd_sat(&DEV_I2C, A1);
 
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
