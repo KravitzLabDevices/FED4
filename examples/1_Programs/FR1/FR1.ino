@@ -27,7 +27,6 @@ void loop() {
 
   if (fed4.leftTouch) {                             // if left poke is touched
     fed4.lowBeep();                                 // 500hz 200ms beep
-    fed4.hapticDoubleBuzz();
     fed4.leftLight("red");                          // light LEDs around left poke red
     fed4.feed();                                    // feed one pellet, logging drop and retrieval
   }
