@@ -30,6 +30,7 @@ bool FED4::begin(const char* programName)
         {"RTC", {false, ""}},
         {"Battery Monitor", {false, ""}},
         {"Temp/Humidity", {false, ""}},
+        {"Lux", {false, ""}},
         {"Touch Sensors", {false, ""}},
         {"Buttons", {false, ""}},
         {"Motor", {false, ""}},
@@ -39,7 +40,7 @@ bool FED4::begin(const char* programName)
         {"Accelerometer", {false, ""}},
         {"Magnet", {false, ""}},
         {"Motion", {false, ""}},
-        {"ToF Sensors", {false, ""}}};
+        {"ToF", {false, ""}}};
 
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
@@ -98,6 +99,7 @@ bool FED4::begin(const char* programName)
     }
     statuses["Battery Monitor"].initialized = maxlipo.begin();
     statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
+    statuses["Lux"].initialized = veml.begin(&I2C_2);
 
     // Initialize Touch and Motor
     statuses["Touch Sensors"].initialized = initializeTouch();

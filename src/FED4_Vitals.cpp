@@ -118,9 +118,15 @@ void FED4::pollSensors() {
       if (hum > 5) break;  // Valid reading obtained
       delay(10);
     }
-    
     if (hum > 5) humidity = hum;
 
+    // get lux with timeout
+    startTime = millis();  // Reset timer for humidity
+    while (millis() - startTime < 1000) {  // 1 second timeout
+      lux = veml.readLux();
+      delay(10);
+    }
+  
     //get battery info with timeout
     startTime = millis();
     while (millis() - startTime < 1000) {  // 1 second timeout

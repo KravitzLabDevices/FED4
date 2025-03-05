@@ -15,6 +15,7 @@ void FED4::startSleep() {
   Serial.flush();
   clearStrip();
   LDO2_OFF();
+  LDO3_OFF();  // LEDs are on this - could leave it on to keep them illuminated during sleep
   enableAmp(false);
   esp_light_sleep_start();
 }
@@ -22,6 +23,7 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   LDO2_ON();
+  LDO3_ON();
   mcp.begin_I2C();
   esp_err_t err = i2s_start(I2S_NUM_0);
   enableAmp(true);

@@ -18,6 +18,7 @@
 #include <SD.h>
 #include "FS.h"
 #include <Adafruit_AHTX0.h>
+#include "Adafruit_VEML7700.h"
 #include <SPI.h>
 #include <driver/adc.h>
 #include <driver/i2s.h>
@@ -28,8 +29,8 @@
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
+#include <vl53l4cd_class.h>
 #include "SparkFun_STHS34PF80_Arduino_Library.h"
-#include <Adafruit_VL6180X.h>
 #include <ESP32Time.h>
 
 // Pin Definitions
@@ -338,10 +339,7 @@ public:
 
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
-    uint8_t readToFSensor(Adafruit_VL6180X &sensor, uint8_t *status = nullptr);
-    uint8_t readRightToF(uint8_t *status = nullptr);
-    uint8_t readMiddleToF(uint8_t *status = nullptr);
-    uint8_t readLeftToF(uint8_t *status = nullptr);
+    uint8_t readToF();
 
     ~FED4()
     {
@@ -360,6 +358,7 @@ private:
     RTC_DS3231 rtc;
     ESP32Time Inrtc;
     Adafruit_AHTX0 aht;
+    Adafruit_VEML7700 veml = Adafruit_VEML7700();
     Adafruit_NeoPixel pixels;
     Stepper stepper;
     TwoWire I2C_2;
@@ -367,9 +366,8 @@ private:
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
     STHS34PF80_I2C motionSensor;
-    Adafruit_VL6180X tofSensor1;
-    Adafruit_VL6180X tofSensor2;
-    Adafruit_VL6180X tofSensor3;
+    #define DEV_I2C Wire
+    VL53L4CD sensor_vl53l4cd_sat(&DEV_I2C, A1);
 
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
@@ -398,10 +396,11 @@ private:
     friend class FED4_Display;
     friend class FED4_LED;
     friend class FED4_Motor;
+    friend class FED4_Haptic;
     friend class FED4_Power;
     friend class FED4_RTC;
     friend class FED4_SD;
-    friend class FED4_Sensors;
+    friend class FED4_Touchpads;
     friend class FED4_Vitals;
     friend class FED4_Feed;
     friend class FED4_Begin;
