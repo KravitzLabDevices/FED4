@@ -34,9 +34,6 @@
 #define SPI_SCK 12
 #define SPI_MISO 13
 
-//ToF
-#define XSHUT 1
-
 // I2C Interface
 #define SDA 8
 #define SCL 9
@@ -60,6 +57,9 @@
 #define EXP_PHOTOGATE_2 13 // Left
 #define EXP_PHOTOGATE_3 0  // Right
 #define EXP_PHOTOGATE_4 11 // Pellet Detector
+#define EXP_XSHUT_1 2      // controls timing for ToF sensors
+#define EXP_XSHUT_2 15     // controls timing for ToF sensors
+#define EXP_XSHUT_3 3      // controls timing for ToF sensors
 #define EXP_LDO3 14        // enables LDO3
 #define EXP_HAPTIC 8       // Turns on/off haptic motor
 
