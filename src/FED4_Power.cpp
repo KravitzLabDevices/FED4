@@ -2,8 +2,15 @@
 
 // High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep() {
+  // Enable timer-based wake-up every 5 seconds
+  esp_sleep_enable_timer_wakeup(5 * 1000000); // Convert 5 seconds to microseconds
+  
   startSleep();
   wakeUp();
+  
+  // Check sensors on timer wake-up
+  pollSensors();
+  
   handleTouch();
   checkButton1();
   checkButton2();
@@ -26,9 +33,21 @@ void FED4::wakeUp() {
   LDO2_ON();
   LDO3_ON();  // Turn on LDO3 to power up NeoPixel
   mcp.begin_I2C();
-  esp_err_t err = i2s_start(I2S_NUM_0);
+  
+  // Don't reinitialize I2S on every wake-up
+  // Just enable the amp if needed
   enableAmp(true);
-  cyanPix(10);  // Turn on cyan LED when waking up
+
+  // Check if this is a timer wake-up (no buttons or touch active)
+  if (digitalRead(BUTTON_1) == 0 && digitalRead(BUTTON_2) == 0 && digitalRead(BUTTON_3) == 0) {
+    // Timer wake-up - blink white
+    whitePix(10);
+    delay(50);
+    noPix();
+  } else {
+    // Touch/button wake-up - use cyan
+    cyanPix(10);
+  }
 }
 
 // Handles touch inputs and only checks them if a button was not pressed
