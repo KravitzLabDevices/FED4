@@ -46,7 +46,6 @@ void FED4::vibrateJamClear()
 }
 
 void FED4::jammed(){
-
   fillRect (0, 0, 144, 17, DISPLAY_BLACK);
   
   setFont(&Org_01);
