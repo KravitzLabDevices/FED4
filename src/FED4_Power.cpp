@@ -14,6 +14,8 @@ void FED4::sleep() {
 void FED4::startSleep() {
   Serial.flush();
   clearStrip();
+  noPix();  // Turn off the LED when going to sleep
+  LDO3_OFF();  // Turn off LDO3 to power down NeoPixel
   LDO2_OFF();
   enableAmp(false);
   esp_light_sleep_start();
@@ -22,9 +24,11 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   LDO2_ON();
+  LDO3_ON();  // Turn on LDO3 to power up NeoPixel
   mcp.begin_I2C();
   esp_err_t err = i2s_start(I2S_NUM_0);
   enableAmp(true);
+  cyanPix(10);  // Turn on cyan LED when waking up
 }
 
 // Handles touch inputs and only checks them if a button was not pressed
