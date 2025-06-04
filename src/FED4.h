@@ -228,7 +228,7 @@ public:
     int centerCount;
     int leftCount;
     int rightCount;
-    int wakeCount;
+    int wakeCount = 0;
     bool leftTouch;
     bool centerTouch;
     bool rightTouch;

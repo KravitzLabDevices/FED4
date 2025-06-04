@@ -37,7 +37,7 @@ void loop() {
   }
 
   if (fed4.rightTouch) {                            // if right poke is touched
-    fed4.click();                                   // auditory click stimulus
+    // fed4.click();                                   // auditory click stimulus
     fed4.rightLight("blue");                        // light LEDs around right poke blue
    }
 }

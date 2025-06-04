@@ -1,9 +1,25 @@
 #include "FED4.h"
 #include "driver/touch_pad.h"
 
+// Add at the top of the file with other variables
+static uint8_t wakePad = 0;  // 0=none, 1=left, 2=center, 3=right
+
 void IRAM_ATTR FED4::onTouchWakeUp()
 {
-    // empty
+    // Get the touch pad that triggered the wake-up
+    uint32_t touch_status = touch_pad_get_status();
+    
+    // Store which pad triggered the wake-up
+    if (touch_status & (1 << TOUCH_PAD_LEFT)) {
+        wakePad = 1;
+    } else if (touch_status & (1 << TOUCH_PAD_CENTER)) {
+        wakePad = 2;
+    } else if (touch_status & (1 << TOUCH_PAD_RIGHT)) {
+        wakePad = 3;
+    }
+    
+    // Clear the touch pad status
+    touch_pad_clear_status();
 }
 
 bool FED4::initializeTouch()
@@ -62,58 +78,30 @@ void FED4::calibrateTouchSensors()
  */
 void FED4::interpretTouch()
 {
-    // Read current values
-    uint16_t leftVal = touchRead(TOUCH_PAD_LEFT);
-    uint16_t centerVal = touchRead(TOUCH_PAD_CENTER);
-    uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
-
-    // Reset all touch states, they should be cleared elsewhere before this too
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
-
-    // Serial.printf("Touch values - Left: %d/%d, Center: %d/%d, Right: %d/%d\n",
-    //               leftVal, touchPadLeftBaseline,
-    //               centerVal, touchPadCenterBaseline,
-    //               rightVal, touchPadRightBaseline);
-
-    // Find which sensor had the largest absolute deviation from baseline
-    float leftDev = abs((float)leftVal / touchPadLeftBaseline - 1.0);
-    float centerDev = abs((float)centerVal / touchPadCenterBaseline - 1.0);
-    float rightDev = abs((float)rightVal / touchPadRightBaseline - 1.0);
-
-    // Always count a touch - just determine which one had the largest deviation, set others to false
-    if (leftDev >= centerDev && leftDev >= rightDev)
-    {
+    // Print which pad triggered the wake-up
+    if (wakePad == 1) {
+        Serial.println("Wake-up triggered by LEFT pad");
         leftCount++;
-        greenPix();
-        // Serial.println("Left Poke detected.");
+        redPix();
         logData("Left"); 
         leftTouch = true;
         outputPulse(1, 10);
-        //updateDisplay();  //can't do this here, it's too slow
-    }
-    else if (centerDev >= leftDev && centerDev >= rightDev)
-    {
+    } else if (wakePad == 2) {
+        Serial.println("Wake-up triggered by CENTER pad");
         centerCount++;
         bluePix();
-        // Serial.println("Center Poke detected.");
         logData("Center"); 
         centerTouch = true;
         outputPulse(2, 10);
-        //updateDisplay();
-    }
-    else
-    {
+    } else if (wakePad == 3) {
+        Serial.println("Wake-up triggered by RIGHT pad");
         rightCount++;
-        redPix();
-        // Serial.println("Right Poke detected.");
+        greenPix();
         logData("Right"); 
         rightTouch = true;
         outputPulse(3, 10);
-        //updateDisplay();
     }
-
+    wakePad = 0;  // Reset the wake pad flag
     // Clear any pending touch pad interrupts
     touch_pad_clear_status();
 }

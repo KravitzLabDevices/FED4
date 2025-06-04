@@ -19,6 +19,13 @@ void FED4::sleep() {
 
 // Prepares device for sleep mode by disabling components and entering light sleep
 void FED4::startSleep() {
+  // Calibrate touch sensors every N wake-ups
+  if (wakeCount % 5 == 0 )  {
+      calibrateTouchSensors();
+      Serial.print("Touch sensors calibrated, wakeCount: ");
+      Serial.println(wakeCount);
+  }
+
   Serial.flush();
   clearStrip();
   noPix();  // Turn off the LED when going to sleep
@@ -30,12 +37,14 @@ void FED4::startSleep() {
 
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
+  wakeCount++;
+  Serial.print("Wake up, wakeCount: ");
+  Serial.println(wakeCount);
   LDO2_ON();
   LDO3_ON();  // Turn on LDO3 to power up NeoPixel
   mcp.begin_I2C();
   
-  // Don't reinitialize I2S on every wake-up
-  // Just enable the amp if needed
+  // Enable the amp if needed
   enableAmp(true);
 
   // Check if this is a timer wake-up (no buttons or touch active)
@@ -44,9 +53,13 @@ void FED4::wakeUp() {
     whitePix(10);
     delay(50);
     noPix();
+    Serial.print("Timer wake-up, wakeCount: ");
+    Serial.println(wakeCount);
   } else {
     // Touch/button wake-up - use cyan
     cyanPix(10);
+    Serial.print("Touch/button wake-up, wakeCount: ");
+    Serial.println(wakeCount);
   }
 }
 
@@ -56,10 +69,20 @@ void FED4::handleTouch() {
   pinMode(BUTTON_2, INPUT_PULLDOWN);
   pinMode(BUTTON_3, INPUT_PULLDOWN);
 
-  // if no button was pressed, check touch inputs to see which one woke FED4 
-  if (digitalRead(BUTTON_1) == 0 && digitalRead(BUTTON_2) == 0 && digitalRead(BUTTON_3) == 0) {
-    interpretTouch();
+  // Check if wake-up was caused by timer
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
+    // This is a timer wake-up, skip touch interpretation
+    return;
   }
+
+  // Check if any buttons are pressed
+  if (digitalRead(BUTTON_1) == 1 || digitalRead(BUTTON_2) == 1 || digitalRead(BUTTON_3) == 1) {
+    // This is a button wake-up, skip touch interpretation
+    return;
+  }
+
+  // If we get here, this is a touch pad wake-up, so interpret the touch
+  interpretTouch();
 }
 
 // Checks if feed button is held and dispenses test pellet after 1 second
