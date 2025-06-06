@@ -253,7 +253,7 @@ void FED4::higherBeep(){
 void FED4::click(){
     // Make sure I2S is started
     esp_err_t err = i2s_start(I2S_NUM_0);
- //   delay (2);
+    delay (2);
     if (err != ESP_OK) {
         Serial.println("I2S not ready for click");
         return;
@@ -264,7 +264,7 @@ void FED4::click(){
     delay(10);  // Increased from 1ms to 2ms for better stability
     playTone(1000, 5, 0.25);     
     // Add a small delay to ensure the sound completes
-//    delay(5);
+    delay(5);
 }
 
 /**
