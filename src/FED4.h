@@ -142,6 +142,7 @@ public:
     void interpretTouch();
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
+    void clearTouch();
 
     // Pixel an Strip control (defined in FED4_LEDs.cpp)
     // (strip)

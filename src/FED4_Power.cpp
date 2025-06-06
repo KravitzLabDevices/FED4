@@ -22,8 +22,8 @@ void FED4::startSleep() {
   // Calibrate touch sensors every N wake-ups
   if (wakeCount % 5 == 0 )  {
       calibrateTouchSensors();
-      Serial.print("Touch sensors calibrated, wakeCount: ");
-      Serial.println(wakeCount);
+      Serial.println("********** Touch sensors calibrated **********");
+      delay (5);
   }
 
   Serial.flush();
@@ -40,6 +40,8 @@ void FED4::wakeUp() {
   wakeCount++;
   Serial.print("Wake up, wakeCount: ");
   Serial.println(wakeCount);
+  
+  // Turn on LDO2 first to ensure LED strip has power
   LDO2_ON();
   LDO3_ON();  // Turn on LDO3 to power up NeoPixel
   mcp.begin_I2C();

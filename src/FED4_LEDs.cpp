@@ -40,10 +40,23 @@
 // Initialize the strip
 bool FED4::initializeStrip()
 {
-    strip.begin();
+    if (!strip.begin()) {
+        Serial.println("Failed to initialize LED strip");
+        return false;
+    }
     strip.setBrightness(50); // Default brightness
     strip.clear();
     strip.show();
+    
+    // Test the strip by setting all pixels to red briefly
+    for(int i=0; i<strip.numPixels(); i++) {
+        strip.setPixelColor(i, strip.Color(255, 0, 0));
+    }
+    strip.show();
+    delay(100);
+    strip.clear();
+    strip.show();
+    
     return true;
 }
 

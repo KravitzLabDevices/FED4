@@ -251,7 +251,20 @@ void FED4::higherBeep(){
  * Used for immediate feedback on button presses or quick events
  */
 void FED4::click(){
-    playTone(1000, 5, 0.25);  
+    // Make sure I2S is started
+    esp_err_t err = i2s_start(I2S_NUM_0);
+ //   delay (2);
+    if (err != ESP_OK) {
+        Serial.println("I2S not ready for click");
+        return;
+    }
+    
+    // Enable amp and give it time to stabilize
+    enableAmp(true);
+    delay(10);  // Increased from 1ms to 2ms for better stability
+    playTone(1000, 5, 0.25);     
+    // Add a small delay to ensure the sound completes
+//    delay(5);
 }
 
 /**

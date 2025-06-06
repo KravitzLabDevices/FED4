@@ -64,5 +64,13 @@ void FED4::run(){
     updateTime();
     updateDisplay();
     serialStatusReport();
+    clearTouch();   
     sleep();
+}
+
+void FED4::clearTouch()
+{
+    leftTouch = false;  
+    centerTouch = false;
+    rightTouch = false;
 }
