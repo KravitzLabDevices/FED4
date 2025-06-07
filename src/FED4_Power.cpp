@@ -19,10 +19,22 @@ void FED4::sleep() {
 
 // Prepares device for sleep mode by disabling components and entering light sleep
 void FED4::startSleep() {
-  // Calibrate touch sensors every N wake-ups
-      if (wakeCount % 10 == 0 )  {
-        calibrateTouchSensors();
-        Serial.println("********** Touch sensors calibrated **********");
+  // Wait for all touch pads to be released before sleeping
+  while (true) {
+    float leftDev = abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0);
+    float centerDev = abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0);
+    float rightDev = abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0);
+    
+    if (leftDev < TOUCH_THRESHOLD && centerDev < TOUCH_THRESHOLD && rightDev < TOUCH_THRESHOLD) {
+      break;
+    }
+    delay(10);
+  }
+
+  // Calibrate touch sensors before sleep on every N wake-ups
+  if (wakeCount % 10 == 0 )  {
+    calibrateTouchSensors();
+    Serial.println("********** Touch sensors calibrated **********");
   }
 
   Serial.flush();
@@ -90,7 +102,7 @@ void FED4::checkButton1() {
   }
 }
 
-// Checks if reset button is held and performs device reset after 2 seconds
+// Checks if reset button is held and performs device reset after 1 second
 void FED4::checkButton2() {
   int holdTime = 0;
   while (digitalRead(BUTTON_2) == 1) {
@@ -99,7 +111,7 @@ void FED4::checkButton2() {
     rightTouch = false;
     delay(100);
     holdTime += 100;
-    if (holdTime >= 2000) {
+    if (holdTime >= 1000) {
         colorWipe("red", 100); // red
         resetJingle();
         Serial.println("********** BUTTON 2 FORCED RESET! **********");

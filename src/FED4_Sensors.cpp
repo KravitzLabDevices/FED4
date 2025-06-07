@@ -80,15 +80,15 @@ void FED4::interpretTouch()
 {
     // Print which pad triggered the wake-up
       if (wakePad == 1) {
-          Serial.print("LEFT touch");
+          Serial.print("LEFT touch   ");
           leftCount++;
           leftTouch = true;  // Set flag first for fastest response
       } else if (wakePad == 2) {
-          Serial.print("CENTER touch");
+          Serial.print("CENTER touch ");
           centerCount++;
           centerTouch = true;  // Set flag first for fastest response
       } else if (wakePad == 3) {
-          Serial.print("RIGHT touch");
+          Serial.print("RIGHT touch  ");
           rightCount++;
           rightTouch = true;  // Set flag first for fastest response
       } 

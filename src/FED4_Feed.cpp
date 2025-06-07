@@ -31,11 +31,10 @@ void FED4::dispense() {
         pelletReady = true;
 
         // small motor movement
-        stepper.step(-2); 
-//        delay(1);
+        stepper.step(-10); 
         motorTurns++;
         // delay for 1s roughly each pellet position
-        if (motorTurns % 125 == 0)
+        if (motorTurns % 25 == 0)
         {
             releaseMotor();
             delay(1000);

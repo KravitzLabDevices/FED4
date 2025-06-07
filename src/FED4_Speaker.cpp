@@ -10,14 +10,14 @@ bool FED4::initializeSpeaker()
     // I2S configuration for MAX98357A
     i2s_config_t i2sConfig = {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate = 22050,   // Reduced from 44100 to 22050 to improve responsiveness
+        .sample_rate = 11025,   // Reduced from 44100 to improve responsiveness
         .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
         .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count = 2,     // Reduced from 8 to improve responsiveness
-        .dma_buf_len = 32,     // Reduced from 1024 to improve responsiveness
-        .use_apll = true,       // Changed to true for better clock accuracy
+        .dma_buf_count = 4,     // Increased from 2 to 4 for better quality
+        .dma_buf_len = 16,      // Reduced from 32 to 16 for better responsiveness
+        .use_apll = true,       // Using APLL for better clock accuracy
         .tx_desc_auto_clear = true,
         .fixed_mclk = 0
     };
@@ -74,7 +74,7 @@ void FED4::enableAmp(bool enable)
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
     // Generate and play tone
-    const uint32_t sampleRate = 22050;
+    const uint32_t sampleRate = 11025;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
     const float twoPiF = 2.0 * M_PI * frequency;
 
@@ -263,7 +263,7 @@ void FED4::higherBeep(){
  * Used for immediate feedback on button presses or quick events
  */
 void FED4::click(){
-    playTone(1000, 5, 0.25);   
+    playTone(1000, 8, 0.3);   
     leftTouch = false;
     centerTouch = false;
     rightTouch = false;
