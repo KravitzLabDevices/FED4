@@ -38,8 +38,7 @@ bool FED4::begin(const char* programName)
         {"Speaker", {false, ""}},
         {"Accelerometer", {false, ""}},
         {"Magnet", {false, ""}},
-        {"Motion", {false, ""}},
-        {"ToF Sensors", {false, ""}}};
+        {"Motion", {false, ""}}}; 
 
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
@@ -157,12 +156,6 @@ bool FED4::begin(const char* programName)
     if (!statuses["Motion"].initialized)
     {
         Serial.println("Motion sensor initialization failed");
-    }
-
-    statuses["ToF Sensors"].initialized = initializeToF();
-    if (!statuses["ToF Sensors"].initialized)
-    {
-        Serial.println("ToF sensors initialization failed");
     }
 
     statuses["Display"].initialized = initializeDisplay();
