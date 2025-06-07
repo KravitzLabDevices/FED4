@@ -16,7 +16,7 @@ bool FED4::initializeSpeaker()
         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
         .dma_buf_count = 2,     // Reduced from 8 to improve responsiveness
-        .dma_buf_len = 256,     // Reduced from 1024 to improve responsiveness
+        .dma_buf_len = 32,     // Reduced from 1024 to improve responsiveness
         .use_apll = true,       // Changed to true for better clock accuracy
         .tx_desc_auto_clear = true,
         .fixed_mclk = 0
@@ -230,6 +230,10 @@ void FED4::menuJingle(){
  */
 void FED4::lowBeep(){
     playTone(300, 200, 0.4);  // Play 300 Hz for 200ms at 40% amplitude
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+
 }
 
 /**
@@ -237,6 +241,10 @@ void FED4::lowBeep(){
  */
 void FED4::highBeep(){
     playTone(1000, 200, 0.4); // Play 1000 Hz for 200ms at 40% amplitude
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+
 }
 
 /**
@@ -244,27 +252,21 @@ void FED4::highBeep(){
  */
 void FED4::higherBeep(){
     playTone(2000, 200, 0.4); // Play 2000 Hz for 200ms at 40% amplitude
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+
 }
 
 /**
- * Plays a very short high-pitched click sound
+ * Plays a very short click sound
  * Used for immediate feedback on button presses or quick events
  */
 void FED4::click(){
-    // Make sure I2S is started
-    esp_err_t err = i2s_start(I2S_NUM_0);
- //   delay (2);
-    if (err != ESP_OK) {
-        Serial.println("I2S not ready for click");
-        return;
-    }
-    
-    // Enable amp and give it time to stabilize
-    enableAmp(true);
-    delay(10);  // Increased from 1ms to 2ms for better stability
-    playTone(1000, 5, 0.25);     
-    // Add a small delay to ensure the sound completes
-//    delay(5);
+    playTone(1000, 5, 0.25);   
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
 }
 
 /**

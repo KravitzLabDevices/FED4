@@ -1,5 +1,5 @@
 #include "FED4.h"
-const char FED4::libraryVer[] = "1.0.1";
+const char FED4::libraryVer[] = "1.1.1";
 
 /*
  (o)(o)--.
@@ -64,13 +64,5 @@ void FED4::run(){
     updateTime();
     updateDisplay();
     serialStatusReport();
-    clearTouch();   
     sleep();
-}
-
-void FED4::clearTouch()
-{
-    leftTouch = false;  
-    centerTouch = false;
-    rightTouch = false;
 }
