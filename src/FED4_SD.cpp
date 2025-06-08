@@ -26,6 +26,7 @@ bool FED4::initializeSD()
         {
             digitalWrite(SD_CS, HIGH); // Deselect SD card
             Serial.println("SD card initialized successfully");
+            createMetaJson(); // Ensure meta.json exists
             return true;
         }
         digitalWrite(SD_CS, HIGH); // Ensure SD is deselected on failure

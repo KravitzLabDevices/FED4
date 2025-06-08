@@ -15,7 +15,7 @@ bool FED4::begin(const char* programName)
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
-    delayMicroseconds(100); // Stabilization time
+    delay(10); // Stabilization time
     Serial.println("LDO2 Enabled");
 
     // Structure to track component status
@@ -61,6 +61,17 @@ bool FED4::begin(const char* programName)
         return false;
     }
 
+    // Initialize RTC and Vitals
+    Serial.println("Initializing RTC");
+    statuses["RTC"].initialized = initializeRTC();
+    Serial.println("Initializing Vitals");
+    statuses["Battery Monitor"].initialized = initializeVitals();
+    statuses["Temp/Humidity"].initialized = statuses["Battery Monitor"].initialized;
+    if (!statuses["Battery Monitor"].initialized)
+    {
+        Serial.println("Vitals initialization failed");
+    }
+
     // Initialize MCP expander
     statuses["MCP23017"].initialized = mcp.begin_I2C();
     if (!statuses["MCP23017"].initialized)
@@ -84,7 +95,7 @@ bool FED4::begin(const char* programName)
     // startup front LEDs
     Serial.println("Initializing LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
-    stripRainbow(5, 2);  
+    stripRainbow(3, 2);  
     
     // Configure all GPIO pins
     Serial.println("Configuring GPIO pins");
@@ -94,21 +105,6 @@ bool FED4::begin(const char* programName)
     pinMode(AUDIO_TRRS_3, INPUT);
     pinMode(USER_PIN_18, OUTPUT);
     digitalWrite(USER_PIN_18, LOW);
-
-    // Initialize RTC and Vitals
-    Serial.println("Initializing RTC");
-    statuses["RTC"].initialized = initializeRTC();
-    Serial.println("Initializing Vitals");
-    bool vitalsResult = initializeVitals();
-    if (!vitalsResult)
-    {
-        Serial.println("Vitals initialization failed");
-    }
-    Serial.println("Initializing Battery Monitor");
-    statuses["Battery Monitor"].initialized = maxlipo.begin();
-    Serial.println("Initializing Temp/Humidity");
-    statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
-
 
     // Initialize Touch 
     Serial.println("Initializing Touch Sensors");
@@ -191,11 +187,8 @@ bool FED4::begin(const char* programName)
     // Initialize Speaker
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
-    //HighBeep to confirm initialization
-    highBeep();
-    delay(100);
-    highBeep();
-    delay(100);
+    //bopBeep to confirm initialization
+    bopBeep();
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");

@@ -73,6 +73,8 @@ void FED4::enableAmp(bool enable)
  */
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
+    enableAmp(true);
+    i2s_start(I2S_NUM_0);
     // Generate and play tone
     const uint32_t sampleRate = 11025;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
@@ -100,6 +102,8 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
         size_t bytes_written;
         i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
     }
+    i2s_stop(I2S_NUM_0);
+    enableAmp(false);
 }
 
 /**
