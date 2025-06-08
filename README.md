@@ -1,6 +1,6 @@
 # FED4 Library
 
-[![Version](https://img.shields.io/badge/Version-1.1.1-blue.svg)](https://github.com/YourUsername/FED4)
+[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](https://github.com/YourUsername/FED4)
 
 <p align="center">
   <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4_minilogo.png?raw=true" alt="FED4 Logo" width="200"/>
