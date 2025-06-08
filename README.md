@@ -36,6 +36,8 @@ FED4 (Feeding Experimentation Device) is an open-source device for training mice
 
 ## Library Structure
 
+![FED4 overview](https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4_overview.png?raw=true)
+
 ### Core Functions
 
 #### Initialization
