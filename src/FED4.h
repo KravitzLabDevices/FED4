@@ -8,6 +8,7 @@
 #include "Adafruit_MAX1704X.h"
 #include <Stepper.h>
 #include <Adafruit_NeoPixel.h>
+#include <FastLED.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Fonts/FreeSans9pt7b.h>
@@ -49,6 +50,7 @@ static const uint8_t DISPLAY_NORMAL = 3;
 static const uint16_t DISPLAY_WIDTH = 144;
 static const uint16_t DISPLAY_HEIGHT = 168;
 
+static const uint8_t NUM_STRIP_LEDS = 8;
 static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 24;
@@ -354,7 +356,7 @@ private:
     Adafruit_NeoPixel pixels;
     Stepper stepper;
     TwoWire I2C_2;
-    Adafruit_NeoPixel strip;
+    CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
     STHS34PF80_I2C motionSensor;

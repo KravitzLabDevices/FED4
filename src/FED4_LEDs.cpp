@@ -40,22 +40,15 @@
 // Initialize the strip
 bool FED4::initializeStrip()
 {
-    if (!strip.begin()) {
-        Serial.println("Failed to initialize LED strip");
-        return false;
-    }
-    strip.setBrightness(50); // Default brightness
-    strip.clear();
-    strip.show();
+    FastLED.addLeds<NEOPIXEL, RGB_STRIP_PIN>(strip_leds, NUM_STRIP_LEDS);
+    setStripBrightness(50); // Default brightness
     
     // Test the strip by setting all pixels to red briefly
-    for(int i=0; i<strip.numPixels(); i++) {
-        strip.setPixelColor(i, strip.Color(255, 0, 0));
-    }
-    strip.show();
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Red);
+    FastLED.show();
     delay(100);
-    strip.clear();
-    strip.show();
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    FastLED.show();
     
     return true;
 }
@@ -63,7 +56,7 @@ bool FED4::initializeStrip()
 // Set the strip brightness
 void FED4::setStripBrightness(uint8_t brightness)
 {
-    strip.setBrightness(brightness);
+    FastLED.setBrightness(brightness);
 }
 
 // Example usage:
@@ -76,11 +69,9 @@ void FED4::colorWipe(const char* colorName, unsigned long wait)
 // New overloaded function that takes uint32_t color value
 void FED4::colorWipe(uint32_t color, unsigned long wait)
 {
-    for(int i=0; i<strip.numPixels(); i++) {
-        strip.setPixelColor(i, color);
-        strip.show();
-        delay(wait);
-    }
+    fill_solid(strip_leds, NUM_STRIP_LEDS, color);
+    FastLED.show();
+    delay(wait * NUM_STRIP_LEDS); // Keep total time similar
 }
 
 // Example usage:
@@ -96,13 +87,13 @@ void FED4::stripTheaterChase(uint32_t color, unsigned long wait, unsigned int gr
 {
     for(int chase = 0; chase < numChases; chase++) {
         for(int q=0; q < groupSize; q++) {
-            for(int i=0; i < strip.numPixels(); i=i+groupSize) {
-                strip.setPixelColor(i+q, color);
+            for(int i=0; i < NUM_STRIP_LEDS; i=i+groupSize) {
+                strip_leds[i+q] = color;
             }
-            strip.show();
+            FastLED.show();
             delay(wait);
-            for(int i=0; i < strip.numPixels(); i=i+groupSize) {
-                strip.setPixelColor(i+q, 0);
+            for(int i=0; i < NUM_STRIP_LEDS; i=i+groupSize) {
+                strip_leds[i+q] = CRGB::Black;
             }
         }
     }
@@ -117,14 +108,10 @@ void FED4::stripRainbow(unsigned long wait, unsigned int numLoops)
 {
     for (unsigned int count = 0; count < numLoops; count++)
     {
-        for (long firstPixelHue = 0; firstPixelHue < 65536; firstPixelHue += 1024)
-        {
-            for (int i = 0; i < strip.numPixels(); i++)
-            {
-                int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
-                strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
-            }
-            strip.show();
+        uint8_t hue = 0;
+        for (int i = 0; i < 256; i++) {
+            fill_rainbow(strip_leds, NUM_STRIP_LEDS, hue++, 255 / NUM_STRIP_LEDS);
+            FastLED.show();
             delay(wait);
         }
     }
@@ -135,8 +122,8 @@ void FED4::stripRainbow(unsigned long wait, unsigned int numLoops)
 // clearStrip();    // Clears the strip 
 void FED4::clearStrip()
 {
-    strip.clear();
-    strip.show();
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    FastLED.show();
 }
 
 // Example usage:
@@ -146,8 +133,10 @@ void FED4::clearStrip()
 // setStripPixel(7, "blue");    // Set eighth pixel to blue
 void FED4::setStripPixel(uint8_t pixel, uint32_t color)
 {
-    strip.setPixelColor(pixel, color);
-    strip.show();
+    if (pixel < NUM_STRIP_LEDS) {
+        strip_leds[pixel] = color;
+        FastLED.show();
+    }
 }
 
 // Example usage:
@@ -157,11 +146,11 @@ void FED4::setStripPixel(uint8_t pixel, uint32_t color)
 // leftLight("blue");    // Set left port to blue
 void FED4::leftLight(uint32_t color)
 {
-    strip.clear();
-    strip.setPixelColor(5, color);
-    strip.setPixelColor(6, color);
-    strip.setPixelColor(7, color);
-    strip.show();
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    strip_leds[5] = color;
+    strip_leds[6] = color;
+    strip_leds[7] = color;
+    FastLED.show();
 }
 
 // Example usage:
@@ -171,10 +160,10 @@ void FED4::leftLight(uint32_t color)
 // centerLight("blue");    // Set center port to blue
 void FED4::centerLight(uint32_t color)
 {
-    strip.clear();
-    strip.setPixelColor(3, color);
-    strip.setPixelColor(4, color);
-    strip.show();
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    strip_leds[3] = color;
+    strip_leds[4] = color;
+    FastLED.show();
 }
 
 // Example usage:
@@ -184,11 +173,11 @@ void FED4::centerLight(uint32_t color)
 // rightLight("blue");    // Set right port to blue
 void FED4::rightLight(uint32_t color)
 {
-    strip.clear();
-    strip.setPixelColor(0, color);
-    strip.setPixelColor(1, color);
-    strip.setPixelColor(2, color);
-    strip.show();
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    strip_leds[0] = color;
+    strip_leds[1] = color;
+    strip_leds[2] = color;
+    FastLED.show();
 }
 
 // Example usage:
@@ -237,6 +226,7 @@ void FED4::rightLight(const char *colorName)
 bool FED4::initializePixel()
 {
     pixels.begin(); // Initialize NeoPixel
+    delay(10);
     pixels.clear();
     pixels.setBrightness(50); // Set a default brightness
     noPix();
@@ -363,22 +353,22 @@ void FED4::setPixColor(const char *colorName, uint8_t brightness)
 uint32_t FED4::getColorFromString(const char *colorName)
 {
     if (strcasecmp(colorName, "red") == 0)
-        return strip.Color(255, 0, 0);
+        return CRGB::Red;
     if (strcasecmp(colorName, "green") == 0)
-        return strip.Color(0, 255, 0);
+        return CRGB::Green;
     if (strcasecmp(colorName, "blue") == 0)
-        return strip.Color(0, 0, 255);
+        return CRGB::Blue;
     if (strcasecmp(colorName, "white") == 0)
-        return strip.Color(255, 255, 255);
+        return CRGB::White;
     if (strcasecmp(colorName, "black") == 0)
-        return strip.Color(0, 0, 0);
+        return CRGB::Black;
     if (strcasecmp(colorName, "yellow") == 0)
-        return strip.Color(255, 255, 0);
+        return CRGB::Yellow;
     if (strcasecmp(colorName, "purple") == 0)
-        return strip.Color(128, 0, 128);
+        return CRGB::Purple;
     if (strcasecmp(colorName, "cyan") == 0)
-        return strip.Color(0, 255, 255);
+        return CRGB::Cyan;
     if (strcasecmp(colorName, "orange") == 0)
-        return strip.Color(255, 165, 0);
-    return strip.Color(0, 0, 0); // Default to off if color not recognized
+        return CRGB::Orange;
+    return CRGB::Black; // Default to off if color not recognized
 }

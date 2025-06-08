@@ -12,6 +12,12 @@ bool FED4::begin(const char* programName)
 {
     Serial.begin(115200);
 
+    // Initialize LDO2 to provide power to I2C peripherals
+    pinMode(LDO2_ENABLE, OUTPUT);
+    digitalWrite(LDO2_ENABLE, HIGH);
+    delayMicroseconds(100); // Stabilization time
+    Serial.println("LDO2 Enabled");
+
     // Structure to track component status
     struct ComponentStatus
     {
@@ -40,21 +46,7 @@ bool FED4::begin(const char* programName)
         {"Magnet", {false, ""}},
         {"Motion", {false, ""}}}; 
 
-    // Initialize LDOs first
-    statuses["LDOs"].initialized = initializeLDOs();
-    LDO3_OFF();
-
-    // Initialize LEDs 
-    statuses["NeoPixel"].initialized = initializePixel();
-    bluePix();
-    statuses["LED Strip"].initialized = initializeStrip();
-
-    // startup LED display
-    //a 25ms delay and 1 loop takes 1.024 seconds to complete - 
-    //this is blocking BTW but OK to take an extra second because it looks cool
-    stripRainbow(25, 1);  
-    
-     // Initialize I2C buses
+    // Initialize I2C buses
     statuses["I2C Primary"].initialized = Wire.begin();
     if (!statuses["I2C Primary"].initialized)
     {
@@ -80,6 +72,19 @@ bool FED4::begin(const char* programName)
         Serial.println("MCP ok");
     }
 
+    // Initialize LDOs first
+    statuses["LDOs"].initialized = initializeLDOs();
+
+    // Initialize LEDs 
+    statuses["NeoPixel"].initialized = initializePixel();
+    bluePix();
+    statuses["LED Strip"].initialized = initializeStrip();
+
+    // startup LED display
+    //a 25ms delay and 1 loop takes 1.024 seconds to complete - 
+    //this is blocking BTW but OK to take an extra second because it looks cool
+    stripRainbow(25, 1);  
+    
     // Configure all GPIO pins
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);

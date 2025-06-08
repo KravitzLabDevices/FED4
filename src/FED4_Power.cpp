@@ -142,9 +142,7 @@ void FED4::checkButton3() {
 // Initializes LDO (Low-Dropout Regulator) power control pins
 bool FED4::initializeLDOs()
 {
-    pinMode(LDO2_ENABLE, OUTPUT);
     mcp.pinMode(EXP_LDO3, OUTPUT);
-    LDO2_ON();
     LDO3_ON();
     return true;
 }
@@ -153,7 +151,7 @@ bool FED4::initializeLDOs()
 void FED4::LDO2_ON()
 {
     digitalWrite(LDO2_ENABLE, HIGH);
-    delayMicroseconds(100); // Minimum 50us stabilization time
+    delay(5); // Minimum 50us stabilization time
 }
 
 // Disables LDO2 power rail
