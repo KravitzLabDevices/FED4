@@ -4,17 +4,17 @@
 void FED4::sleep() {
   // Enable timer-based wake-up every 5 seconds
   esp_sleep_enable_timer_wakeup(6 * 1000000); // Convert 6 seconds to microseconds
-  
+  noPix(); 
   startSleep();
   wakeUp();
-  
-  // Check sensors on timer wake-up
-  pollSensors();
-  
+  redPix(50); //red pix to indicate FED4 is awake
+
+  // Check sensors on timer wake-up and buttons
   handleTouch();
   checkButton1();
   checkButton2();
   checkButton3();
+  pollSensors();
 }
 
 // Prepares device for sleep mode by disabling components and entering light sleep

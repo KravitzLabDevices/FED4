@@ -72,20 +72,22 @@ bool FED4::begin(const char* programName)
         Serial.println("MCP ok");
     }
 
+    Serial.println("Initializing LDOs");
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
 
+    Serial.println("Initializing NeoPixel");
     // Initialize LEDs 
     statuses["NeoPixel"].initialized = initializePixel();
     bluePix();
-    statuses["LED Strip"].initialized = initializeStrip();
 
-    // startup LED display
-    //a 25ms delay and 1 loop takes 1.024 seconds to complete - 
-    //this is blocking BTW but OK to take an extra second because it looks cool
-    stripRainbow(25, 1);  
+    // startup front LEDs
+    Serial.println("Initializing LED Strip");
+    statuses["LED Strip"].initialized = initializeStrip();
+    stripRainbow(5, 2);  
     
     // Configure all GPIO pins
+    Serial.println("Configuring GPIO pins");
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_2, INPUT);
@@ -94,33 +96,43 @@ bool FED4::begin(const char* programName)
     digitalWrite(USER_PIN_18, LOW);
 
     // Initialize RTC and Vitals
+    Serial.println("Initializing RTC");
     statuses["RTC"].initialized = initializeRTC();
+    Serial.println("Initializing Vitals");
     bool vitalsResult = initializeVitals();
     if (!vitalsResult)
     {
         Serial.println("Vitals initialization failed");
     }
+    Serial.println("Initializing Battery Monitor");
     statuses["Battery Monitor"].initialized = maxlipo.begin();
+    Serial.println("Initializing Temp/Humidity");
     statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
 
-    // Initialize Touch and Motor
+
+    // Initialize Touch 
+    Serial.println("Initializing Touch Sensors");
     statuses["Touch Sensors"].initialized = initializeTouch();
     calibrateTouchSensors();
     
     // Initialize Buttons
+    Serial.println("Initializing Buttons");
     statuses["Buttons"].initialized = initializeButtons();
     if (!statuses["Buttons"].initialized)
     {
         Serial.println("Button initialization failed");
     }
     
+    Serial.println("Initializing Motor");
     statuses["Motor"].initialized = initializeMotor();
 
     // Initialize SPI systems
+    Serial.println("Initializing SPI");
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     SPI.setFrequency(1000000); // Set SPI clock to 1MHz
 
     // Initialize SD and Display
+    Serial.println("Initializing SD Card");
     statuses["SD Card"].initialized = initializeSD();
 
     // This is used to set the program name in the meta.json file
@@ -135,6 +147,7 @@ bool FED4::begin(const char* programName)
     }
 
     //pull JSON data from SD card to store in log file
+    Serial.println("Pulling JSON data from SD card");
     program = getMetaValue("subject", "program");     
     mouseId = getMetaValue("subject", "id");    
     sex = getMetaValue("subject", "sex");    
@@ -167,15 +180,22 @@ bool FED4::begin(const char* programName)
     startupAnimation();
 
     // check battery and environmental sensors
+    Serial.println("Checking battery and environmental sensors at startup");
     startupPollSensors(); 
 
     // initialize logging
+    Serial.println("Creating log file");
     createLogFile();
     logData("Startup");
 
-    // Initialize Speaker last (as in original)
+    // Initialize Speaker
+    Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
-   // playStartup();  move to main sketch to easily turn off while working on a plane :)  
+    //HighBeep to confirm initialization
+    highBeep();
+    delay(100);
+    highBeep();
+    delay(100);
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
@@ -198,6 +218,7 @@ bool FED4::begin(const char* programName)
                   statuses.size() - failCount,
                   statuses.size());
     Serial.println("================================\n");
+
 
     return true;
 }

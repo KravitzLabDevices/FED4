@@ -249,7 +249,7 @@ void FED4::setPixBrightness(uint8_t brightness)
 void FED4::setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness)
 {
     setPixBrightness(brightness);
-    pixels.setPixelColor(0, pixels.Color(r, g, b));
+    pixels.setPixelColor(0, pixels.Color(g, r, b));
     pixels.show();
 }
 

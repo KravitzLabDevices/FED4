@@ -3,15 +3,17 @@
 bool FED4::initializeVitals()
 {
     bool success = true;
-
+    Serial.println("Initializing battery monitor");
     // Initialize battery monitor
     if (!maxlipo.begin())
     {
         Serial.println(F("Couldn't find Adafruit MAX17048?\nMake sure a battery is plugged in!\n"));
         success = false;
     }
+    Serial.println("Battery monitor initialized");
 
     // Initialize temperature/humidity sensor
+    Serial.println("Initializing temperature/humidity sensor");
     if (!aht.begin(&I2C_2))
     {
         Serial.println("Could not find AHT? Check wiring");
