@@ -7,7 +7,7 @@ void FED4::sleep() {
   noPix(); 
   startSleep();
   wakeUp();
-  redPix(5); //red pix to indicate FED4 is awake
+  redPix(1); //very dim red pix to indicate when FED4 is awake
 
   // Check sensors on timer wake-up and buttons
   handleTouch();

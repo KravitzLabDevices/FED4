@@ -15,7 +15,7 @@ bool FED4::begin(const char* programName)
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
-    delay(10); // Stabilization time
+    delay(100); // Stabilization time
     Serial.println("LDO2 Enabled");
 
     // Structure to track component status
