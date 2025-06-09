@@ -242,7 +242,6 @@ public:
     void adjustRTC(uint32_t timestamp);
 
     // Vitals functions (defined in FED4_Vitals.cpp)
-    bool initializeVitals();
     float getBatteryVoltage();
     float getBatteryPercentage();
     float getTemperature();

@@ -11,7 +11,7 @@
 bool FED4::begin(const char* programName)
 {
     Serial.begin(115200);
-
+    
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
@@ -46,6 +46,8 @@ bool FED4::begin(const char* programName)
         {"Magnet", {false, ""}},
         {"Motion", {false, ""}}}; 
 
+
+
     // Initialize I2C buses
     statuses["I2C Primary"].initialized = Wire.begin();
     if (!statuses["I2C Primary"].initialized)
@@ -61,17 +63,6 @@ bool FED4::begin(const char* programName)
         return false;
     }
 
-    // Initialize RTC and Vitals
-    Serial.println("Initializing RTC");
-    statuses["RTC"].initialized = initializeRTC();
-    Serial.println("Initializing Vitals");
-    statuses["Battery Monitor"].initialized = initializeVitals();
-    statuses["Temp/Humidity"].initialized = statuses["Battery Monitor"].initialized;
-    if (!statuses["Battery Monitor"].initialized)
-    {
-        Serial.println("Vitals initialization failed");
-    }
-
     // Initialize MCP expander
     statuses["MCP23017"].initialized = mcp.begin_I2C();
     if (!statuses["MCP23017"].initialized)
@@ -83,6 +74,28 @@ bool FED4::begin(const char* programName)
         Serial.println("MCP ok");
     }
 
+    // Initialize battery monitor immediately after MCP (library requirement)
+    Serial.println("Initializing battery monitor");
+    Serial.println("Note: it is safe to ignore the three I2C warnings below");
+    // Retry logic like the working test script
+    int maxRetries = 3;
+    int retryCount = 0;
+    while (!maxlipo.begin() && retryCount < maxRetries) {
+        retryCount++;
+        Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
+        delay(1000); // Wait before retry
+    }
+    
+    statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
+    if (!statuses["Battery Monitor"].initialized)
+    {
+        Serial.println("Battery monitor initialization failed after all retries");
+    }
+    else
+    {
+        Serial.printf("Battery monitor initialized successfully (attempt %d)\n", retryCount + 1);
+    }
+
     Serial.println("Initializing LDOs");
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
@@ -90,7 +103,19 @@ bool FED4::begin(const char* programName)
     Serial.println("Initializing NeoPixel");
     // Initialize LEDs 
     statuses["NeoPixel"].initialized = initializePixel();
-    bluePix();
+    redPix(1); //very dim red pix to indicate when FED4 is awake
+
+    // Initialize RTC
+    Serial.println("Initializing RTC");
+    statuses["RTC"].initialized = initializeRTC();
+    
+    // Initialize temperature/humidity sensor directly
+    Serial.println("Initializing temperature/humidity sensor");  
+    statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
+    if (!statuses["Temp/Humidity"].initialized)
+    {
+        Serial.println("Temperature/humidity sensor initialization failed");
+    }
 
     // startup front LEDs
     Serial.println("Initializing LED Strip");
