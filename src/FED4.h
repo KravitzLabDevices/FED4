@@ -142,6 +142,7 @@ public:
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
     void clearTouch();
+    void resetTouchFlags();  // Reset all touch flags to false
     static uint8_t wakePad;  // 0=none, 1=left, 2=center, 3=right
 
     // Pixel an Strip control (defined in FED4_LEDs.cpp)

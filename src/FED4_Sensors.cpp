@@ -117,3 +117,10 @@ void FED4::monitorTouchSensors()
 
     Serial.println("Touch sensor monitoring stopped.");
 }
+
+void FED4::resetTouchFlags()
+{
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
+}

@@ -120,7 +120,7 @@ bool FED4::begin(const char* programName)
     // startup front LEDs
     Serial.println("Initializing LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
-    stripRainbow(3, 2);  
+    stripRainbow(3, 1);  
     
     // Configure all GPIO pins
     Serial.println("Configuring GPIO pins");
@@ -196,6 +196,7 @@ bool FED4::begin(const char* programName)
     {
         Serial.println("Motion sensor initialization failed");
     }
+    stripRainbow(3, 1);  
 
     statuses["Display"].initialized = initializeDisplay();
     startupAnimation();
@@ -208,12 +209,18 @@ bool FED4::begin(const char* programName)
     Serial.println("Creating log file");
     createLogFile();
     logData("Startup");
+    stripRainbow(3, 1);  
 
     // Initialize Speaker
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
+    
     //bopBeep to confirm initialization
-    bopBeep();
+    playTone(1000, 8, 0.3);  
+    delay (100);
+    playTone(1000, 8, 0.4);  
+    delay (100);
+    playTone(1000, 8, 0.6);  
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");

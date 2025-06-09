@@ -37,6 +37,9 @@ void FED4::startSleep() {
     Serial.println("********** Touch sensors calibrated **********");
   }
 
+  // Reset all touch flags before going to sleep
+  resetTouchFlags();
+
   Serial.flush();
   clearStrip();
   noPix();  // Turn off the LED when going to sleep
@@ -88,9 +91,6 @@ void FED4::handleTouch() {
 void FED4::checkButton1() {
   int holdTime = 0;
   while (digitalRead(BUTTON_1) == 1) {
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
     delay(100);
     holdTime += 100;
     if (holdTime >= 1000) {
@@ -106,9 +106,6 @@ void FED4::checkButton1() {
 void FED4::checkButton2() {
   int holdTime = 0;
   while (digitalRead(BUTTON_2) == 1) {
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
     delay(100);
     holdTime += 100;
     if (holdTime >= 1000) {
@@ -125,9 +122,6 @@ void FED4::checkButton2() {
 void FED4::checkButton3() {
   int holdTime = 0;
   while (digitalRead(BUTTON_3) == 1) {
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
     delay(100);
     holdTime += 100;
     if (holdTime >= 1000) {

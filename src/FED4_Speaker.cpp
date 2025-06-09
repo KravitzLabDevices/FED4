@@ -234,9 +234,6 @@ void FED4::menuJingle(){
  */
 void FED4::lowBeep(){
     playTone(300, 200, 0.4);  // Play 300 Hz for 200ms at 40% amplitude
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
 
 }
 
@@ -245,9 +242,6 @@ void FED4::lowBeep(){
  */
 void FED4::highBeep(){
     playTone(1000, 200, 0.4); // Play 1000 Hz for 200ms at 40% amplitude
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
 
 }
 
@@ -256,9 +250,6 @@ void FED4::highBeep(){
  */
 void FED4::higherBeep(){
     playTone(2000, 200, 0.4); // Play 2000 Hz for 200ms at 40% amplitude
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
 
 }
 
@@ -268,9 +259,6 @@ void FED4::higherBeep(){
  */
 void FED4::click(){
     playTone(1000, 8, 0.3);   
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
 }
 
 /**

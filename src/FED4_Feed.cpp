@@ -83,7 +83,7 @@ void FED4::handlePelletSettling() {
             pelletWellTime = millis();
             break; // Exit if pellet is detected
         }
-        delay(10);
+        delay(1);
     }
 
     // if pellet is not detected, set dispenseError to true
@@ -130,7 +130,7 @@ void FED4::handlePelletInWell() {
             logData("LeftWithPellet"); //log data at end to reduce lag
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+                delay(1);
             }
         }
         else if (centerDev >= TOUCH_THRESHOLD) {
@@ -143,7 +143,7 @@ void FED4::handlePelletInWell() {
             logData("CenterWithPellet"); //log data at end to reduce lag
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+                delay(1);
             }
         }
         else if (rightDev >= TOUCH_THRESHOLD) {
@@ -157,7 +157,7 @@ void FED4::handlePelletInWell() {
 
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+                delay(5);
             }
         }
     }
@@ -183,9 +183,7 @@ void FED4::finishFeeding() {
     dispenseError = false;
     
     // Reset touch states after handling the feed
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
+    // (Touch flags will be reset before next sleep cycle)
 
     // Rebaseline touch sensors
     reBaselineTouches = 3;
@@ -216,5 +214,3 @@ bool FED4::didPelletDrop()
 {
     return mcp.digitalRead(EXP_PHOTOGATE_4);
 }
-// THIS IS A HACK FOR WHEN SENSOR IS NOT WORKING
-// WITH DROP SENSOR CHANGE TO !mcp.digitalRead(EXP_PHOTOGATE_4);
