@@ -10,14 +10,14 @@ bool FED4::initializeSpeaker()
     // I2S configuration for MAX98357A
     i2s_config_t i2sConfig = {
         .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-        .sample_rate = 22050,   // Reduced from 44100 to 22050 to improve responsiveness
+        .sample_rate = 11025,   // Reduced from 44100 to improve responsiveness
         .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
         .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
         .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
         .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-        .dma_buf_count = 2,     // Reduced from 8 to improve responsiveness
-        .dma_buf_len = 256,     // Reduced from 1024 to improve responsiveness
-        .use_apll = true,       // Changed to true for better clock accuracy
+        .dma_buf_count = 4,     // Increased from 2 to 4 for better quality
+        .dma_buf_len = 16,      // Reduced from 32 to 16 for better responsiveness
+        .use_apll = true,       // Using APLL for better clock accuracy
         .tx_desc_auto_clear = true,
         .fixed_mclk = 0
     };
@@ -73,8 +73,10 @@ void FED4::enableAmp(bool enable)
  */
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
+    enableAmp(true);
+    i2s_start(I2S_NUM_0);
     // Generate and play tone
-    const uint32_t sampleRate = 22050;
+    const uint32_t sampleRate = 11025;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
     const float twoPiF = 2.0 * M_PI * frequency;
 
@@ -100,6 +102,8 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
         size_t bytes_written;
         i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
     }
+    i2s_stop(I2S_NUM_0);
+    enableAmp(false);
 }
 
 /**
@@ -230,6 +234,7 @@ void FED4::menuJingle(){
  */
 void FED4::lowBeep(){
     playTone(300, 200, 0.4);  // Play 300 Hz for 200ms at 40% amplitude
+
 }
 
 /**
@@ -237,6 +242,7 @@ void FED4::lowBeep(){
  */
 void FED4::highBeep(){
     playTone(1000, 200, 0.4); // Play 1000 Hz for 200ms at 40% amplitude
+
 }
 
 /**
@@ -244,27 +250,15 @@ void FED4::highBeep(){
  */
 void FED4::higherBeep(){
     playTone(2000, 200, 0.4); // Play 2000 Hz for 200ms at 40% amplitude
+
 }
 
 /**
- * Plays a very short high-pitched click sound
+ * Plays a very short click sound
  * Used for immediate feedback on button presses or quick events
  */
 void FED4::click(){
-    // Make sure I2S is started
-    esp_err_t err = i2s_start(I2S_NUM_0);
-    delay (2);
-    if (err != ESP_OK) {
-        Serial.println("I2S not ready for click");
-        return;
-    }
-    
-    // Enable amp and give it time to stabilize
-    enableAmp(true);
-    delay(10);  // Increased from 1ms to 2ms for better stability
-    playTone(1000, 5, 0.25);     
-    // Add a small delay to ensure the sound completes
-    delay(5);
+    playTone(1000, 8, 0.3);   
 }
 
 /**

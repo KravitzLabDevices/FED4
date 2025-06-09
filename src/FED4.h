@@ -8,6 +8,7 @@
 #include "Adafruit_MAX1704X.h"
 #include <Stepper.h>
 #include <Adafruit_NeoPixel.h>
+#include <FastLED.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Fonts/FreeSans9pt7b.h>
@@ -29,7 +30,7 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
 #include "SparkFun_STHS34PF80_Arduino_Library.h"
-#include <Adafruit_VL6180X.h>
+#include "Adafruit_VEML7700.h"
 #include <ESP32Time.h>
 
 // Pin Definitions
@@ -39,9 +40,6 @@
 static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;        // Default I2C address for LIS3DH accelerometer
 static const uint8_t MLX90393_I2C_ADDRESS = 0x0C;      // Default I2C address for MLX90393 magnetometer
 static const uint8_t MOTION_SENSOR_I2C_ADDRESS = 0x5A; // Default I2C address for STHS34PF80 motion sensor
-static const uint8_t LOX1_ADDRESS = 0x30;
-static const uint8_t LOX2_ADDRESS = 0x31;
-static const uint8_t LOX3_ADDRESS = 0x32;
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -53,9 +51,10 @@ static const uint8_t DISPLAY_NORMAL = 3;
 static const uint16_t DISPLAY_WIDTH = 144;
 static const uint16_t DISPLAY_HEIGHT = 168;
 
+static const uint8_t NUM_STRIP_LEDS = 8;
 static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
-static const uint8_t MOTOR_SPEED = 12;
+static const uint8_t MOTOR_SPEED = 24;
 
 static const float TOUCH_THRESHOLD = 0.1; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
 static const char *META_FILE = "/meta.json";
@@ -143,6 +142,8 @@ public:
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
     void clearTouch();
+    void resetTouchFlags();  // Reset all touch flags to false
+    static uint8_t wakePad;  // 0=none, 1=left, 2=center, 3=right
 
     // Pixel an Strip control (defined in FED4_LEDs.cpp)
     // (strip)
@@ -243,11 +244,11 @@ public:
     void adjustRTC(uint32_t timestamp);
 
     // Vitals functions (defined in FED4_Vitals.cpp)
-    bool initializeVitals();
     float getBatteryVoltage();
     float getBatteryPercentage();
     float getTemperature();
     float getHumidity();
+    float getLux();
 
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature;
@@ -337,13 +338,6 @@ public:
     bool getMotionValue(int16_t *motionVal);
     bool getTemperatureValue(float *tempVal);
 
-    // ToF sensor functions (defined in FED4_ToF.cpp)
-    bool initializeToF();
-    uint8_t readToFSensor(Adafruit_VL6180X &sensor, uint8_t *status = nullptr);
-    uint8_t readRightToF(uint8_t *status = nullptr);
-    uint8_t readMiddleToF(uint8_t *status = nullptr);
-    uint8_t readLeftToF(uint8_t *status = nullptr);
-
     ~FED4()
     {
         if (displayBuffer)
@@ -364,14 +358,10 @@ private:
     Adafruit_NeoPixel pixels;
     Stepper stepper;
     TwoWire I2C_2;
-    Adafruit_NeoPixel strip;
+    CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
     STHS34PF80_I2C motionSensor;
-    Adafruit_VL6180X tofSensor1;
-    Adafruit_VL6180X tofSensor2;
-    Adafruit_VL6180X tofSensor3;
-
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
@@ -394,8 +384,6 @@ private:
     bool vcom;
     void sendDisplayCommand(uint8_t cmd);
 
-    void setToFIDs(); // Internal function to set sensor addresses
-
     friend class FED4_Display;
     friend class FED4_LED;
     friend class FED4_Motor;
@@ -409,7 +397,7 @@ private:
     friend class FED4_Speaker;
     friend class FED4_Magnet;
     friend class FED4_Motion;
-    friend class FED4_ToF;
+
     friend class FED4_Accel;
     friend class FED4_Menu;
 };

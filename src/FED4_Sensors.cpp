@@ -1,8 +1,8 @@
 #include "FED4.h"
 #include "driver/touch_pad.h"
 
-// Add at the top of the file with other variables
-static uint8_t wakePad = 0;  // 0=none, 1=left, 2=center, 3=right
+// Initialize the static member
+uint8_t FED4::wakePad = 0;  // 0=none, 1=left, 2=center, 3=right
 
 void IRAM_ATTR FED4::onTouchWakeUp()
 {
@@ -44,7 +44,7 @@ bool FED4::initializeTouch()
         return false;
 
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-    delay(200);
+    delay(50);  // Reduced from 200ms to 50ms - minimum time needed for voltage stabilization
     return true;
 }
 
@@ -58,8 +58,8 @@ void FED4::calibrateTouchSensors()
     uint16_t center_threshold = touchPadCenterBaseline * TOUCH_THRESHOLD;
     uint16_t right_threshold = touchPadRightBaseline * TOUCH_THRESHOLD;
 
-    Serial.printf("Touch sensor thresholds - Left: %d, Center: %d, Right: %d\n",
-                  left_threshold, center_threshold, right_threshold);
+    // Serial.printf("Touch sensor thresholds - Left: %d, Center: %d, Right: %d\n",
+    //               left_threshold, center_threshold, right_threshold);
 
     // Enable wake-up on touch pads
     esp_sleep_enable_touchpad_wakeup();
@@ -79,28 +79,20 @@ void FED4::calibrateTouchSensors()
 void FED4::interpretTouch()
 {
     // Print which pad triggered the wake-up
-    if (wakePad == 1) {
-        Serial.println("Wake-up triggered by LEFT pad");
-        leftCount++;
-        redPix();
-        logData("Left"); 
-        leftTouch = true;
-        outputPulse(1, 10);
-    } else if (wakePad == 2) {
-        Serial.println("Wake-up triggered by CENTER pad");
-        centerCount++;
-        bluePix();
-        logData("Center"); 
-        centerTouch = true;
-        outputPulse(2, 10);
-    } else if (wakePad == 3) {
-        Serial.println("Wake-up triggered by RIGHT pad");
-        rightCount++;
-        greenPix();
-        logData("Right"); 
-        rightTouch = true;
-        outputPulse(3, 10);
-    }
+      if (wakePad == 1) {
+          Serial.print("LEFT touch   ");
+          leftCount++;
+          leftTouch = true;  // Set flag first for fastest response
+      } else if (wakePad == 2) {
+          Serial.print("CENTER touch ");
+          centerCount++;
+          centerTouch = true;  // Set flag first for fastest response
+      } else if (wakePad == 3) {
+          Serial.print("RIGHT touch  ");
+          rightCount++;
+          rightTouch = true;  // Set flag first for fastest response
+      } 
+
     wakePad = 0;  // Reset the wake pad flag
     // Clear any pending touch pad interrupts
     touch_pad_clear_status();
@@ -124,4 +116,11 @@ void FED4::monitorTouchSensors()
     }
 
     Serial.println("Touch sensor monitoring stopped.");
+}
+
+void FED4::resetTouchFlags()
+{
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
 }

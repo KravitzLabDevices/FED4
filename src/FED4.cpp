@@ -1,5 +1,5 @@
 #include "FED4.h"
-const char FED4::libraryVer[] = "1.0.1";
+const char FED4::libraryVer[] = "1.1.1";
 
 /*
  (o)(o)--.
@@ -25,7 +25,6 @@ Please support them!
  */
 FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
                pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
-               strip(8, RGB_STRIP_PIN, NEO_GRB + NEO_KHZ800),
                stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
 {
@@ -64,13 +63,5 @@ void FED4::run(){
     updateTime();
     updateDisplay();
     serialStatusReport();
-    clearTouch();   
     sleep();
-}
-
-void FED4::clearTouch()
-{
-    leftTouch = false;  
-    centerTouch = false;
-    rightTouch = false;
 }

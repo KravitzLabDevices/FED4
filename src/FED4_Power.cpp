@@ -3,28 +3,42 @@
 // High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep() {
   // Enable timer-based wake-up every 5 seconds
-  esp_sleep_enable_timer_wakeup(5 * 1000000); // Convert 5 seconds to microseconds
-  
+  esp_sleep_enable_timer_wakeup(6 * 1000000); // Convert 6 seconds to microseconds
+  noPix(); 
   startSleep();
   wakeUp();
-  
-  // Check sensors on timer wake-up
-  pollSensors();
-  
+  redPix(1); //very dim red pix to indicate when FED4 is awake
+
+  // Check sensors on timer wake-up and buttons
   handleTouch();
   checkButton1();
   checkButton2();
   checkButton3();
+  pollSensors();
 }
 
 // Prepares device for sleep mode by disabling components and entering light sleep
 void FED4::startSleep() {
-  // Calibrate touch sensors every N wake-ups
-  if (wakeCount % 5 == 0 )  {
-      calibrateTouchSensors();
-      Serial.println("********** Touch sensors calibrated **********");
-      delay (5);
+  // Wait for all touch pads to be released before sleeping
+  while (true) {
+    float leftDev = abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0);
+    float centerDev = abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0);
+    float rightDev = abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0);
+    
+    if (leftDev < TOUCH_THRESHOLD && centerDev < TOUCH_THRESHOLD && rightDev < TOUCH_THRESHOLD) {
+      break;
+    }
+    delay(10);
   }
+
+  // Calibrate touch sensors before sleep on every N wake-ups
+  if (wakeCount % 10 == 0 )  {
+    calibrateTouchSensors();
+    Serial.println("********** Touch sensors calibrated **********");
+  }
+
+  // Reset all touch flags before going to sleep
+  resetTouchFlags();
 
   Serial.flush();
   clearStrip();
@@ -38,31 +52,11 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   wakeCount++;
-  Serial.print("Wake up, wakeCount: ");
-  Serial.println(wakeCount);
-  
-  // Turn on LDO2 first to ensure LED strip has power
   LDO2_ON();
+  Wire.begin();  // Reinitialize I2C
+  mcp.begin_I2C();  // Reinitialize MCP after I2C
   LDO3_ON();  // Turn on LDO3 to power up NeoPixel
-  mcp.begin_I2C();
-  
-  // Enable the amp if needed
   enableAmp(true);
-
-  // Check if this is a timer wake-up (no buttons or touch active)
-  if (digitalRead(BUTTON_1) == 0 && digitalRead(BUTTON_2) == 0 && digitalRead(BUTTON_3) == 0) {
-    // Timer wake-up - blink white
-    whitePix(10);
-    delay(50);
-    noPix();
-    Serial.print("Timer wake-up, wakeCount: ");
-    Serial.println(wakeCount);
-  } else {
-    // Touch/button wake-up - use cyan
-    cyanPix(10);
-    Serial.print("Touch/button wake-up, wakeCount: ");
-    Serial.println(wakeCount);
-  }
 }
 
 // Handles touch inputs and only checks them if a button was not pressed
@@ -74,12 +68,18 @@ void FED4::handleTouch() {
   // Check if wake-up was caused by timer
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
     // This is a timer wake-up, skip touch interpretation
+    Serial.print("Timer wake-up");
+    wakePad = 0;  // Reset wake pad for timer wake-up
+    touch_pad_clear_status();
     return;
   }
 
   // Check if any buttons are pressed
   if (digitalRead(BUTTON_1) == 1 || digitalRead(BUTTON_2) == 1 || digitalRead(BUTTON_3) == 1) {
     // This is a button wake-up, skip touch interpretation
+    Serial.println("Button wake-up");
+    wakePad = 0;  // Reset wake pad for button wake-up
+    touch_pad_clear_status();
     return;
   }
 
@@ -91,9 +91,6 @@ void FED4::handleTouch() {
 void FED4::checkButton1() {
   int holdTime = 0;
   while (digitalRead(BUTTON_1) == 1) {
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
     delay(100);
     holdTime += 100;
     if (holdTime >= 1000) {
@@ -105,16 +102,13 @@ void FED4::checkButton1() {
   }
 }
 
-// Checks if reset button is held and performs device reset after 2 seconds
+// Checks if reset button is held and performs device reset after 1 second
 void FED4::checkButton2() {
   int holdTime = 0;
   while (digitalRead(BUTTON_2) == 1) {
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
     delay(100);
     holdTime += 100;
-    if (holdTime >= 2000) {
+    if (holdTime >= 1000) {
         colorWipe("red", 100); // red
         resetJingle();
         Serial.println("********** BUTTON 2 FORCED RESET! **********");
@@ -128,9 +122,6 @@ void FED4::checkButton2() {
 void FED4::checkButton3() {
   int holdTime = 0;
   while (digitalRead(BUTTON_3) == 1) {
-    leftTouch = false;
-    centerTouch = false;
-    rightTouch = false;
     delay(100);
     holdTime += 100;
     if (holdTime >= 1000) {
@@ -145,9 +136,7 @@ void FED4::checkButton3() {
 // Initializes LDO (Low-Dropout Regulator) power control pins
 bool FED4::initializeLDOs()
 {
-    pinMode(LDO2_ENABLE, OUTPUT);
     mcp.pinMode(EXP_LDO3, OUTPUT);
-    LDO2_ON();
     LDO3_ON();
     return true;
 }
@@ -156,7 +145,7 @@ bool FED4::initializeLDOs()
 void FED4::LDO2_ON()
 {
     digitalWrite(LDO2_ENABLE, HIGH);
-    delay(10); // delay to allow LDO to stabilize !! [ ] check docs for actual LDO delay
+    delay(5); // Minimum 50us stabilization time
 }
 
 // Disables LDO2 power rail
@@ -169,7 +158,7 @@ void FED4::LDO2_OFF()
 void FED4::LDO3_ON()
 {
     mcp.digitalWrite(EXP_LDO3, HIGH);
-    delay(10); // delay to allow LDO to stabilize !! [ ] check docs for actual LDO delay
+    delayMicroseconds(100); // Minimum 50us stabilization time
 }
 
 // Disables LDO3 power rail
