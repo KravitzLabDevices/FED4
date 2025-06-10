@@ -214,13 +214,14 @@ bool FED4::begin(const char* programName)
     // Initialize Speaker
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
-    
+    playTone(1000, 8, 0.3);  //first playTone doesn't play for some reason - need to call once to get it going?
+    delay (100);
     //bopBeep to confirm initialization
-    playTone(1000, 8, 0.3);  
+    playTone(1000, 8, 0.5);  
     delay (100);
-    playTone(1000, 8, 0.4);  
+    playTone(1000, 8, 0.5);  
     delay (100);
-    playTone(1000, 8, 0.6);  
+    playTone(1000, 8, 0.5);  
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
