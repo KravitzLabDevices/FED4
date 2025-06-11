@@ -14,31 +14,33 @@
 
 */
 
-#include <FED4.h>                                   // include the FED4 library
-FED4 fed4;                                          // start FED4 object
-char task[] = "FR1";                                // give the task a unique name
+#include <FED4.h>     // include the FED4 library
+FED4 fed4;            // start FED4 object
+char task[] = "FR1";  // give the task a unique name
 
 void setup() {
-  fed4.begin(task);                                 // initialize FED4 hardware
+  fed4.begin(task);  // initialize FED4 hardware
 }
 
 void loop() {
-  fed4.run();                                       // run this once per loop
+  fed4.run();  // run this once per loop
 
-  if (fed4.leftTouch) {                             // if left poke is touched
-    fed4.lowBeep();                                 // 500hz 200ms beep
-    fed4.leftLight("red");                          // light LEDs around left poke red
-    fed4.feed();                                    // feed one pellet, logging drop and retrieval
+  if (fed4.leftTouch) {     // if left poke is touched
+    fed4.lowBeep();         // 500hz 200ms beep
+    fed4.leftLight("red");  // light LEDs around left poke red
+    fed4.logdata("Left");
+    fed4.feed();            // feed one pellet, logging drop and retrieval
   }
 
-  if (fed4.centerTouch) {                           // if center poke is touched
-    fed4.click();                                   // audio click stimulus
-    fed4.centerLight("green");                      // light LEDs around center poke green
-    fed4.hapticBuzz(500);
+  if (fed4.centerTouch) {       // if center poke is touched
+    fed4.click();               // audio click stimulus
+    fed4.centerLight("green");  // light LEDs around center poke green
+    fed4.logdata("Center");
   }
 
-  if (fed4.rightTouch) {                            // if right poke is touched
-    fed4.click();                                   // audio click stimulus
-    fed4.rightLight("blue");                        // light LEDs around right poke blue
-   }
+  if (fed4.rightTouch) {      // if right poke is touched
+    fed4.click();             // audio click stimulus
+    fed4.rightLight("blue");  // light LEDs around right poke blue
+    fed4.logdata("Right");
+  }
 }
