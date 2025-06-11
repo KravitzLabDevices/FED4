@@ -75,6 +75,7 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
     enableAmp(true);
     i2s_start(I2S_NUM_0);
+    delay(1);
     // Generate and play tone
     const uint32_t sampleRate = 11025;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
@@ -258,7 +259,7 @@ void FED4::higherBeep(){
  * Used for immediate feedback on button presses or quick events
  */
 void FED4::click(){
-    playTone(1000, 8, 0.3);   
+    playTone(1000, 8, 0.5);   
 }
 
 /**

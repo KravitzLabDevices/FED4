@@ -34,6 +34,7 @@ void loop() {
   if (fed4.centerTouch) {                           // if center poke is touched
     fed4.click();                                   // audio click stimulus
     fed4.centerLight("green");                      // light LEDs around center poke green
+    fed4.hapticBuzz(500);
   }
 
   if (fed4.rightTouch) {                            // if right poke is touched
