@@ -55,6 +55,13 @@ void FED4::wakeUp() {
   LDO2_ON();
   Wire.begin();  // Reinitialize I2C
   mcp.begin_I2C();  // Reinitialize MCP after I2C
+  
+  // Reconfigure GPIO expander pins after wake-up
+  mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
+  mcp.pinMode(EXP_HAPTIC, OUTPUT);
+  mcp.digitalWrite(EXP_HAPTIC, LOW);
+  mcp.pinMode(EXP_LDO3, OUTPUT);
+  
   LDO3_ON();  // Turn on LDO3 to power up NeoPixel
   enableAmp(true);
 }

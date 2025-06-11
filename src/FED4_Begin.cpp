@@ -130,6 +130,10 @@ bool FED4::begin(const char* programName)
     pinMode(AUDIO_TRRS_3, INPUT);
     pinMode(USER_PIN_18, OUTPUT);
     digitalWrite(USER_PIN_18, LOW);
+    
+    // Configure haptic motor pin
+    mcp.pinMode(EXP_HAPTIC, OUTPUT);
+    mcp.digitalWrite(EXP_HAPTIC, LOW);
 
     // Initialize Touch 
     Serial.println("Initializing Touch Sensors");
