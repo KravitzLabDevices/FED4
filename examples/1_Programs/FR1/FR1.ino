@@ -28,19 +28,19 @@ void loop() {
   if (fed4.leftTouch) {     // if left poke is touched
     fed4.lowBeep();         // 500hz 200ms beep
     fed4.leftLight("red");  // light LEDs around left poke red
-    fed4.logdata("Left");
+    fed4.logData("Left");
     fed4.feed();            // feed one pellet, logging drop and retrieval
   }
 
   if (fed4.centerTouch) {       // if center poke is touched
     fed4.click();               // audio click stimulus
     fed4.centerLight("green");  // light LEDs around center poke green
-    fed4.logdata("Center");
+    fed4.logData("Center");
   }
 
   if (fed4.rightTouch) {      // if right poke is touched
     fed4.click();             // audio click stimulus
     fed4.rightLight("blue");  // light LEDs around right poke blue
-    fed4.logdata("Right");
+    fed4.logData("Right");
   }
 }
