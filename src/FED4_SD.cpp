@@ -229,8 +229,17 @@ void FED4::logData(const String &newEvent)
                     ESP.getEfuseMac());
 
     // Write mouse ID and other info
+    char formattedMouseId[8];
+    int mouseIdValue = mouseId.toInt();
+    if (mouseIdValue <= 0 || mouseIdValue > 9999) {
+        // Handle invalid or out-of-range values
+        snprintf(formattedMouseId, sizeof(formattedMouseId), "%.4s", mouseId.c_str());
+    } else {
+        snprintf(formattedMouseId, sizeof(formattedMouseId), "%04d", mouseIdValue);
+    }
+    
     dataFile.printf("%s,%s,%s,%s,%s,%s,",
-                    String(mouseId).length() < 4 ? ("0000" + String(mouseId)).substring(String(mouseId).length()) : String(mouseId).c_str(),
+                    formattedMouseId,
                     sex.c_str(),
                     strain.c_str(),
                     libraryVer,
@@ -246,7 +255,7 @@ void FED4::logData(const String &newEvent)
     }
     else
     {
-        dataFile.print(String(retrievalTime));
+        dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
     }
     dataFile.write(',');
     dataFile.write(dispenseError ? '1' : '0'); // Write single character
@@ -310,6 +319,7 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
     {
         Serial.print("deserializeJson() failed: ");
         Serial.println(error.c_str());
+        doc.clear(); // Explicitly clear the document
         return "";
     }
 
@@ -321,11 +331,14 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
         const char *value = rootObj[subKey];
         if (value)
         {
-            return String(value);
+            String result = String(value);
+            doc.clear(); // Explicitly clear the document
+            return result;
         }
     }
 
     Serial.printf("Value not found for %s > %s\n", rootKey, subKey);
+    doc.clear(); // Explicitly clear the document
     return "";
 }
 
@@ -360,6 +373,7 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
             Serial.print("deserializeJson() failed: ");
             Serial.println(error.c_str());
             digitalWrite(SD_CS, HIGH);
+            doc.clear(); // Explicitly clear the document
             return false;
         }
     }
@@ -384,6 +398,7 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
     {
         digitalWrite(SD_CS, HIGH);
         Serial.println("Failed to open meta.json for writing");
+        doc.clear(); // Explicitly clear the document
         return false;
     }
 
@@ -393,11 +408,13 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
         metaFile.close();
         digitalWrite(SD_CS, HIGH);
         Serial.println("Failed to write to meta.json");
+        doc.clear(); // Explicitly clear the document
         return false;
     }
 
     metaFile.close();
     digitalWrite(SD_CS, HIGH); // Deselect after operations
+    doc.clear(); // Explicitly clear the document
     return true;
 }
 

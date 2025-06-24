@@ -339,6 +339,12 @@ public:
     bool getMotionValue(int16_t *motionVal);
     bool getTemperatureValue(float *tempVal);
 
+    // Memory monitoring function
+    void printMemoryStatus();
+    
+    // Debug function for lux sensor
+    void debugLuxSensor();
+
     ~FED4()
     {
         if (displayBuffer)

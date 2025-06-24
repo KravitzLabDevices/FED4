@@ -35,8 +35,9 @@ float FED4::getLux()
     // Read the lux value from the persistent light sensor
     luxValue = lightSensor.readLux();
     
-    if (isnan(luxValue)) {
-        luxValue = 0.0;
+    // Check for invalid readings
+    if (isnan(luxValue) || luxValue < 0) {
+        return -1.0; // Return -1 to indicate invalid reading
     }
     
     return luxValue;
@@ -108,7 +109,7 @@ void FED4::startupPollSensors(){
          if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
          delay(10);
      }
-     if (luxReading >= 0) lux = luxReading;
+     if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
 }
 
 /**
@@ -164,6 +165,28 @@ void FED4::pollSensors() {
       if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
       delay(10);
     }
-    if (luxReading >= 0) lux = luxReading;
+    if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
   }
+}
+
+/**
+ * Prints current memory status for debugging memory leaks
+ */
+void FED4::printMemoryStatus() {
+    Serial.printf("Memory Status - Free: %d, Size: %d, MinFree: %d, Fragmentation: %.1f%%\n",
+                  ESP.getFreeHeap(),
+                  ESP.getHeapSize(),
+                  ESP.getMinFreeHeap(),
+                  (float)(ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize() * 100.0);
+}
+
+/**
+ * Debug function to monitor lux sensor behavior
+ */
+void FED4::debugLuxSensor() {
+    float rawLux = lightSensor.readLux();
+    Serial.printf("Lux Debug - Raw: %.3f, Current: %.3f, Valid: %s\n", 
+                  rawLux, 
+                  lux, 
+                  (rawLux >= 0) ? "Yes" : "No");
 }
