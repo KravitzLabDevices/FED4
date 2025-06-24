@@ -1,9 +1,9 @@
-# FED4 Library
+<img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4_minilogo.png?raw=true" alt="FED4 Logo" width="100"/>
 
 [![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](https://github.com/YourUsername/FED4)
 
 <p align="center">
-  <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4_minilogo.png?raw=true" alt="FED4 Logo" width="200"/>
+  <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4.gif?raw=true?raw=true" alt="FED4 Logo" width="400"/>
 </p>
 
 ## Overview
