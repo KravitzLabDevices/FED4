@@ -36,6 +36,7 @@ bool FED4::begin(const char* programName)
         {"RTC", {false, ""}},
         {"Battery Monitor", {false, ""}},
         {"Temp/Humidity", {false, ""}},
+        {"Light Sensor", {false, ""}},
         {"Touch Sensors", {false, ""}},
         {"Buttons", {false, ""}},
         {"Motor", {false, ""}},
@@ -115,6 +116,14 @@ bool FED4::begin(const char* programName)
     if (!statuses["Temp/Humidity"].initialized)
     {
         Serial.println("Temperature/humidity sensor initialization failed");
+    }
+
+    // Initialize light sensor
+    Serial.println("Initializing light sensor");
+    statuses["Light Sensor"].initialized = initializeLightSensor();
+    if (!statuses["Light Sensor"].initialized)
+    {
+        Serial.println("Light sensor initialization failed");
     }
 
     // startup front LEDs

@@ -249,6 +249,7 @@ public:
     float getTemperature();
     float getHumidity();
     float getLux();
+    bool initializeLightSensor();
 
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature;
@@ -362,6 +363,7 @@ private:
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
     STHS34PF80_I2C motionSensor;
+    Adafruit_VEML7700 lightSensor;
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;

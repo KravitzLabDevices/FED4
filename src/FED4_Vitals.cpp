@@ -28,34 +28,34 @@ float FED4::getHumidity()
 }
 
 float FED4::getLux()
-//this function is a hack to get the lux value without interfering with the side neopixel 
-//basically it initializes the light sensor on the secondary I2C bus, reads the lux value, and then shuts down the sensor
-//as we only need to read the lux value infrequently, this is a good compromise
+//this function now uses the persistent light sensor object instead of creating a temporary one
 {
     float luxValue = 0.0;
     
-    // Temporarily initialize the light sensor only for reading
-    Adafruit_VEML7700 tempVeml = Adafruit_VEML7700();
+    // Read the lux value from the persistent light sensor
+    luxValue = lightSensor.readLux();
     
-    if (tempVeml.begin(&I2C_2)) {
-        // Configure the sensor for quick reading  
-        tempVeml.setGain(VEML7700_GAIN_1);
-        tempVeml.setIntegrationTime(VEML7700_IT_25MS);
-        
-        // Give a small delay for the sensor to stabilize
-        delay(50);
-        
-        // Read the lux value
-        luxValue = tempVeml.readLux();
-        
-        if (isnan(luxValue)) {
-            luxValue = 0.0;
-        }
-    } else {
-        luxValue = -1.0;  // Return -1 if sensor initialization fails
+    if (isnan(luxValue)) {
+        luxValue = 0.0;
     }
     
     return luxValue;
+}
+
+bool FED4::initializeLightSensor()
+{
+    // Initialize the light sensor on the secondary I2C bus
+    if (!lightSensor.begin(&I2C_2)) {
+        Serial.println("Light sensor initialization failed");
+        return false;
+    }
+    
+    // Configure the sensor for optimal reading
+    lightSensor.setGain(VEML7700_GAIN_2);
+    lightSensor.setIntegrationTime(VEML7700_IT_200MS);
+    
+    Serial.println("Light sensor initialized successfully");
+    return true;
 }
 
 // optionally integrate MAX1704X flags:
