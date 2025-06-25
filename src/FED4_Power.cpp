@@ -54,7 +54,8 @@ void FED4::wakeUp() {
   wakeCount++;
   LDO2_ON();
   Wire.begin();  // Reinitialize I2C
-  mcp.begin_I2C();  // Reinitialize MCP after I2C
+  // Remove redundant MCP reinitialization - it should already be working
+  // mcp.begin_I2C();  // Reinitialize MCP after I2C
   
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);

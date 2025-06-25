@@ -97,9 +97,9 @@ void FED4::serialPrintRTC()
 
 String FED4::getCompileDateTime()
 {
-    static String dateTime; // Make static to avoid repeated allocations
-    dateTime = String(__DATE__) + " " + String(__TIME__);
-    return dateTime;
+    static char dateTime[25]; // Static buffer to avoid repeated allocations
+    snprintf(dateTime, sizeof(dateTime), "%s %s", __DATE__, __TIME__);
+    return String(dateTime);
 }
 
 bool FED4::isNewCompilation()

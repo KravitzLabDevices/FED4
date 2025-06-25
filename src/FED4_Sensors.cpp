@@ -50,6 +50,11 @@ bool FED4::initializeTouch()
 
 void FED4::calibrateTouchSensors()
 {
+    // Detach existing interrupts to prevent memory leaks
+    touchDetachInterrupt(TOUCH_PAD_LEFT);
+    touchDetachInterrupt(TOUCH_PAD_CENTER);
+    touchDetachInterrupt(TOUCH_PAD_RIGHT);
+
     touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
     touchPadCenterBaseline = touchRead(TOUCH_PAD_CENTER);
     touchPadRightBaseline = touchRead(TOUCH_PAD_RIGHT);
