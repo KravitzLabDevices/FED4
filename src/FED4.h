@@ -250,6 +250,7 @@ public:
     float getHumidity();
     float getLux();
     bool initializeLightSensor();
+    bool reinitializeLightSensor();
 
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature;

@@ -37,6 +37,7 @@ float FED4::getLux()
     
     // Check for invalid readings
     if (isnan(luxValue) || luxValue < 0) {
+        Serial.printf("Lux sensor error: raw value = %.3f\n", luxValue);
         return -1.0; // Return -1 to indicate invalid reading
     }
     
@@ -104,11 +105,29 @@ void FED4::startupPollSensors(){
      //get lux with timeout
      startTime = millis();
      float luxReading = -1;
+     int luxAttempts = 0;
      while (millis() - startTime < 1000) {  // 1 second timeout
          luxReading = getLux();
          if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
          delay(10);
+         luxAttempts++;
      }
+     
+     // If lux sensor failed after multiple attempts, try reinitializing it
+     if (luxReading < 0 && luxAttempts > 50) {  // More than 500ms of failed attempts
+         Serial.println("Lux sensor failed, attempting reinitialization...");
+         if (reinitializeLightSensor()) {
+             // Try one more reading after reinitialization
+             delay(20);  // Give sensor time to stabilize (reduced from 50ms)
+             luxReading = getLux();
+             if (luxReading >= 0) {
+                 Serial.println("Lux sensor recovered after reinitialization");
+             } else {
+                 Serial.println("Lux sensor still failing after reinitialization");
+             }
+         }
+     }
+     
      if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
 }
 
@@ -160,11 +179,29 @@ void FED4::pollSensors() {
     //get lux with timeout
     startTime = millis();
     float luxReading = -1;
+    int luxAttempts = 0;
     while (millis() - startTime < 1000) {  // 1 second timeout
       luxReading = getLux();
       if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
       delay(10);
+      luxAttempts++;
     }
+    
+    // If lux sensor failed after multiple attempts, try reinitializing it
+    if (luxReading < 0 && luxAttempts > 50) {  // More than 500ms of failed attempts
+      Serial.println("Lux sensor failed, attempting reinitialization...");
+      if (reinitializeLightSensor()) {
+        // Try one more reading after reinitialization
+        delay(20);  // Give sensor time to stabilize (reduced from 50ms)
+        luxReading = getLux();
+        if (luxReading >= 0) {
+          Serial.println("Lux sensor recovered after reinitialization");
+        } else {
+          Serial.println("Lux sensor still failing after reinitialization");
+        }
+      }
+    }
+    
     if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
   }
 }
@@ -178,6 +215,12 @@ void FED4::printMemoryStatus() {
                   ESP.getHeapSize(),
                   ESP.getMinFreeHeap(),
                   (float)(ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize() * 100.0);
+    
+    // Additional memory info for debugging small leaks
+    Serial.printf("Memory Details - Largest Block: %d, Allocated: %d, Fragments: %d\n",
+                  ESP.getMaxAllocHeap(),
+                  ESP.getHeapSize() - ESP.getFreeHeap(),
+                  ESP.getHeapSize() - ESP.getFreeHeap() - ESP.getMaxAllocHeap());
 }
 
 /**
@@ -189,4 +232,25 @@ void FED4::debugLuxSensor() {
                   rawLux, 
                   lux, 
                   (rawLux >= 0) ? "Yes" : "No");
+}
+
+/**
+ * Attempts to reinitialize the light sensor if it's not responding
+ */
+bool FED4::reinitializeLightSensor() {
+    Serial.println("Attempting to reinitialize light sensor...");
+    
+    // First, try to reset the I2C bus
+    I2C_2.end();
+    delay(20);  // Give bus time to reset (reduced from 50ms)
+    I2C_2.begin(SDA_2, SCL_2);
+    delay(20);  // Give bus time to stabilize (reduced from 50ms)
+    
+    if (initializeLightSensor()) {
+        Serial.println("Light sensor reinitialized successfully");
+        return true;
+    } else {
+        Serial.println("Light sensor reinitialization failed");
+        return false;
+    }
 }

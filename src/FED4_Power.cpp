@@ -35,6 +35,10 @@ void FED4::startSleep() {
   if (wakeCount % 10 == 0 )  {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
+    
+    // Add delay and I2C recovery after touch calibration to prevent I2C bus issues
+    delay(25);  // Give I2C bus time to stabilize (reduced from 100ms)
+    I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C bus
   }
 
   // Reset all touch flags before going to sleep
@@ -53,7 +57,8 @@ void FED4::startSleep() {
 void FED4::wakeUp() {
   wakeCount++;
   LDO2_ON();
-  Wire.begin();  // Reinitialize I2C
+  Wire.begin();  // Reinitialize primary I2C
+  I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C for light sensor
   // Remove redundant MCP reinitialization - it should already be working
   // mcp.begin_I2C();  // Reinitialize MCP after I2C
   

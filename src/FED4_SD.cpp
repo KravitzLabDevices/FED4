@@ -331,7 +331,8 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
         const char *value = rootObj[subKey];
         if (value)
         {
-            String result = String(value);
+            // Create String only once and return it
+            String result(value);
             doc.clear(); // Explicitly clear the document
             return result;
         }
