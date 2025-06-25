@@ -131,9 +131,9 @@ public:
     void jammed();
 
     // Haptic motor vibration stimuli
-    void hapticBuzz(uint8_t duration = 100);
-    void hapticDoubleBuzz(uint8_t duration = 100);
-    void hapticTripleBuzz(uint8_t duration = 100);
+    void hapticBuzz(uint8_t duration = 200);
+    void hapticDoubleBuzz(uint8_t duration = 200);
+    void hapticTripleBuzz(uint8_t duration = 200);
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
     bool initializeTouch();
@@ -345,6 +345,8 @@ public:
     
     // Debug function for lux sensor
     void debugLuxSensor();
+    void testI2CConnectivity();
+    void checkLightSensorConfig();
 
     ~FED4()
     {

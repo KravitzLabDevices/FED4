@@ -59,6 +59,14 @@ void FED4::wakeUp() {
   LDO2_ON();
   Wire.begin();  // Reinitialize primary I2C
   I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C for light sensor
+  
+  // Reconfigure light sensor after every I2C bus reinitialization
+  delay(10);  // Brief delay for bus stabilization
+  lightSensor.setGain(VEML7700_GAIN_1_8);
+  lightSensor.setIntegrationTime(VEML7700_IT_100MS);
+  lightSensor.enable(true);
+  delay(20);  // Give sensor time to apply settings
+  
   // Remove redundant MCP reinitialization - it should already be working
   // mcp.begin_I2C();  // Reinitialize MCP after I2C
   

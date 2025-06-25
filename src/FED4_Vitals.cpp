@@ -37,7 +37,6 @@ float FED4::getLux()
     
     // Check for invalid readings
     if (isnan(luxValue) || luxValue < 0) {
-        Serial.printf("Lux sensor error: raw value = %.3f\n", luxValue);
         return -1.0; // Return -1 to indicate invalid reading
     }
     
@@ -52,11 +51,16 @@ bool FED4::initializeLightSensor()
         return false;
     }
     
-    // Configure the sensor for optimal reading
-    lightSensor.setGain(VEML7700_GAIN_2);
-    lightSensor.setIntegrationTime(VEML7700_IT_200MS);
+    // Configure the sensor for optimal reading with more robust settings
+    lightSensor.setGain(VEML7700_GAIN_1_8);  // Changed from GAIN_2 to GAIN_1_8 for better sensitivity
+    lightSensor.setIntegrationTime(VEML7700_IT_100MS);  // Changed from 200MS to 100MS for faster response
     
-    Serial.println("Light sensor initialized successfully");
+    // Enable the sensor
+    lightSensor.enable(true);
+    
+    // Add a small delay for configuration to take effect
+    delay(50);
+    
     return true;
 }
 
@@ -115,17 +119,11 @@ void FED4::startupPollSensors(){
      
      // If lux sensor failed after multiple attempts, try reinitializing it
      if (luxReading < 0 && luxAttempts > 50) {  // More than 500ms of failed attempts
-         Serial.println("Lux sensor failed, attempting reinitialization...");
-         if (reinitializeLightSensor()) {
-             // Try one more reading after reinitialization
-             delay(20);  // Give sensor time to stabilize (reduced from 50ms)
-             luxReading = getLux();
-             if (luxReading >= 0) {
-                 Serial.println("Lux sensor recovered after reinitialization");
-             } else {
-                 Serial.println("Lux sensor still failing after reinitialization");
-             }
-         }
+       if (reinitializeLightSensor()) {
+         // Try one more reading after reinitialization
+         delay(20);  // Give sensor time to stabilize (reduced from 50ms)
+         luxReading = getLux();
+       }
      }
      
      if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
@@ -189,16 +187,10 @@ void FED4::pollSensors() {
     
     // If lux sensor failed after multiple attempts, try reinitializing it
     if (luxReading < 0 && luxAttempts > 50) {  // More than 500ms of failed attempts
-      Serial.println("Lux sensor failed, attempting reinitialization...");
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(20);  // Give sensor time to stabilize (reduced from 50ms)
         luxReading = getLux();
-        if (luxReading >= 0) {
-          Serial.println("Lux sensor recovered after reinitialization");
-        } else {
-          Serial.println("Lux sensor still failing after reinitialization");
-        }
       }
     }
     
@@ -224,33 +216,28 @@ void FED4::printMemoryStatus() {
 }
 
 /**
- * Debug function to monitor lux sensor behavior
- */
-void FED4::debugLuxSensor() {
-    float rawLux = lightSensor.readLux();
-    Serial.printf("Lux Debug - Raw: %.3f, Current: %.3f, Valid: %s\n", 
-                  rawLux, 
-                  lux, 
-                  (rawLux >= 0) ? "Yes" : "No");
-}
-
-/**
  * Attempts to reinitialize the light sensor if it's not responding
  */
 bool FED4::reinitializeLightSensor() {
-    Serial.println("Attempting to reinitialize light sensor...");
-    
     // First, try to reset the I2C bus
     I2C_2.end();
     delay(20);  // Give bus time to reset (reduced from 50ms)
     I2C_2.begin(SDA_2, SCL_2);
     delay(20);  // Give bus time to stabilize (reduced from 50ms)
     
+    // Try to initialize the sensor
     if (initializeLightSensor()) {
-        Serial.println("Light sensor reinitialized successfully");
+        // Test multiple readings to ensure stability
+        for (int i = 0; i < 3; i++) {
+            float testReading = lightSensor.readLux();
+            if (testReading < 0) {
+                return false;
+            }
+            delay(10);
+        }
+        
         return true;
     } else {
-        Serial.println("Light sensor reinitialization failed");
         return false;
     }
 }
