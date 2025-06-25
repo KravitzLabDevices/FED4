@@ -334,26 +334,26 @@ void FED4::refresh()
     uint8_t bytes_per_line = DISPLAY_WIDTH / 8;
     uint16_t totalbytes = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
 
+    // Use static buffer to avoid stack allocation on every call
+    static uint8_t lineBuffer[22]; // Maximum size needed: bytes_per_line + 2 = 18 + 2 = 20, rounded up to 22
+
     // Send all lines
     for (i = 0; i < totalbytes; i += bytes_per_line)
     {
-        // Prepare the line buffer
-        uint8_t line[bytes_per_line + 2];
-
         // Send address byte (line number)
         currentline = ((i + 1) / (DISPLAY_WIDTH / 8)) + 1;
-        line[0] = currentline;
+        lineBuffer[0] = currentline;
 
         // Copy display data for this line
-        memcpy(line + 1, displayBuffer + i, bytes_per_line);
+        memcpy(lineBuffer + 1, displayBuffer + i, bytes_per_line);
 
         // Add end of line marker
-        line[bytes_per_line + 1] = 0x00;
+        lineBuffer[bytes_per_line + 1] = 0x00;
 
         // Send the entire line at once
         for (uint8_t j = 0; j < bytes_per_line + 2; j++)
         {
-            SPI.transfer(line[j]);
+            SPI.transfer(lineBuffer[j]);
         }
     }
 
