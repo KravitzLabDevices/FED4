@@ -48,9 +48,21 @@ int FED4::Prox()
     }
     
     // Get the distance measurement
-    int calibration = 20; //set calibration value here
+    int calibration = 20; //set calibration value here, default is 20mm 
     distance = distanceSensor.getDistance() - calibration;
-    
+
+    //limit reported distance to 0-150mm, with error value of -1
+    if (distance >= -20 && distance < 0) {
+        distance = 0;
+    }
+    if (distance > 150) {
+        distance = 150;
+    }
+    //error value of -1 if sensor is not responding
+    if (distance == -21) {
+        distance = -1;
+    }
+
     // Clear interrupt and stop ranging
     distanceSensor.clearInterrupt();
     distanceSensor.stopRanging();
