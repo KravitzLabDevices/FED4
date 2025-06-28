@@ -6,8 +6,6 @@ SFEVL53L1X distanceSensor(Wire, EXP_XSHUT_1);
 
 bool FED4::initializeToF()
 {
-    Serial.println("Initializing ToF sensor...");
-    
     // Configure XSHUT pin on MCP expander
     mcp.pinMode(EXP_XSHUT_1, OUTPUT);
     mcp.digitalWrite(EXP_XSHUT_1, HIGH);  // XSHUT must be pulled high for the sensor to be found
@@ -16,7 +14,7 @@ bool FED4::initializeToF()
     // Initialize the sensor
     if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
     {
-        Serial.println("ToF sensor failed to begin.");
+        Serial.println("ToF sensor failed to begin");
         return false;
     }
     
