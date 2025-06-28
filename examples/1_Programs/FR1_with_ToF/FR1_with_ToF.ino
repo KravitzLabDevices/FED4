@@ -47,8 +47,9 @@ void loop() {
     //Check ToF and control side LED based on proximity of mouse to center port
     unsigned long starttime = millis();
     while (millis() < starttime + 3000) {
-      int proximity  = fed4.Prox();  // Take and print measurement
-      fed4.setPixColor(proximity, 0, 255-proximity, 255);
+      int proximity = fed4.Prox();                          // Take Prox measurement
+      fed4.setPixColor(proximity, 0, 255 - proximity, 255); // light up side pixel to indicate Prox - red for far, blue for close
+      Serial.print("Prox: ");                               // Print Prox to serial monitor
       Serial.println(proximity);
     }
   }

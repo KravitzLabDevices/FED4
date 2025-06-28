@@ -20,7 +20,7 @@ bool FED4::initializeToF()
         return false;
     }
     
-    Serial.println("ToF sensor online!");
+    Serial.println("ToF sensor initialized");
     return true;
 }
 
