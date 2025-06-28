@@ -45,7 +45,8 @@ bool FED4::begin(const char* programName)
         {"Speaker", {false, ""}},
         {"Accelerometer", {false, ""}},
         {"Magnet", {false, ""}},
-        {"Motion", {false, ""}}}; 
+        {"Motion", {false, ""}},
+        {"ToF Sensor", {false, ""}}}; 
 
 
 
@@ -210,6 +211,14 @@ bool FED4::begin(const char* programName)
         Serial.println("Motion sensor initialization failed");
     }
     stripRainbow(3, 1);  
+
+    // Initialize ToF sensor
+    Serial.println("Initializing ToF sensor");
+    statuses["ToF Sensor"].initialized = initializeToF();
+    if (!statuses["ToF Sensor"].initialized)
+    {
+        Serial.println("ToF sensor initialization failed");
+    }
 
     statuses["Display"].initialized = initializeDisplay();
     startupAnimation();

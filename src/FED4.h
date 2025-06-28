@@ -30,6 +30,7 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
 #include "SparkFun_STHS34PF80_Arduino_Library.h"
+#include "SparkFun_VL53L1X.h"
 #include "Adafruit_VEML7700.h"
 #include <ESP32Time.h>
 
@@ -339,6 +340,11 @@ public:
     bool getPresenceValue(int16_t *presenceVal);
     bool getMotionValue(int16_t *motionVal);
     bool getTemperatureValue(float *tempVal);
+
+    // ToF sensor functions (defined in FED4_ToF.cpp)
+    bool initializeToF();
+    int readToFDistance();
+    void printToFDistance();
 
     // Memory monitoring function
     void printMemoryStatus();
