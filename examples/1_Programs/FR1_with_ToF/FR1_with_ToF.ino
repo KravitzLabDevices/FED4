@@ -49,7 +49,6 @@ void loop() {
     while (millis() < starttime + 3000) {
       int proximity  = fed4.Prox();  // Take and print measurement
       fed4.setPixColor(proximity, 0, 255-proximity, 255);
-      delay(50);
       Serial.println(proximity);
     }
   }

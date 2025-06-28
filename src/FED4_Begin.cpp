@@ -213,7 +213,6 @@ bool FED4::begin(const char* programName)
     stripRainbow(3, 1);  
 
     // Initialize ToF sensor
-    Serial.println("Initializing ToF sensor");
     statuses["ToF Sensor"].initialized = initializeToF();
     if (!statuses["ToF Sensor"].initialized)
     {
