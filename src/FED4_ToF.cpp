@@ -16,7 +16,7 @@ bool FED4::initializeToF()
     // Initialize the sensor
     if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
     {
-        Serial.println("ToF sensor failed to begin. Please check wiring.");
+        Serial.println("ToF sensor failed to begin.");
         return false;
     }
     
@@ -24,7 +24,7 @@ bool FED4::initializeToF()
     return true;
 }
 
-int FED4::readToFDistance()
+int FED4::Prox()
 {
     mcp.pinMode(EXP_XSHUT_1, OUTPUT);
     mcp.digitalWrite(EXP_XSHUT_1, HIGH);  // XSHUT must be pulled high for the sensor to be found
@@ -33,7 +33,7 @@ int FED4::readToFDistance()
     // Initialize the sensor
     if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
     {
-        Serial.println("ToF sensor failed to begin. Please check wiring.");
+        Serial.println("ToF sensor failed to begin.");
         return false;
     }
 
@@ -48,23 +48,12 @@ int FED4::readToFDistance()
     }
     
     // Get the distance measurement
-    distance = distanceSensor.getDistance();
+    int calibration = 20; //set calibration value here
+    distance = distanceSensor.getDistance() - calibration;
     
     // Clear interrupt and stop ranging
     distanceSensor.clearInterrupt();
     distanceSensor.stopRanging();
     
     return distance;
-}
-
-void FED4::printToFDistance()
-{
-    int distance = readToFDistance();
-    
-    if (distance >= 0) {
-        Serial.print("ToF Distance(mm): ");
-        Serial.println(distance);
-    } else {
-        Serial.println("ToF sensor error - no valid reading");
-    }
 } 

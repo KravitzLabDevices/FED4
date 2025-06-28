@@ -343,8 +343,7 @@ public:
 
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
-    int readToFDistance();
-    void printToFDistance();
+    int Prox();
 
     // Memory monitoring function
     void printMemoryStatus();
