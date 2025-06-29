@@ -12,7 +12,7 @@ bool FED4::initializeToF()
     
     // Set I2C clock speed for better compatibility
     Wire.setClock(100000); // Set to 100kHz for better compatibility
-    delay(10);
+    delay(100);
     
     // Attempt to initialize the sensor
     int result = distanceSensor.begin();
@@ -25,7 +25,7 @@ bool FED4::initializeToF()
     
     // Test basic functionality
     distanceSensor.startRanging();
-    delay(10);
+    delay(100);
     
     if (distanceSensor.checkForDataReady()) {
         distanceSensor.clearInterrupt();
@@ -42,7 +42,7 @@ int FED4::Prox()
 {
     // Ensure XSHUT is high (should already be set from initialization)
     mcp.digitalWrite(1, HIGH); // Use pin 1 instead of EXP_XSHUT_1
-    delay(1); // Give sensor time to wake up
+    delay(10); // Give sensor time to wake up
     
     // Try to initialize the sensor if not already done
     if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
