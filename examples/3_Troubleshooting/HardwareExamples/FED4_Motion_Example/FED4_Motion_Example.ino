@@ -34,13 +34,14 @@ void setup() {
 
 void loop() {
   // Check for motion
-  bool motionDetected = fed4.isMotionDetected();
+  bool motion = fed4.Motion();
+  Serial.print(millis());
 
   // Update display with motion status
-  if (motionDetected) {
-    Serial.println("Motion detected!");
+  if (motion) {
+    Serial.println(", Motion detected!");
   } else {
-    Serial.println("No motion");
+    Serial.println(", No motion");
   }
 
   // Small delay to prevent overwhelming the sensor

@@ -1,8 +1,5 @@
 #include "FED4.h"
 
-// Motion sensor instance using the second I2C bus
-STHS34PF80_I2C motionSensor;
-
 bool FED4::initializeMotion()
 {
     Serial.println("=== Motion Sensor Initialization ===");
@@ -88,7 +85,7 @@ bool FED4::initializeMotion()
     }
 }
 
-bool FED4::isMotionDetected()
+bool FED4::Motion()
 {
     // Check if sensor has new data
     sths34pf80_tmos_drdy_status_t dataReady;

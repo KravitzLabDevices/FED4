@@ -337,7 +337,7 @@ public:
 
     // Motion sensor functions (defined in FED4_Motion.cpp)
     bool initializeMotion();
-    bool isMotionDetected();
+    bool Motion();
 
     // Memory monitoring function
     void printMemoryStatus();
