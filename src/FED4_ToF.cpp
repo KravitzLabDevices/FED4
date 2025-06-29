@@ -1,75 +1,69 @@
 #include "FED4.h"
-#include <vl53l4cd_class.h>
+#include "SparkFun_VL53L1X.h"
 
-// Global flag to track if ToF sensor is working
-static bool tofSensorWorking = false;
+// ToF sensor instance
+SFEVL53L1X distanceSensor(Wire, EXP_XSHUT_1);
 
 bool FED4::initializeToF()
 {
-    Serial.println("Starting ToF sensor initialization...");
-    
     // Configure XSHUT pin on MCP expander
     mcp.pinMode(EXP_XSHUT_1, OUTPUT);
-    mcp.digitalWrite(EXP_XSHUT_1, HIGH); // XSHUT must be pulled high for the sensor to be found
-    
-    // Initialize I2C
-    Wire.begin();
+    mcp.digitalWrite(EXP_XSHUT_1, HIGH);  // XSHUT must be pulled high for the sensor to be found
+    delay(10); // Give sensor time to wake up
     
     // Initialize the sensor
-    if (tofSensor.begin() != 0) {
-        Serial.println("ToF sensor begin() failed");
+    if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
+    {
+        Serial.println("ToF sensor failed to begin");
         return false;
     }
     
-    // Configure the sensor
-    tofSensor.VL53L4CD_Off();
-    tofSensor.InitSensor();
-    tofSensor.VL53L4CD_SetRangeTiming(200, 0);
-    tofSensor.VL53L4CD_StartRanging();
-    
-    Serial.println("ToF sensor initialized successfully");
+    Serial.println("ToF sensor initialized");
     return true;
 }
 
-uint16_t FED4::readProx()
+int FED4::Prox()
 {
-    uint8_t NewDataReady = 0;
-    VL53L4CD_Result_t results;
-    uint8_t status;
+    mcp.pinMode(EXP_XSHUT_1, OUTPUT);
+    mcp.digitalWrite(EXP_XSHUT_1, HIGH);  // XSHUT must be pulled high for the sensor to be found
+    delay(10); // Give sensor time to wake up
     
-    // Check if new data is ready
-    do {
-        status = tofSensor.VL53L4CD_CheckForDataReady(&NewDataReady);
-    } while (!NewDataReady);
+    // Initialize the sensor
+    if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
+    {
+        Serial.println("ToF sensor failed to begin.");
+        return false;
+    }
+
+    int distance = -1; // Default error value
     
-    if ((!status) && (NewDataReady != 0)) {
-        // Clear HW interrupt to restart measurements
-        tofSensor.VL53L4CD_ClearInterrupt();
-        
-        // Read measured distance
-        tofSensor.VL53L4CD_GetResult(&results);
-        
-        // Return distance in mm if valid data (RangeStatus = 0)
-        if (results.range_status == 0) {
-            return results.distance_mm;
-        } else {
-            return 0xFFFF; // Return max value to indicate invalid reading
-        }
+    // Start ranging
+    distanceSensor.startRanging();
+    
+    // Wait for data to be ready
+    while (!distanceSensor.checkForDataReady()) {
+        delay(1);
     }
     
-    return 0xFFFF; // Return max value if no data available
-}
+    // Get the distance measurement
+    int calibration = 20; //set calibration value here, default is 20mm 
+    distance = distanceSensor.getDistance() - calibration;
 
-// Function to handle ToF sensor during sleep/wake cycles
-void FED4::tofSleep()
-{
-    // Stop ranging before sleep
-    tofSensor.VL53L4CD_StopRanging();
-}
+    //limit reported distance to 0-150mm, with error value of -1
+    if (distance >= -20 && distance < 0) {
+        distance = 0;
+    }
+    if (distance > 150) {
+        distance = 150;
+    }
+    //error value of -1 if sensor is not responding
+    if (distance == -21) {
+        distance = -1;
+    }
 
-void FED4::tofWake()
-{
-    // Restart ranging after wake
-    tofSensor.VL53L4CD_StartRanging();
-    delay(50); // Give sensor time to start ranging
+    // Clear interrupt and stop ranging
+    distanceSensor.clearInterrupt();
+    distanceSensor.stopRanging();
+    
+    return distance;
 } 
