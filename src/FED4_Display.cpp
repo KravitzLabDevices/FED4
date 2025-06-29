@@ -278,7 +278,7 @@ bool FED4::initializeDisplay()
 
     digitalWrite(DISPLAY_CS, LOW); // Deselect display
 
-    delay(10); // Give display time to process clear command
+    delay(1); // Give display time to process clear command
 
     setRotation(2);
     setFont(&FreeSans9pt7b);

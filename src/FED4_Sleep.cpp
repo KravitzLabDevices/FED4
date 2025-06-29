@@ -2,7 +2,7 @@
 
 // High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep() {
-  // Enable timer-based wake-up every 5 seconds
+  // Enable timer-based wake-up every N seconds
   esp_sleep_enable_timer_wakeup(6 * 1000000); // Convert 6 seconds to microseconds
   noPix(); 
   startSleep();
@@ -28,7 +28,7 @@ void FED4::startSleep() {
     if (leftDev < TOUCH_THRESHOLD && centerDev < TOUCH_THRESHOLD && rightDev < TOUCH_THRESHOLD) {
       break;
     }
-    delay(10);
+    delay(1);
   }
 
   // Calibrate touch sensors before sleep on every N wake-ups
@@ -37,7 +37,7 @@ void FED4::startSleep() {
     Serial.println("********** Touch sensors calibrated **********");
     
     // Add delay and I2C recovery after touch calibration to prevent I2C bus issues
-    delay(25);  // Give I2C bus time to stabilize (reduced from 100ms)
+    delay(1);  // Give I2C bus time to stabilize (reduced from 100ms)
     I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C bus
   }
 
@@ -129,7 +129,7 @@ bool FED4::initializeLDOs()
 void FED4::LDO2_ON()
 {
     digitalWrite(LDO2_ENABLE, HIGH);
-    delay(5); // Minimum 50us stabilization time
+    delayMicroseconds(100); // Minimum 50us stabilization time
 }
 
 // Disables LDO2 power rail
