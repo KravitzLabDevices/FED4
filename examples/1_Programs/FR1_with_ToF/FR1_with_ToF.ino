@@ -44,6 +44,10 @@ void loop() {
     fed4.rightLight("blue");  // light LEDs around right poke blue
     fed4.logData("Right");
 
+    // Force reinitialize motion sensor before reading
+    fed4.forceMotionSensorReinit();
+    delay(100);  // Give sensor time to stabilize
+
     //Check ToF and control side LED based on proximity of mouse to center port
     unsigned long starttime = millis();
     while (millis() < starttime + 3000) {
