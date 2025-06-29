@@ -198,7 +198,7 @@ public:
     
     void serialStatusReport();
 
-    // Power management (defined in FED4_Power.cpp)
+    // Sleep management (defined in FED4_Sleep.cpp)
     void sleep();
     void startSleep();
     void wakeUp();
@@ -397,7 +397,6 @@ private:
     friend class FED4_Display;
     friend class FED4_LED;
     friend class FED4_Motor;
-    friend class FED4_Power;
     friend class FED4_RTC;
     friend class FED4_SD;
     friend class FED4_Sensors;
@@ -406,10 +405,10 @@ private:
     friend class FED4_Begin;
     friend class FED4_Speaker;
     friend class FED4_Magnet;
-
     friend class FED4_Accel;
     friend class FED4_Menu;
     friend class FED4_Motion;
+    friend class FED4_Sleep;
 };
 
 // Standard ASCII 5x7 font
