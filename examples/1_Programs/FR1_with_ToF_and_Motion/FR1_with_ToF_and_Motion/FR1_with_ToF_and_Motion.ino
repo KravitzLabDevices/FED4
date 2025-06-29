@@ -61,7 +61,7 @@ void loop() {
       if (motion) {
         fed4.centerLight("cyan");  // light LEDs around center poke cyan
       } else {
-        fed4.centerLight("black");  // light LEDs around center poke cyan
+        fed4.centerLight("black");  // turn off center poke LEDs
       }
     }
   }
