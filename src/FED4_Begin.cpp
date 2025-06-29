@@ -217,6 +217,13 @@ bool FED4::begin(const char* programName)
         Serial.println("ToF sensor initialization failed");
     }
 
+    // Initialize Motion sensor
+    statuses["Motion"].initialized = initializeMotion();
+    if (!statuses["Motion"].initialized)
+    {
+        Serial.println("Motion sensor initialization failed");
+    }
+
     statuses["Display"].initialized = initializeDisplay();
     startupAnimation();
 

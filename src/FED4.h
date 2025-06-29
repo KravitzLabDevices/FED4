@@ -30,6 +30,7 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
 #include "SparkFun_VL53L1X.h"
+#include "SparkFun_STHS34PF80_Arduino_Library.h"
 #include "Adafruit_VEML7700.h"
 #include <ESP32Time.h>
 
@@ -334,6 +335,10 @@ public:
     bool initializeToF();
     int Prox();
 
+    // Motion sensor functions (defined in FED4_Motion.cpp)
+    bool initializeMotion();
+    bool isMotionDetected();
+
     // Memory monitoring function
     void printMemoryStatus();
     
@@ -365,6 +370,7 @@ private:
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
+    STHS34PF80_I2C motionSensor;
     Adafruit_VEML7700 lightSensor;
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
@@ -403,6 +409,7 @@ private:
 
     friend class FED4_Accel;
     friend class FED4_Menu;
+    friend class FED4_Motion;
 };
 
 // Standard ASCII 5x7 font
