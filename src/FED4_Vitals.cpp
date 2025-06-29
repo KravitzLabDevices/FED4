@@ -59,7 +59,7 @@ bool FED4::initializeLightSensor()
     lightSensor.enable(true);
     
     // Add a small delay for configuration to take effect
-    delay(50);
+    delay(5);
     
     return true;
 }
@@ -147,7 +147,7 @@ void FED4::pollSensors() {
     while (millis() - startTime < 1000) {  // 1 second timeout
       temp = getTemperature();
       if (temp > 5) break;  // Valid reading obtained
-      delay(10);
+      delay(1);
     }
     if (temp > 5) temperature = temp;
     
@@ -156,7 +156,7 @@ void FED4::pollSensors() {
     while (millis() - startTime < 1000) {  // 1 second timeout
       hum = getHumidity();
       if (hum > 5) break;  // Valid reading obtained
-      delay(10);
+      delay(1);
     }
     
     if (hum > 5) humidity = hum;
@@ -167,7 +167,7 @@ void FED4::pollSensors() {
       cellVoltage = getBatteryVoltage();
       cellPercent = getBatteryPercentage();
       if (cellVoltage > 0) break;  // Valid reading obtained
-      delay(10);
+      delay(1);
     }
     
     if (cellPercent > 100) {
@@ -181,7 +181,7 @@ void FED4::pollSensors() {
     while (millis() - startTime < 1000) {  // 1 second timeout
       luxReading = getLux();
       if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
-      delay(10);
+      delay(1);
       luxAttempts++;
     }
     
@@ -189,7 +189,7 @@ void FED4::pollSensors() {
     if (luxReading < 0 && luxAttempts > 50) {  // More than 500ms of failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
-        delay(20);  // Give sensor time to stabilize (reduced from 50ms)
+        delay(5);  // Give sensor time to stabilize (reduced from 50ms)
         luxReading = getLux();
       }
     }
@@ -221,9 +221,9 @@ void FED4::printMemoryStatus() {
 bool FED4::reinitializeLightSensor() {
     // First, try to reset the I2C bus
     I2C_2.end();
-    delay(20);  // Give bus time to reset (reduced from 50ms)
+    delay(1);  // Give bus time to reset (reduced from 50ms)
     I2C_2.begin(SDA_2, SCL_2);
-    delay(20);  // Give bus time to stabilize (reduced from 50ms)
+    delay(1);  // Give bus time to stabilize (reduced from 50ms)
     
     // Try to initialize the sensor
     if (initializeLightSensor()) {
@@ -233,7 +233,7 @@ bool FED4::reinitializeLightSensor() {
             if (testReading < 0) {
                 return false;
             }
-            delay(10);
+            delay(1);
         }
         
         return true;

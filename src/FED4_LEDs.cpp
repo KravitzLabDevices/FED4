@@ -46,7 +46,7 @@ bool FED4::initializeStrip()
     // Test the strip by setting all pixels to red briefly
     fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Red);
     FastLED.show();
-    delay(100);
+    delay(1);
     fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
     FastLED.show();
     
@@ -226,7 +226,7 @@ void FED4::rightLight(const char *colorName)
 bool FED4::initializePixel()
 {
     pixels.begin(); // Initialize NeoPixel
-    delay(10);
+    delay(1);
     pixels.clear();
     pixels.setBrightness(50); // Set a default brightness
     noPix();

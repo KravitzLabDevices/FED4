@@ -44,7 +44,7 @@ bool FED4::initializeToF()
     // Step 2: Set I2C clock speed for better compatibility
     Serial.println("Step 2: Configuring I2C clock speed...");
     Wire.setClock(100000); // Set to 100kHz for better compatibility
-    delay(100);
+    delay(10);
     
     // Step 3: Test I2C connectivity
     Serial.println("Step 3: Testing I2C connectivity...");
@@ -92,7 +92,7 @@ int FED4::Prox()
 {
     // Ensure XSHUT is high (should already be set from initialization)
     mcp.digitalWrite(1, HIGH); // Use pin 1 instead of EXP_XSHUT_1
-    delay(10); // Give sensor time to wake up
+    delay(1); // Give sensor time to wake up
     
     // Try to initialize the sensor if not already done
     if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
