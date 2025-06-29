@@ -51,7 +51,7 @@ bool FED4::begin(const char* programName)
 
 
     // Initialize I2C buses
-    statuses["I2C Primary"].initialized = Wire.begin();
+    statuses["I2C Primary"].initialized = Wire.begin(SDA, SCL);
     if (!statuses["I2C Primary"].initialized)
     {
         Serial.println("I2C Error - check I2C Address");
@@ -135,6 +135,8 @@ bool FED4::begin(const char* programName)
     // Configure all GPIO pins
     Serial.println("Configuring GPIO pins");
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
+    mcp.pinMode(1, OUTPUT);  // Configure ToF sensor XSHUT pin (pin 1, not EXP_XSHUT_1)
+    mcp.digitalWrite(1, HIGH);  // Enable ToF sensor
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_2, INPUT);
     pinMode(AUDIO_TRRS_3, INPUT);
