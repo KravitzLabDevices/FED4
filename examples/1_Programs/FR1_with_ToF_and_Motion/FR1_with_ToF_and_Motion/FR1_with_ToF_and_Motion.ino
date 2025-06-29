@@ -60,6 +60,8 @@ void loop() {
       bool motion = fed4.Motion();
       if (motion) {
         fed4.centerLight("cyan");  // light LEDs around center poke cyan
+      } else {
+        fed4.centerLight("black");  // light LEDs around center poke cyan
       }
     }
   }

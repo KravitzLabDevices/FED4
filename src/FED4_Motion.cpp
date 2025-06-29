@@ -106,4 +106,4 @@ bool FED4::Motion()
     
     // Return true if motion is detected
     return (status.mot_flag == 1);
-}
+} 

@@ -79,6 +79,9 @@ public:
     static void IRAM_ATTR onButton1WakeUp();
     static void IRAM_ATTR onButton2WakeUp();
     static void IRAM_ATTR onButton3WakeUp();
+    void checkButton1();
+    void checkButton2();
+    void checkButton3();
 
     // Corefunctions
     void feed();
@@ -203,9 +206,6 @@ public:
     void startSleep();
     void wakeUp();
     void handleTouch();
-    void checkButton1();
-    void checkButton2();
-    void checkButton3();
     bool initializeLDOs();
     void LDO2_ON();
     void LDO2_OFF();

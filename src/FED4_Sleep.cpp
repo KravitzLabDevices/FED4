@@ -67,6 +67,18 @@ void FED4::wakeUp() {
   lightSensor.enable(true);
   delay(20);  // Give sensor time to apply settings
   
+  // Reconfigure motion sensor after I2C bus reinitialization
+  delay(10);  // Brief delay for bus stabilization
+  if (motionSensor.begin(0x5A, I2C_2)) {
+    // Reconfigure motion sensor settings
+    motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
+    motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
+    motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
+    motionSensor.setMotionThreshold(200);
+    motionSensor.setMotionHysteresis(10);
+    delay(20);  // Give sensor time to apply settings
+  }
+  
   // Remove redundant MCP reinitialization - it should already be working
   // mcp.begin_I2C();  // Reinitialize MCP after I2C
   
@@ -106,52 +118,6 @@ void FED4::handleTouch() {
 
   // If we get here, this is a touch pad wake-up, so interpret the touch
   interpretTouch();
-}
-
-// Checks if feed button is held and dispenses test pellet after 1 second
-void FED4::checkButton1() {
-  int holdTime = 0;
-  while (digitalRead(BUTTON_1) == 1) {
-    delay(100);
-    holdTime += 100;
-    if (holdTime >= 1000) {
-        bopBeep();
-        Serial.println("********** TEST PELLET DISPENSE **********");
-        feed();
-        break;
-    }
-  }
-}
-
-// Checks if reset button is held and performs device reset after 1 second
-void FED4::checkButton2() {
-  int holdTime = 0;
-  while (digitalRead(BUTTON_2) == 1) {
-    delay(100);
-    holdTime += 100;
-    if (holdTime >= 1000) {
-        colorWipe("red", 100); // red
-        resetJingle();
-        Serial.println("********** BUTTON 2 FORCED RESET! **********");
-        esp_restart();
-        break;
-    }
-  }
-}
-
-// Checks if Button 3 is held and dispenses test pellet after 1 second
-void FED4::checkButton3() {
-  int holdTime = 0;
-  while (digitalRead(BUTTON_3) == 1) {
-    delay(100);
-    holdTime += 100;
-    if (holdTime >= 1000) {
-        menuJingle();
-        Serial.println("********** BUTTON 3 MENU START **********");
-        menu();
-        break;
-    }
-  }
 }
 
 // Initializes LDO (Low-Dropout Regulator) power control pins

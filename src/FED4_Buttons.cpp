@@ -57,3 +57,49 @@ bool FED4::initializeButtons() {
     return true;
 }
 
+// Checks if feed button is held and dispenses test pellet after 1 second
+void FED4::checkButton1() {
+  int holdTime = 0;
+  while (digitalRead(BUTTON_1) == 1) {
+    delay(100);
+    holdTime += 100;
+    if (holdTime >= 1000) {
+        bopBeep();
+        Serial.println("********** TEST PELLET DISPENSE **********");
+        feed();
+        break;
+    }
+  }
+}
+
+// Checks if reset button is held and performs device reset after 1 second
+void FED4::checkButton2() {
+  int holdTime = 0;
+  while (digitalRead(BUTTON_2) == 1) {
+    delay(100);
+    holdTime += 100;
+    if (holdTime >= 1000) {
+        colorWipe("red", 100); // red
+        resetJingle();
+        Serial.println("********** BUTTON 2 FORCED RESET! **********");
+        esp_restart();
+        break;
+    }
+  }
+}
+
+// Checks if Button 3 is held and dispenses test pellet after 1 second
+void FED4::checkButton3() {
+  int holdTime = 0;
+  while (digitalRead(BUTTON_3) == 1) {
+    delay(100);
+    holdTime += 100;
+    if (holdTime >= 1000) {
+        menuJingle();
+        Serial.println("********** BUTTON 3 MENU START **********");
+        menu();
+        break;
+    }
+  }
+}
+
