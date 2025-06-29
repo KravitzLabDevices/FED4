@@ -29,7 +29,6 @@
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
-#include "SparkFun_STHS34PF80_Arduino_Library.h"
 #include "SparkFun_VL53L1X.h"
 #include "Adafruit_VEML7700.h"
 #include <ESP32Time.h>
@@ -40,7 +39,6 @@
 // Device Constants
 static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;        // Default I2C address for LIS3DH accelerometer
 static const uint8_t MLX90393_I2C_ADDRESS = 0x0C;      // Default I2C address for MLX90393 magnetometer
-static const uint8_t MOTION_SENSOR_I2C_ADDRESS = 0x5A; // Default I2C address for STHS34PF80 motion sensor
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -332,15 +330,6 @@ public:
     bool getMagnetEvent(sensors_event_t *event);
     void configureMagnet(mlx90393_gain_t gain = MLX90393_GAIN_5X);
 
-    // Motion sensor functions (defined in FED4_Motion.cpp)
-    bool initializeMotionSensor();
-    void configureMotionSensor(uint16_t threshold = 1000, uint8_t hysteresis = 100);
-    bool isMotionDataReady();
-    bool getMotionStatus(sths34pf80_tmos_func_status_t *status);
-    bool getPresenceValue(int16_t *presenceVal);
-    bool getMotionValue(int16_t *motionVal);
-    bool getTemperatureValue(float *tempVal);
-
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
     int Prox();
@@ -376,7 +365,6 @@ private:
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
-    STHS34PF80_I2C motionSensor;
     Adafruit_VEML7700 lightSensor;
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
@@ -412,7 +400,6 @@ private:
     friend class FED4_Begin;
     friend class FED4_Speaker;
     friend class FED4_Magnet;
-    friend class FED4_Motion;
 
     friend class FED4_Accel;
     friend class FED4_Menu;

@@ -207,11 +207,7 @@ bool FED4::begin(const char* programName)
         Serial.println("Magnet sensor initialization failed");
     }
 
-    statuses["Motion"].initialized = initializeMotionSensor();
-    if (!statuses["Motion"].initialized)
-    {
-        Serial.println("Motion sensor initialization failed");
-    }
+
     stripRainbow(3, 1);  
 
     // Initialize ToF sensor
