@@ -140,11 +140,27 @@ void FED4::pollSensors() {
   motionDetected = motion();
   if (motionDetected) {
     whitePix(100);
+    motionCount++; // Aggregate motion detections
   }
+  
+  // Increment poll counter for percentage calculation
+  pollCount++;
 
   int minToUpdateSensors = 5;  //update sensors every N minutes
   if (millis()-lastPollTime > (minToUpdateSensors * 60000)) {
     lastPollTime = millis();
+    
+    // Calculate motion percentage for the last 5-minute period using actual poll count
+    if (pollCount > 0) {
+      motionPercentage = (float)motionCount / pollCount * 100.0;
+    } else {
+      motionPercentage = 0.0;
+    }
+    
+    // Reset counters for next 5-minute period
+    motionCount = 0;
+    pollCount = 0;
+    
     // get temp and humidity with timeouts
     unsigned long startTime = millis();
     float temp = -1;
@@ -206,6 +222,15 @@ void FED4::pollSensors() {
     }
     
     if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
+
+    //log sensor data
+    logData("StatusReport");
+    luxReading = NAN;
+    motionPercentage = NAN;
+    temp =  NAN;
+    hum = NAN;
+    cellVoltage = NAN;
+    cellPercent = NAN;
   }
 }
 

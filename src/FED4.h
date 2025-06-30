@@ -235,6 +235,9 @@ public:
     bool centerTouch;
     bool rightTouch;
     bool motionDetected = false; // Track motion detection status
+    int motionCount = 0; // Aggregate motion detections between 5-minute intervals
+    float motionPercentage = 0.0; // Percentage of motion detections in the last 5-minute period
+    int pollCount = 0; // Track total number of polls in each 5-minute period
     unsigned long waketime;
 
     // RTC functions

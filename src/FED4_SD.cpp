@@ -180,7 +180,7 @@ void FED4::createLogFile()
     if (dataFile)
     {
         dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
-        dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,");
+        dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
         dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
     }
@@ -261,6 +261,7 @@ void FED4::logData(const String &newEvent)
     dataFile.write(',');
     dataFile.write(dispenseError ? '1' : '0'); // Write single character
     dataFile.write(',');                       // Write comma as single character
+    dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
 
     // Write environmental data
     dataFile.printf("%.1f,%.1f,%.1f,",
