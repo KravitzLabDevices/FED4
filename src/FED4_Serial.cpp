@@ -10,7 +10,7 @@ void FED4::serialStatusReport()
         rtc.now().month(), rtc.now().day(), rtc.now().year(), rtc.now().hour(), rtc.now().minute(), rtc.now().second(),
         temperature, humidity, lux,
         cellVoltage, cellPercent,
-        motionDetected ? "   Motion" : "No Motion",
+        motionDetected, 
         pelletCount,    
         leftCount, centerCount, rightCount,
         ESP.getFreeHeap());

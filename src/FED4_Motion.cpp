@@ -42,7 +42,7 @@ bool FED4::initializeMotion()
     }
     
     // Set motion threshold (200 is a good starting value)
-    if (motionSensor.setMotionThreshold(200) != 0) {
+    if (motionSensor.setMotionThreshold(25) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }

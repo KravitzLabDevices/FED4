@@ -142,7 +142,7 @@ void FED4::pollSensors() {
     whitePix(100);
   }
 
-  int minToUpdateSensors = 1;  //update sensors every N minutes
+  int minToUpdateSensors = 5;  //update sensors every N minutes
   if (millis()-lastPollTime > (minToUpdateSensors * 60000)) {
     lastPollTime = millis();
     // get temp and humidity with timeouts
@@ -182,6 +182,10 @@ void FED4::pollSensors() {
     }
 
     //get lux with timeout
+    lightSensor.setGain(VEML7700_GAIN_1_8);
+    lightSensor.setIntegrationTime(VEML7700_IT_100MS);
+    lightSensor.enable(true);
+    
     startTime = millis();
     float luxReading = -1;
     int luxAttempts = 0;
