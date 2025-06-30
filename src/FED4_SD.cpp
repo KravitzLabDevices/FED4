@@ -155,8 +155,9 @@ void FED4::createLogFile()
         }
         dataFile.close();
                 
-        if (lineCount <= 2) {
-            // File has 2 or fewer lines, delete and reuse this filename
+        if (lineCount <= 3) {
+            // File has 3 or fewer lines, delete and reuse this filename
+            Serial.println("Over-writing existing file");
             SD.remove(baseFilename);
             break;
         }

@@ -74,7 +74,7 @@ void FED4::wakeUp() {
       motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
       motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
       motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-      motionSensor.setMotionThreshold(25);
+      motionSensor.setMotionThreshold(50);
       motionSensor.setMotionHysteresis(10);
     }
   }
