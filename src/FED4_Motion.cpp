@@ -65,7 +65,7 @@ bool FED4::initializeMotion()
     }
 }
 
-bool FED4::Motion()
+bool FED4::motion()
 {
     // Check if sensor has new data
     sths34pf80_tmos_drdy_status_t dataReady;

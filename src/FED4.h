@@ -234,6 +234,7 @@ public:
     bool leftTouch;
     bool centerTouch;
     bool rightTouch;
+    bool motionDetected = false; // Track motion detection status
     unsigned long waketime;
 
     // RTC functions
@@ -333,11 +334,11 @@ public:
 
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
-    int Prox();
+    int prox();
 
     // Motion sensor functions (defined in FED4_Motion.cpp)
     bool initializeMotion();
-    bool Motion();
+    bool motion();
 
     // Memory monitoring function
     void printMemoryStatus();

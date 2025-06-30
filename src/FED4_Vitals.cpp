@@ -135,6 +135,13 @@ void FED4::startupPollSensors(){
  * Uses timeouts to prevent hanging if sensors are unresponsive.
  */
 void FED4::pollSensors() {
+  //update motion detection
+  prox(); // Why does this need to be here for motion to work?
+  motionDetected = motion();
+  if (motionDetected) {
+    whitePix(100);
+  }
+
   int minToUpdateSensors = 1;  //update sensors every N minutes
   if (millis()-lastPollTime > (minToUpdateSensors * 60000)) {
     lastPollTime = millis();
