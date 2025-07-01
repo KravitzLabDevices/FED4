@@ -51,9 +51,6 @@ bool FED4::initializeButtons() {
         Serial.println("Failed to enable GPIO wakeup in sleep");
         return false;
     }
-    
-    Serial.println("Button wake-up interrupts have been set");
-    
     return true;
 }
 
