@@ -77,7 +77,6 @@ bool FED4::begin(const char* programName)
     }
 
     // Initialize battery monitor immediately after MCP (library requirement)
-    Serial.println("Initializing battery monitor");
     Serial.println("Note: it is safe to ignore the three I2C warnings below");
     // Retry logic like the working test script
     int maxRetries = 3;
@@ -133,7 +132,7 @@ bool FED4::begin(const char* programName)
     stripRainbow(3, 1);  
     
     // Configure all GPIO pins
-    Serial.println("Configuring GPIO pins");
+    Serial.println("Initializing GPIO pins");
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
     mcp.pinMode(1, OUTPUT);  // Configure ToF sensor XSHUT pin (pin 1, not EXP_XSHUT_1)
     mcp.digitalWrite(1, HIGH);  // Enable ToF sensor
