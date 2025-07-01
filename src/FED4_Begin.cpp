@@ -16,7 +16,7 @@ bool FED4::begin(const char* programName)
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
     delay(100); // Stabilization time
-    Serial.println("LDO2 Enabled");
+    Serial.println();
 
     // Structure to track component status
     struct ComponentStatus
@@ -81,7 +81,7 @@ bool FED4::begin(const char* programName)
     while (!maxlipo.begin() && retryCount < maxRetries) {
         retryCount++;
         Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
-        delay(1000); // Wait before retry
+        delay(100); // Wait before retry
     }
     
     statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
@@ -263,7 +263,6 @@ bool FED4::begin(const char* programName)
                   statuses.size() - failCount,
                   statuses.size());
     Serial.println("================================\n");
-
-
+    
     return true;
 }
