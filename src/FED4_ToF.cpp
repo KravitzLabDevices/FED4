@@ -9,33 +9,52 @@ bool FED4::initializeToF()
     // Configure XSHUT pin (using MCP pin 1 like the working script)
     mcp.pinMode(1, OUTPUT); // Use pin 1 instead of EXP_XSHUT_1 (pin 2)
     mcp.digitalWrite(1, HIGH); // XSHUT must be pulled high for the sensor to be found
+    delay(10); // Give sensor more time to power up
     
     // Set I2C clock speed for better compatibility
     Wire.setClock(100000); // Set to 100kHz for better compatibility
     delay(10);
     
-    // Attempt to initialize the sensor
-    int result = distanceSensor.begin();
+    // Retry logic like the working battery monitor
+    int maxRetries = 3;
+    int retryCount = 0;
+    bool sensorInitialized = false;
     
-    if (result != 0)  // Begin returns 0 on a good init
-    {
-        Serial.println("ToF sensor failed to initialize");
+    while (!sensorInitialized && retryCount < maxRetries) {
+        retryCount++;
+        Serial.printf("ToF sensor init attempt %d...\n", retryCount);
+        
+        // Reset I2C bus if this isn't the first attempt
+        if (retryCount > 1) {
+            Wire.end();
+            delay(50); // Give bus time to reset
+            Wire.begin(SDA, SCL);
+            Wire.setClock(100000);
+            delay(10);
+        }
+        
+        // Attempt to initialize the sensor - just call begin() like prox() does
+        int result = distanceSensor.begin();
+        
+        if (result == 0) {  // Begin returns 0 on a good init
+            sensorInitialized = true;
+            Serial.printf("ToF sensor initialized successfully (attempt %d)\n", retryCount);
+        } else {
+            Serial.printf("ToF sensor begin() failed (attempt %d) - error code: %d\n", retryCount, result);
+        }
+        
+        // Wait before retry
+        if (!sensorInitialized && retryCount < maxRetries) {
+            delay(1000); // Wait 1 second before retry
+        }
+    }
+    
+    if (!sensorInitialized) {
+        Serial.println("ToF sensor initialization failed after all retries");
         return false;
     }
     
-    // Test basic functionality
-    distanceSensor.startRanging();
-    delay(10);
-    
-    if (distanceSensor.checkForDataReady()) {
-        distanceSensor.clearInterrupt();
-        distanceSensor.stopRanging();
-        return true;
-    } else {
-        Serial.println("ToF sensor not responding");
-        distanceSensor.stopRanging();
-        return false;
-    }
+    return true;
 }
 
 int FED4::prox()
@@ -55,8 +74,13 @@ int FED4::prox()
     // Start ranging
     distanceSensor.startRanging();
     
-    // Wait for data to be ready
+    // Wait for data to be ready with 100ms timeout
+    unsigned long startTime = millis();
     while (!distanceSensor.checkForDataReady()) {
+        if (millis() - startTime > 100) { // 100ms timeout
+            distanceSensor.stopRanging();
+            return -1; // Timeout error
+        }
         delay(1);
     }
     

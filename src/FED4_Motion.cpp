@@ -67,10 +67,16 @@ bool FED4::initializeMotion()
 
 bool FED4::motion()
 {
-    // Check if sensor has new data
+    // Check if sensor has new data with 100ms timeout
     sths34pf80_tmos_drdy_status_t dataReady;
-    if (motionSensor.getDataReady(&dataReady) != 0) {
-        return false; // Error reading data ready status
+    unsigned long startTime = millis();
+    
+    // Try to get data ready status with timeout
+    while (motionSensor.getDataReady(&dataReady) != 0) {
+        if (millis() - startTime > 100) { // 100ms timeout
+            return false; // Timeout error
+        }
+        delay(1);
     }
     
     // If no new data, return false
@@ -78,10 +84,15 @@ bool FED4::motion()
         return false;
     }
     
-    // Get motion status
+    // Get motion status with timeout
     sths34pf80_tmos_func_status_t status;
-    if (motionSensor.getStatus(&status) != 0) {
-        return false; // Error reading status
+    startTime = millis(); // Reset timeout for status check
+    
+    while (motionSensor.getStatus(&status) != 0) {
+        if (millis() - startTime > 100) { // 100ms timeout
+            return false; // Timeout error
+        }
+        delay(1);
     }
     
     // Return true if motion is detected
