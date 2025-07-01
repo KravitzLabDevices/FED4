@@ -180,7 +180,7 @@ void FED4::createLogFile()
     {
         dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
         dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
-        dataFile.println("Temperature,Humidity,Lux,ALS,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
+        dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
     }
 
@@ -264,7 +264,7 @@ void FED4::logData(const String &newEvent)
 
     // Write environmental data
     dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
-                    temperature, humidity, lux, als);
+                    temperature, humidity, lux, white);
 
     // Write system stats
     dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",
@@ -339,7 +339,7 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
         }
     }
 
-    Serial.printf("Value not found for %s > %s\n", rootKey, subKey);
+    Serial.printf(" - Value not found for %s > %s\n", rootKey, subKey);
     doc.clear(); // Explicitly clear the document
     return "";
 }
@@ -444,5 +444,3 @@ void FED4::setAge(String age)
 {
     setMetaValue("subject", "age", age.c_str());
 }
-
-

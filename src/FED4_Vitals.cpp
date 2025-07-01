@@ -52,20 +52,20 @@ float FED4::getLux()
     return luxValue;
 }
 
-float FED4::getALS()
-//this function reads the raw ALS value from the VEML7700 sensor
+float FED4::getWhite()
+//this function reads the raw white light value from the VEML7700 sensor
 {
-    float alsValue = 0.0;
+    float whiteValue = 0.0;
     
-    // Read the raw ALS value from the persistent light sensor
-    alsValue = lightSensor.readALS();
+    // Read the raw white light value from the persistent light sensor
+    whiteValue = lightSensor.readWhite();
     
     // Check for invalid readings
-    if (isnan(alsValue) || alsValue < 0) {
+    if (isnan(whiteValue) || whiteValue < 0) {
         return -1.0; // Return -1 to indicate invalid reading
     }
     
-    return alsValue;
+    return whiteValue;
 }
 
 bool FED4::initializeLightSensor()
@@ -77,11 +77,10 @@ bool FED4::initializeLightSensor()
     }
     
     // Configure the sensor for optimal reading with more robust settings
-    lightSensor.setGain(VEML7700_GAIN_1_8);  // Changed from GAIN_2 to GAIN_1_8 for better sensitivity
-    lightSensor.setIntegrationTime(VEML7700_IT_100MS);  // Changed from 200MS to 100MS for faster response
-    
-    // Enable the sensor
     lightSensor.enable(true);
+    lightSensor.setGain(VEML7700_GAIN_2);  // Maximum gain for dark room sensitivity
+    lightSensor.setIntegrationTime(VEML7700_IT_100MS);  // Longest integration time for maximum sensitivity
+    lightSensor.powerSaveEnable(false);  // Disable power saving for maximum sensitivity
     
     // Add a small delay for configuration to take effect
     delay(5);
@@ -152,27 +151,27 @@ void FED4::startupPollSensors(){
      
      if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
      
-     //get ALS with timeout
+     //get white with timeout
      startTime = millis();
-     float alsReading = -1;
-     int alsAttempts = 0;
+     float whiteReading = -1;
+     int whiteAttempts = 0;
      while (millis() - startTime < 1000) {  // 1 second timeout
-         alsReading = getALS();
-         if (alsReading >= 0) break;  // Valid reading obtained (ALS can be 0)
-         delay(1);
-         alsAttempts++;
+         whiteReading = getWhite();
+         if (whiteReading >= 0) break;  // Valid reading obtained (white can be 0)
+         delay(10);
+         whiteAttempts++;
      }
      
-     // If ALS sensor failed after multiple attempts, try reinitializing it
-     if (alsReading < 0 && alsAttempts > 10) {  // More than 100ms of failed attempts
+     // If white sensor failed after multiple attempts, try reinitializing it
+     if (whiteReading < 0 && whiteAttempts > 50) {  // More than 500ms of failed attempts
        if (reinitializeLightSensor()) {
          // Try one more reading after reinitialization
          delay(20);  // Give sensor time to stabilize
-         alsReading = getALS();
+         whiteReading = getWhite();
        }
      }
      
-     if (alsReading >= 0) als = alsReading; // Only update if we got a valid reading >= 0
+     if (whiteReading >= 0) white = whiteReading; // Only update if we got a valid reading >= 0
 }
 
 /**
@@ -183,10 +182,10 @@ void FED4::startupPollSensors(){
 void FED4::pollSensors() {
   // Reconfigure light sensor after every I2C bus reinitialization
   delay(1);  // Brief delay for bus stabilization
-  lightSensor.setGain(VEML7700_GAIN_2);  // Maximum gain for dark room sensitivity
-  lightSensor.setIntegrationTime(VEML7700_IT_800MS);  // Longest integration time for maximum sensitivity
-  lightSensor.powerSaveEnable(false);  // Disable power saving for maximum sensitivity
   lightSensor.enable(true);
+  lightSensor.setGain(VEML7700_GAIN_2);  // Maximum gain for dark room sensitivity
+  lightSensor.setIntegrationTime(VEML7700_IT_100MS);  // Longest integration time for maximum sensitivity
+  lightSensor.powerSaveEnable(false);  // Disable power saving for maximum sensitivity
   
   // Reconfigure motion sensor after I2C bus reinitialization
   if (motionSensor.begin(0x5A, I2C_2)) {
@@ -232,7 +231,7 @@ void FED4::pollSensors() {
     float hum = -1;
     
     //get temp with timeout
-    while (millis() - startTime < 1000) {  // 1 second timeout
+    while (millis() - startTime < 100) {  // 0.1 second timeout
       temp = getTemperature();
       if (temp > 5) break;  // Valid reading obtained
       delay(1);
@@ -241,7 +240,7 @@ void FED4::pollSensors() {
     
     //get humidity with timeout
     startTime = millis();  // Reset timer for humidity
-    while (millis() - startTime < 1000) {  // 1 second timeout
+    while (millis() - startTime < 100) {  // 0.1 second timeout
       hum = getHumidity();
       if (hum > 5) break;  // Valid reading obtained
       delay(1);
@@ -251,7 +250,7 @@ void FED4::pollSensors() {
 
     //get battery info with timeout
     startTime = millis();
-    while (millis() - startTime < 1000) {  // 1 second timeout
+    while (millis() - startTime < 100) {  // 0.1 second timeout
       cellVoltage = getBatteryVoltage();
       cellPercent = getBatteryPercentage();
       if (cellVoltage > 0) break;  // Valid reading obtained
@@ -275,7 +274,7 @@ void FED4::pollSensors() {
     startTime = millis();
     float luxReading = -1;
     int luxAttempts = 0;
-    while (millis() - startTime < 1000) {  // 1 second timeout
+    while (millis() - startTime < 100) {  // 0.1 second timeout
       luxReading = getLux();
       if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
       delay(1);
@@ -293,27 +292,27 @@ void FED4::pollSensors() {
     
     if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
 
-    //get ALS with timeout
+    //get white with timeout
     startTime = millis();
-    float alsReading = -1;
-    int alsAttempts = 0;
-    while (millis() - startTime < 1000) {  // 1 second timeout
-      alsReading = getALS();
-      if (alsReading >= 0) break;  // Valid reading obtained (ALS can be 0)
+    float whiteReading = -1;
+    int whiteAttempts = 0;
+    while (millis() - startTime < 100) {  // 0.1 second timeout
+      whiteReading = getWhite();
+      if (whiteReading >= 0) break;  // Valid reading obtained (white can be 0)
       delay(1);
-      alsAttempts++;
+      whiteAttempts++;
     }
     
-    // If ALS sensor failed after multiple attempts, try reinitializing it
-    if (alsReading < 0 && alsAttempts > 50) {  // More than 50ms of failed attempts
+    // If white sensor failed after multiple attempts, try reinitializing it
+    if (whiteReading < 0 && whiteAttempts > 50) {  // More than 50ms of failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(5);  // Give sensor time to stabilize
-        alsReading = getALS();
+        whiteReading = getWhite();
       }
     }
     
-    if (alsReading >= 0) als = alsReading; // Only update if we got a valid reading >= 0
+    if (whiteReading >= 0) white = whiteReading; // Only update if we got a valid reading >= 0
 
     //log sensor data
     logData("StatusReport");

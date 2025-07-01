@@ -175,22 +175,6 @@ bool FED4::begin(const char* programName)
         setProgram(programName);
     }
 
-    //pull JSON data from SD card to store in log file
-    Serial.println("Pulling JSON data from SD card");
-    program = getMetaValue("subject", "program");     
-    mouseId = getMetaValue("subject", "id");    
-    sex = getMetaValue("subject", "sex");    
-    strain = getMetaValue("subject", "strain"); 
-    age = getMetaValue("subject", "age");
-
-    // Check meta value
-    String subjectId = getMetaValue("subject", "id");
-    if (subjectId.length() > 0)
-    {
-        Serial.print("Subject ID: ");
-        Serial.println(subjectId);
-    }
-
     statuses["Accelerometer"].initialized = initializeAccel();
 
     statuses["Magnet"].initialized = initializeMagnet();
@@ -227,15 +211,32 @@ bool FED4::begin(const char* programName)
     statuses["Speaker"].initialized = initializeSpeaker();
     playTone(1000, 8, 0.3);  //first playTone doesn't play for some reason - need to call once to get it going?
     delay (100);
-    //bopBeep to confirm initialization
+    //three clicks to confirm initialization
     playTone(1000, 8, 0.5);  
     delay (100);
     playTone(1000, 8, 0.5);  
     delay (100);
     playTone(1000, 8, 0.5);  
 
+//pull JSON data from SD card to store in log file
+    Serial.println();
+    Serial.println("Pulling JSON data from SD card:");
+    program = getMetaValue("subject", "program");     
+    mouseId = getMetaValue("subject", "id");    
+    sex = getMetaValue("subject", "sex");    
+    strain = getMetaValue("subject", "strain"); 
+    age = getMetaValue("subject", "age");
+
+    // Check meta value
+    String subjectId = getMetaValue("subject", "id");
+    if (subjectId.length() > 0)
+    {
+        Serial.print(" - Subject ID: ");
+        Serial.println(subjectId);
+    }
 
     // initialize logging
+    Serial.println();
     Serial.println("Creating log file");
     createLogFile();
     logData("Startup");

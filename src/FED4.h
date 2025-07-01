@@ -253,7 +253,7 @@ public:
     float getTemperature();
     float getHumidity();
     float getLux();
-    float getALS();
+    float getWhite();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
 
@@ -261,7 +261,7 @@ public:
     float temperature = -1.0;
     float humidity = -1.0;
     float lux = -1.0;
-    float als = -1.0;
+    float white = -1.0;
     float cellVoltage = 0.0;
     float cellPercent = 0.0;
     unsigned long lastPollTime = 0; // make this a large negative so FED polls sensors at first startup
