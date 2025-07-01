@@ -22,7 +22,7 @@ bool FED4::initializeToF()
     
     while (!sensorInitialized && retryCount < maxRetries) {
         retryCount++;
-        Serial.printf("ToF sensor init attempt %d...\n", retryCount);
+        Serial.println("Initializing ToF sensor");
         
         // Reset I2C bus if this isn't the first attempt
         if (retryCount > 1) {
@@ -38,7 +38,6 @@ bool FED4::initializeToF()
         
         if (result == 0) {  // Begin returns 0 on a good init
             sensorInitialized = true;
-            Serial.printf("ToF sensor initialized successfully (attempt %d)\n", retryCount);
         } else {
             Serial.printf("ToF sensor begin() failed (attempt %d) - error code: %d\n", retryCount, result);
         }

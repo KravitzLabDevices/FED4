@@ -57,6 +57,7 @@
 bool FED4::initializeAccel()
 {
     // Initialize with default I2C bus
+    Serial.println("Initializing accelerometer");
     accel = Adafruit_LIS3DH();
 
     // Then begin with the default address
@@ -70,8 +71,6 @@ bool FED4::initializeAccel()
     accel.setRange(LIS3DH_RANGE_2_G);
     accel.setDataRate(LIS3DH_DATARATE_50_HZ);
     accel.setPerformanceMode(LIS3DH_MODE_HIGH_RESOLUTION);
-
-    Serial.println("LIS3DH accelerometer initialized");
     return true;
 }
 

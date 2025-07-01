@@ -71,16 +71,13 @@ bool FED4::begin(const char* programName)
     {
         Serial.println("MCP error");
     }
-    else
-    {
-        Serial.println("MCP ok");
-    }
 
     // Initialize battery monitor immediately after MCP (library requirement)
     Serial.println("Note: it is safe to ignore the three I2C warnings below");
     // Retry logic like the working test script
     int maxRetries = 3;
     int retryCount = 0;
+    Serial.println("Initializing temperature/humidity sensor"); 
     while (!maxlipo.begin() && retryCount < maxRetries) {
         retryCount++;
         Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
@@ -90,11 +87,7 @@ bool FED4::begin(const char* programName)
     statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
     if (!statuses["Battery Monitor"].initialized)
     {
-        Serial.println("Battery monitor initialization failed after all retries");
-    }
-    else
-    {
-        Serial.printf("Battery monitor initialized successfully (attempt %d)\n", retryCount + 1);
+        Serial.println("Battery monitor initialization failed");
     }
 
     Serial.println("Initializing LDOs");
@@ -229,13 +222,7 @@ bool FED4::begin(const char* programName)
     // check battery and environmental sensors
     startupPollSensors(); 
 
-    // initialize logging
-    Serial.println("Creating log file");
-    createLogFile();
-    logData("Startup");
-    stripRainbow(3, 1);  
-
-    // Initialize Speaker
+ // Initialize Speaker
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
     playTone(1000, 8, 0.3);  //first playTone doesn't play for some reason - need to call once to get it going?
@@ -246,6 +233,13 @@ bool FED4::begin(const char* programName)
     playTone(1000, 8, 0.5);  
     delay (100);
     playTone(1000, 8, 0.5);  
+
+
+    // initialize logging
+    Serial.println("Creating log file");
+    createLogFile();
+    logData("Startup");
+    stripRainbow(3, 1);  
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");

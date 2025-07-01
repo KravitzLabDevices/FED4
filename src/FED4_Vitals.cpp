@@ -126,14 +126,6 @@ void FED4::startupPollSensors(){
          if (cellVoltage > 0) break;  // Valid reading obtained
          delay(10);
      }
-     
-     // Debug output for battery readings
-     if (cellVoltage <= 0) {
-         Serial.println("Warning: Battery voltage reading failed or invalid");
-     } else {
-         Serial.printf("Battery: %.2fV (%.1f%%)\n", cellVoltage, cellPercent);
-     }
-    
      if (cellPercent > 100) {
          cellPercent = 100;
      }
@@ -202,7 +194,7 @@ void FED4::pollSensors() {
     motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
     motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(20);
+    motionSensor.setMotionThreshold(40);
     motionSensor.setMotionHysteresis(5);
   }
     
