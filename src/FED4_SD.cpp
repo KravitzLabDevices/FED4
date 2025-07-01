@@ -25,7 +25,6 @@ bool FED4::initializeSD()
         if (SD.begin(SD_CS, SPI, 4000000))
         {
             digitalWrite(SD_CS, HIGH); // Deselect SD card
-            Serial.println("SD card initialized successfully");
             createMetaJson(); // Ensure meta.json exists
             return true;
         }
@@ -181,7 +180,7 @@ void FED4::createLogFile()
     {
         dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
         dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
-        dataFile.println("Temperature,Humidity,Lux,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
+        dataFile.println("Temperature,Humidity,Lux,ALS,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
         dataFile.close();
     }
 
@@ -264,8 +263,8 @@ void FED4::logData(const String &newEvent)
     dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
 
     // Write environmental data
-    dataFile.printf("%.1f,%.1f,%.1f,",
-                    temperature, humidity, lux);
+    dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
+                    temperature, humidity, lux, als);
 
     // Write system stats
     dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",

@@ -253,15 +253,17 @@ public:
     float getTemperature();
     float getHumidity();
     float getLux();
+    float getALS();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
 
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
-    float temperature;
-    float humidity;
-    float lux;
-    float cellVoltage;
-    float cellPercent;
+    float temperature = -1.0;
+    float humidity = -1.0;
+    float lux = -1.0;
+    float als = -1.0;
+    float cellVoltage = 0.0;
+    float cellPercent = 0.0;
     unsigned long lastPollTime = 0; // make this a large negative so FED polls sensors at first startup
 
     // Speaker functions (defined in FED4_Speaker.cpp)

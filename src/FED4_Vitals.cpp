@@ -5,12 +5,21 @@
 float FED4::getBatteryVoltage()
 {
     float voltage = maxlipo.cellVoltage();
-    return isnan(voltage) ? 0.0 : voltage;
+    // Check for invalid readings (NaN, negative, or unreasonably high values)
+    if (isnan(voltage) || voltage <= 0.0 || voltage > 5.0) {
+        return 0.0; // Return 0.0 to indicate invalid reading
+    }
+    return voltage;
 }
 
 float FED4::getBatteryPercentage()
 {
-    return maxlipo.cellPercent();
+    float percent = maxlipo.cellPercent();
+    // Check for invalid readings (NaN, negative, or over 100%)
+    if (isnan(percent) || percent < 0.0 || percent > 100.0) {
+        return 0.0; // Return 0.0 to indicate invalid reading
+    }
+    return percent;
 }
 
 float FED4::getTemperature()
@@ -41,6 +50,22 @@ float FED4::getLux()
     }
     
     return luxValue;
+}
+
+float FED4::getALS()
+//this function reads the raw ALS value from the VEML7700 sensor
+{
+    float alsValue = 0.0;
+    
+    // Read the raw ALS value from the persistent light sensor
+    alsValue = lightSensor.readALS();
+    
+    // Check for invalid readings
+    if (isnan(alsValue) || alsValue < 0) {
+        return -1.0; // Return -1 to indicate invalid reading
+    }
+    
+    return alsValue;
 }
 
 bool FED4::initializeLightSensor()
@@ -101,6 +126,13 @@ void FED4::startupPollSensors(){
          if (cellVoltage > 0) break;  // Valid reading obtained
          delay(10);
      }
+     
+     // Debug output for battery readings
+     if (cellVoltage <= 0) {
+         Serial.println("Warning: Battery voltage reading failed or invalid");
+     } else {
+         Serial.printf("Battery: %.2fV (%.1f%%)\n", cellVoltage, cellPercent);
+     }
     
      if (cellPercent > 100) {
          cellPercent = 100;
@@ -127,6 +159,28 @@ void FED4::startupPollSensors(){
      }
      
      if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
+     
+     //get ALS with timeout
+     startTime = millis();
+     float alsReading = -1;
+     int alsAttempts = 0;
+     while (millis() - startTime < 1000) {  // 1 second timeout
+         alsReading = getALS();
+         if (alsReading >= 0) break;  // Valid reading obtained (ALS can be 0)
+         delay(1);
+         alsAttempts++;
+     }
+     
+     // If ALS sensor failed after multiple attempts, try reinitializing it
+     if (alsReading < 0 && alsAttempts > 10) {  // More than 100ms of failed attempts
+       if (reinitializeLightSensor()) {
+         // Try one more reading after reinitialization
+         delay(20);  // Give sensor time to stabilize
+         alsReading = getALS();
+       }
+     }
+     
+     if (alsReading >= 0) als = alsReading; // Only update if we got a valid reading >= 0
 }
 
 /**
@@ -135,6 +189,23 @@ void FED4::startupPollSensors(){
  * Uses timeouts to prevent hanging if sensors are unresponsive.
  */
 void FED4::pollSensors() {
+  // Reconfigure light sensor after every I2C bus reinitialization
+  delay(1);  // Brief delay for bus stabilization
+  lightSensor.setGain(VEML7700_GAIN_2);  // Maximum gain for dark room sensitivity
+  lightSensor.setIntegrationTime(VEML7700_IT_800MS);  // Longest integration time for maximum sensitivity
+  lightSensor.powerSaveEnable(false);  // Disable power saving for maximum sensitivity
+  lightSensor.enable(true);
+  
+  // Reconfigure motion sensor after I2C bus reinitialization
+  if (motionSensor.begin(0x5A, I2C_2)) {
+    // Reconfigure motion sensor settings
+    motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
+    motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
+    motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
+    motionSensor.setMotionThreshold(20);
+    motionSensor.setMotionHysteresis(5);
+  }
+    
   //update motion detection
   prox(); // Why does this need to be here for motion to work?
   motionDetected = motion();
@@ -143,6 +214,8 @@ void FED4::pollSensors() {
     motionCount++; // Aggregate motion detections
   }
   
+  
+
   // Increment poll counter for percentage calculation
   pollCount++;
 
@@ -193,12 +266,17 @@ void FED4::pollSensors() {
       delay(1);
     }
     
+    // Debug output for battery readings
+    if (cellVoltage <= 0) {
+      Serial.println("Warning: Battery voltage reading failed or invalid during periodic poll");
+    }
+    
     if (cellPercent > 100) {
       cellPercent = 100;
     }
 
     //get lux with timeout
-    lightSensor.setGain(VEML7700_GAIN_1_8);
+    lightSensor.setGain(VEML7700_GAIN_2);
     lightSensor.setIntegrationTime(VEML7700_IT_100MS);
     lightSensor.enable(true);
     
@@ -213,7 +291,7 @@ void FED4::pollSensors() {
     }
     
     // If lux sensor failed after multiple attempts, try reinitializing it
-    if (luxReading < 0 && luxAttempts > 50) {  // More than 500ms of failed attempts
+    if (luxReading < 0 && luxAttempts > 10) {  // More than 50ms of failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(5);  // Give sensor time to stabilize (reduced from 50ms)
@@ -223,14 +301,30 @@ void FED4::pollSensors() {
     
     if (luxReading >= 0) lux = luxReading; // Only update if we got a valid reading >= 0
 
+    //get ALS with timeout
+    startTime = millis();
+    float alsReading = -1;
+    int alsAttempts = 0;
+    while (millis() - startTime < 1000) {  // 1 second timeout
+      alsReading = getALS();
+      if (alsReading >= 0) break;  // Valid reading obtained (ALS can be 0)
+      delay(1);
+      alsAttempts++;
+    }
+    
+    // If ALS sensor failed after multiple attempts, try reinitializing it
+    if (alsReading < 0 && alsAttempts > 50) {  // More than 50ms of failed attempts
+      if (reinitializeLightSensor()) {
+        // Try one more reading after reinitialization
+        delay(5);  // Give sensor time to stabilize
+        alsReading = getALS();
+      }
+    }
+    
+    if (alsReading >= 0) als = alsReading; // Only update if we got a valid reading >= 0
+
     //log sensor data
     logData("StatusReport");
-    luxReading = NAN;
-    motionPercentage = NAN;
-    temp =  NAN;
-    hum = NAN;
-    cellVoltage = NAN;
-    cellPercent = NAN;
   }
 }
 

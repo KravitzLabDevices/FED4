@@ -227,7 +227,6 @@ bool FED4::begin(const char* programName)
     startupAnimation();
 
     // check battery and environmental sensors
-    Serial.println("Checking battery and environmental sensors at startup");
     startupPollSensors(); 
 
     // initialize logging

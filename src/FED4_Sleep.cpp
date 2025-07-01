@@ -61,25 +61,6 @@ void FED4::wakeUp() {
   Wire.begin();  // Reinitialize primary I2C
   I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C for light sensor
   
-  // Reconfigure light sensor after every I2C bus reinitialization
-  delay(1);  // Brief delay for bus stabilization
-  lightSensor.setGain(VEML7700_GAIN_1_8);
-  lightSensor.setIntegrationTime(VEML7700_IT_100MS);
-  lightSensor.enable(true);
-  
-  // Reconfigure motion sensor after I2C bus reinitialization
-  if (motionSensor.begin(0x5A, I2C_2)) {
-    // Reconfigure motion sensor settings
-    motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
-    motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
-    motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(50);
-    motionSensor.setMotionHysteresis(10);
-  }
-  
-  // Remove redundant MCP reinitialization - it should already be working
-  // mcp.begin_I2C();  // Reinitialize MCP after I2C
-  
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
   mcp.pinMode(EXP_HAPTIC, OUTPUT);
