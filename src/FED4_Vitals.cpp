@@ -201,7 +201,6 @@ void FED4::pollSensors() {
   prox(); // Why does this need to be here for motion to work?
   motionDetected = motion();
   if (motionDetected) {
-    whitePix(100);
     motionCount++; // Aggregate motion detections
   }
   
