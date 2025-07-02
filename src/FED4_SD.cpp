@@ -259,21 +259,23 @@ bool FED4::logData(const String &newEvent)
                     program.c_str(),
                     event.c_str());
 
+    dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
+    // Write retrievalTime as string to avoid conversion issues
+    if (retrievalTime > 19.9)
+    {
+        dataFile.print("TimedOut");
+    }
+    else
+    {
+        dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+    }
+    dataFile.write(',');
+    dataFile.write(dispenseError ? '1' : '0'); // Write single character
+    dataFile.write(',');    
+
     // Write counters and status
     if (event == "Status") {
-        dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
-        // Write retrievalTime as string to avoid conversion issues
-        if (retrievalTime > 19.9)
-        {
-            dataFile.print("TimedOut");
-        }
-        else
-        {
-            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
-        }
-        dataFile.write(',');
-        dataFile.write(dispenseError ? '1' : '0'); // Write single character
-        dataFile.write(',');                       // Write comma as single character
+                   // Write comma as single character
 
         // Write motion percentage with 2 decimal places
         dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
@@ -283,7 +285,7 @@ bool FED4::logData(const String &newEvent)
                         temperature, humidity, lux, white);
 
         // Write system stats
-        dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f,",
+        dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",
                         ESP.getFreeHeap(),
                         ESP.getHeapSize(),
                         ESP.getMinFreeHeap(),
@@ -291,7 +293,10 @@ bool FED4::logData(const String &newEvent)
                         (int)motorTurns / 125, // 125 turns = 1 pellet position
                         cellVoltage,
                         cellPercent);
-
+    } else {
+        // Fill empty cells for all data fields when Event is not "Status"
+        dataFile.print(",,,,,,,,,,,,,,,,,");
+        
         // If Event == PelletTaken, log prox sensor for 5s at 100ms intervals
         if (event == "PelletTaken") {
             bluePix();
@@ -301,12 +306,8 @@ bool FED4::logData(const String &newEvent)
             }
             noPix();
         }
-    
+        
         dataFile.println();
-
-    } else {
-        // Fill empty cells for all data fields when Event is not "Status"
-        dataFile.print(",,,,,,,,,,,,,,,,,\n");
     }
 
     // Clean up
