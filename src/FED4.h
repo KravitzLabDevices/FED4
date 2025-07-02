@@ -195,6 +195,7 @@ public:
     void displayDateTime();
     void displayEnvironmental();
     void displayBattery();
+    void displaySDCardStatus();
     void displayIndicators();
     void startupAnimation();
 

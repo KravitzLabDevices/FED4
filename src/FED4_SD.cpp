@@ -260,37 +260,54 @@ bool FED4::logData(const String &newEvent)
                     event.c_str());
 
     // Write counters and status
-    dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
-    // Write retrievalTime as string to avoid conversion issues
-    if (retrievalTime > 19.9)
-    {
-        dataFile.print("TimedOut");
+    if (event == "Status") {
+        dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
+        // Write retrievalTime as string to avoid conversion issues
+        if (retrievalTime > 19.9)
+        {
+            dataFile.print("TimedOut");
+        }
+        else
+        {
+            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+        }
+        dataFile.write(',');
+        dataFile.write(dispenseError ? '1' : '0'); // Write single character
+        dataFile.write(',');                       // Write comma as single character
+
+        // Write motion percentage with 2 decimal places
+        dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
+
+        // Write environmental data
+        dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
+                        temperature, humidity, lux, white);
+
+        // Write system stats
+        dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f,",
+                        ESP.getFreeHeap(),
+                        ESP.getHeapSize(),
+                        ESP.getMinFreeHeap(),
+                        wakeCount,
+                        (int)motorTurns / 125, // 125 turns = 1 pellet position
+                        cellVoltage,
+                        cellPercent);
+
+        // If Event == PelletTaken, log prox sensor for 5s at 100ms intervals
+        if (event == "PelletTaken") {
+            bluePix();
+            for (int i = 0; i < 50; i++) {
+                dataFile.printf("%d,", prox());
+                delay(100);
+            }
+            noPix();
+        }
+    
+        dataFile.println();
+
+    } else {
+        // Fill empty cells for all data fields when Event is not "Status"
+        dataFile.print(",,,,,,,,,,,,,,,,,\n");
     }
-    else
-    {
-        dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
-    }
-    dataFile.write(',');
-    dataFile.write(dispenseError ? '1' : '0'); // Write single character
-    dataFile.write(',');                       // Write comma as single character
-    dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
-
-    // Write environmental data
-    dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
-                    temperature, humidity, lux, white);
-
-    // Write system stats
-    dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",
-                    ESP.getFreeHeap(),
-                    ESP.getHeapSize(),
-                    ESP.getMinFreeHeap(),
-                    wakeCount,
-                    (int)motorTurns / 125, // 125 turns = 1 pellet position
-                    cellVoltage,
-                    cellPercent);
-
-    // Serial.print("Data logged to: ");
-    // Serial.println(filename);
 
     // Clean up
     dataFile.close();
@@ -309,6 +326,11 @@ bool FED4::logData(const String &newEvent)
  */
 String FED4::getMetaValue(const char *rootKey, const char *subKey)
 {
+    // Check if SD card is available first
+    if (!sdCardAvailable) {
+        return "";
+    }
+    
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW); // Select SD card for operation
 
@@ -372,6 +394,11 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
  */
 bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *value)
 {
+    // Check if SD card is available first
+    if (!sdCardAvailable) {
+        return false;
+    }
+    
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW); // Select SD card for operation
 

@@ -14,8 +14,8 @@
 
 */
 
-#include <FED4.h>     // include the FED4 library
-FED4 fed4;            // start FED4 object
+#include <FED4.h>          // include the FED4 library
+FED4 fed4;                 // start FED4 object
 char task[] = "FR1_Prox";  // give the task a unique name
 
 void setup() {
@@ -36,18 +36,13 @@ void loop() {
     while (millis() < starttime + 3000) {
       proximity = fed4.prox();  // Take Prox measurement
       if (proximity < 20) {
-        fed4.bopBeep();             // 500hz 200ms beep
+        fed4.bopBeep();             // two beeps
         fed4.centerLight("white");  // light LEDs around center poke
-        break;
+        fed4.logData("Approach");
+        fed4.feed();  // feed one pellet, logging drop and retrieval
+      } else {
+        fed4.logData("No_approach");
       }
-    }
-
-    // Log Approach or No_approach, and feed if mouse approached
-    if (proximity < 20) {
-      fed4.logData("Approach");
-      fed4.feed();  // feed one pellet, logging drop and retrieval
-    } else {
-      fed4.logData("No_approach");
     }
   }
 

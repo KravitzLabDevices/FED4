@@ -7,6 +7,8 @@ float FED4::getBatteryVoltage()
     float voltage = maxlipo.cellVoltage();
     // Check for invalid readings (NaN, negative, or unreasonably high values)
     if (isnan(voltage) || voltage <= 0.0 || voltage > 5.0) {
+        Serial.printf("Battery voltage invalid: %f (NaN=%d, <=0=%d, >5=%d)\n", 
+                     voltage, isnan(voltage), voltage <= 0.0, voltage > 5.0);
         return 0.0; // Return 0.0 to indicate invalid reading
     }
     return voltage;
@@ -17,6 +19,8 @@ float FED4::getBatteryPercentage()
     float percent = maxlipo.cellPercent();
     // Check for invalid readings (NaN, negative, or over 100%)
     if (isnan(percent) || percent < 0.0 || percent > 100.0) {
+        Serial.printf("Battery percentage invalid: %f (NaN=%d, <0=%d, >100=%d)\n", 
+                     percent, isnan(percent), percent < 0.0, percent > 100.0);
         return 0.0; // Return 0.0 to indicate invalid reading
     }
     return percent;
@@ -119,11 +123,16 @@ void FED4::startupPollSensors(){
 
      //get battery info with timeout
      startTime = millis();
+     Serial.println("Attempting to read battery voltage and percentage...");
      while (millis() - startTime < 1000) {  // 1 second timeout
          cellVoltage = getBatteryVoltage();
          cellPercent = getBatteryPercentage();
+         Serial.printf("Battery read attempt - Voltage: %.3fV, Percent: %.1f%%\n", cellVoltage, cellPercent);
          if (cellVoltage > 0) break;  // Valid reading obtained
          delay(10);
+     }
+     if (cellVoltage <= 0) {
+         Serial.println("Warning: Battery voltage reading failed after timeout");
      }
      if (cellPercent > 100) {
          cellPercent = 100;
@@ -316,7 +325,7 @@ void FED4::pollSensors() {
     if (whiteReading >= 0) white = whiteReading; // Only update if we got a valid reading >= 0
 
     //log sensor data
-    logData("StatusReport");
+    logData("Status");
   }
 }
 

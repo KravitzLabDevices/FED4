@@ -58,19 +58,27 @@ void FED4::displayMouseId() {
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  //display mouse ID
-  setCursor(6, 53);
-  print("MouseID: ");
-  char idStr[6];  
-  int mouseIdNum = mouseId.toInt();
-  if (mouseIdNum == 0 && mouseId[0] != '0') {
-    // Handle invalid conversion - just display the original string truncated to 4 chars
-    snprintf(idStr, sizeof(idStr), "%.4s", mouseId.c_str());
+  
+  if (!sdCardAvailable) {
+    // Show SD card error instead of MouseID
+    setCursor(6, 53);
+    fillRect(6, 40, 120, 16, DISPLAY_WHITE); // Clear area for mouse ID and label
+    print("SD Card error!");
   } else {
-    snprintf(idStr, sizeof(idStr), "%04d", mouseIdNum % 10000);
+    // Show normal MouseID
+    setCursor(6, 53);
+    print("MouseID: ");
+    char idStr[6];  
+    int mouseIdNum = mouseId.toInt();
+    if (mouseIdNum == 0 && mouseId[0] != '0') {
+      // Handle invalid conversion - just display the original string truncated to 4 chars
+      snprintf(idStr, sizeof(idStr), "%.4s", mouseId.c_str());
+    } else {
+      snprintf(idStr, sizeof(idStr), "%04d", mouseIdNum % 10000);
+    }
+    fillRect(82, 40, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
+    print(idStr);
   }
-  fillRect(82, 40, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
-  print(idStr);
 }
 
 void FED4::displaySex(){
@@ -144,7 +152,7 @@ void FED4::displayBattery(){
 }
 
 void FED4::displaySDCardStatus() {
-  // Implementation of displaySDCardStatus function
+
 }
 
 void FED4::displayCounters()

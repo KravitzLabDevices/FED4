@@ -207,23 +207,6 @@ bool FED4::begin(const char* programName)
         setProgram(programName);
     }
 
-//pull JSON data from SD card to store in log file
-    Serial.println();
-    Serial.println("Pulling JSON data from SD card:");
-    program = getMetaValue("subject", "program");     
-    mouseId = getMetaValue("subject", "id");    
-    sex = getMetaValue("subject", "sex");    
-    strain = getMetaValue("subject", "strain"); 
-    age = getMetaValue("subject", "age");
-
-    // Check meta value
-    String subjectId = getMetaValue("subject", "id");
-    if (subjectId.length() > 0)
-    {
-        Serial.print(" - Subject ID: ");
-        Serial.println(subjectId);
-    }
-
     // Check for SD card errors and handle them
     if (!statuses["SD Card"].initialized) {
         Serial.println("SD Card initialization failed - handling error");
@@ -248,6 +231,33 @@ bool FED4::begin(const char* programName)
                 handleSDCardError();
             }
         }
+    }
+
+    // Only pull JSON data from SD card if it's available
+    if (sdCardAvailable) {
+        Serial.println();
+        Serial.println("Pulling JSON data from SD card:");
+        program = getMetaValue("subject", "program");     
+        mouseId = getMetaValue("subject", "id");    
+        sex = getMetaValue("subject", "sex");    
+        strain = getMetaValue("subject", "strain"); 
+        age = getMetaValue("subject", "age");
+
+        // Check meta value
+        String subjectId = getMetaValue("subject", "id");
+        if (subjectId.length() > 0)
+        {
+            Serial.print(" - Subject ID: ");
+            Serial.println(subjectId);
+        }
+    } else {
+        // Set default values when SD card is not available
+        Serial.println("SD card not available - using default values");
+        if (program.length() == 0) program = "Default";
+        if (mouseId.length() == 0) mouseId = "0000";
+        if (sex.length() == 0) sex = "Unknown";
+        if (strain.length() == 0) strain = "Unknown";
+        if (age.length() == 0) age = "Unknown";
     }
     
     stripRainbow(3, 1);
