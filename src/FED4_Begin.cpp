@@ -48,8 +48,6 @@ bool FED4::begin(const char* programName)
         {"Motion", {false, ""}},
         {"ToF Sensor", {false, ""}}}; 
 
-
-
     // Initialize I2C buses
     statuses["I2C Primary"].initialized = Wire.begin(SDA, SCL);
     if (!statuses["I2C Primary"].initialized)
@@ -160,21 +158,6 @@ bool FED4::begin(const char* programName)
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     SPI.setFrequency(1000000); // Set SPI clock to 1MHz
 
-    // Initialize SD and Display
-    Serial.println("Initializing SD Card");
-    statuses["SD Card"].initialized = initializeSD();
-
-    // This is used to set the program name in the meta.json file
-    // and to get the program name from the meta.json file  
-    //
-    // Usage: When begin() is called in the FED4 Arduino script it can be called with a program name:
-    //        begin("programName");
-    //        programName will be used to set the program name in the meta.json file
-    //        and change what shows up on the display and in the log file
-    if (programName != nullptr) {
-        setProgram(programName);
-    }
-
     statuses["Accelerometer"].initialized = initializeAccel();
 
     statuses["Magnet"].initialized = initializeMagnet();
@@ -182,7 +165,6 @@ bool FED4::begin(const char* programName)
     {
         Serial.println("Magnet sensor initialization failed");
     }
-
 
     stripRainbow(3, 1);  
 
@@ -201,8 +183,7 @@ bool FED4::begin(const char* programName)
     }
 
     statuses["Display"].initialized = initializeDisplay();
-    startupAnimation();
-
+   
     // check battery and environmental sensors
     startupPollSensors(); 
 
@@ -210,13 +191,21 @@ bool FED4::begin(const char* programName)
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
     playTone(1000, 8, 0.3);  //first playTone doesn't play for some reason - need to call once to get it going?
-    delay (100);
-    //three clicks to confirm initialization
-    playTone(1000, 8, 0.5);  
-    delay (100);
-    playTone(1000, 8, 0.5);  
-    delay (100);
-    playTone(1000, 8, 0.5);  
+
+    // Initialize SD 
+    Serial.println("Initializing SD Card");
+    statuses["SD Card"].initialized = initializeSD();
+
+    // This is used to set the program name in the meta.json file
+    // and to get the program name from the meta.json file  
+    //
+    // Usage: When begin() is called in the FED4 Arduino script it can be called with a program name:
+    //        begin("programName");
+    //        programName will be used to set the program name in the meta.json file
+    //        and change what shows up on the display and in the log file
+    if (programName != nullptr) {
+        setProgram(programName);
+    }
 
 //pull JSON data from SD card to store in log file
     Serial.println();
@@ -235,12 +224,33 @@ bool FED4::begin(const char* programName)
         Serial.println(subjectId);
     }
 
-    // initialize logging
-    Serial.println();
-    Serial.println("Creating log file");
-    createLogFile();
-    logData("Startup");
-    stripRainbow(3, 1);  
+    // Check for SD card errors and handle them
+    if (!statuses["SD Card"].initialized) {
+        Serial.println("SD Card initialization failed - handling error");
+        sdCardAvailable = false;
+        handleSDCardError();
+    } else {
+        // Try to create log file and check for filename creation errors
+        Serial.println();
+        Serial.println("Creating log file");
+        bool logFileCreated = createLogFile();
+        
+        if (!logFileCreated) {
+            Serial.println("Log file creation failed - handling error");
+            sdCardAvailable = false;
+            handleSDCardError();
+        } else {
+            // Try to log startup data
+            bool startupLogged = logData("Startup");
+            if (!startupLogged) {
+                Serial.println("Startup logging failed - handling error");
+                sdCardAvailable = false;
+                handleSDCardError();
+            }
+        }
+    }
+    
+    stripRainbow(3, 1);
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
@@ -264,5 +274,13 @@ bool FED4::begin(const char* programName)
                   statuses.size());
     Serial.println("================================\n");
     
+    //three clicks to confirm initialization
+    playTone(1000, 8, 0.5);  
+    delay (100);
+    playTone(1000, 8, 0.5);  
+    delay (100);
+    playTone(1000, 8, 0.5);  
+    startupAnimation();
+
     return true;
 }

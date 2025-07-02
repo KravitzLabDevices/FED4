@@ -108,8 +108,9 @@ bool FED4::createMetaJson()
 
 /**
  * Creates a new log file with headers
+ * @return true if successful, false if failed
  */
-void FED4::createLogFile()
+bool FED4::createLogFile()
 {
     DateTime now = rtc.now();
     char idStr[5];
@@ -176,26 +177,38 @@ void FED4::createLogFile()
 
     // Create new file and write headers
     File dataFile = SD.open(filename, FILE_WRITE);
-    if (dataFile)
+    if (!dataFile)
     {
-        dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
-        dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
-        dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
-        dataFile.close();
+        digitalWrite(SD_CS, HIGH);
+        Serial.println("Failed to create log file");
+        filename[0] = '\0'; // Set filename to empty string on failure
+        return false;
     }
+
+    dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
+    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
+    dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
+    dataFile.close();
 
     Serial.print("New file created: ");
     Serial.println(filename);
 
     digitalWrite(SD_CS, HIGH); // Deselect after operations
+    return true;
 }
 
 /**
  * Logs data to the SD card
  * @param newEvent the event to log
+ * @return true if successful, false if failed
  */
-void FED4::logData(const String &newEvent)
+bool FED4::logData(const String &newEvent)
 {
+    // Check if SD card is available
+    if (!sdCardAvailable) {
+        return false;
+    }
+    
     // Set new event if provided
     if (newEvent.length() > 0)
     {
@@ -218,7 +231,7 @@ void FED4::logData(const String &newEvent)
         Serial.print("Failed to open file: ");
         Serial.println(filename);
         noPix();
-        return;
+        return false;
     }
 
     // Write timestamp
@@ -284,6 +297,7 @@ void FED4::logData(const String &newEvent)
     digitalWrite(SD_CS, HIGH);
     SPI.endTransaction();
     noPix();
+    return true;
 }
 
 /**
@@ -443,4 +457,79 @@ void FED4::setStrain(String strain)
 void FED4::setAge(String age)
 {
     setMetaValue("subject", "age", age.c_str());
+}
+
+/**
+ * Handles SD card errors by playing 2 clicks, blinking red LEDs, 
+ * displaying error message, and waiting for Button1 press to continue
+ */
+void FED4::handleSDCardError()
+{
+    Serial.println("SD Card Error - Data won't be saved. Continue?");
+    
+    // Play 2 clicks
+    playTone(1000, 8, 0.5);
+    delay(100);
+    playTone(1000, 8, 0.5);
+    delay(100);
+    
+    // Start blinking red LEDs
+    bool ledsOn = true;
+    unsigned long lastBlinkTime = 0;
+    const unsigned long blinkInterval = 500; // 500ms blink interval
+    
+    // Clear display and show error message
+    clearDisplay();
+    
+    // Fill the entire display area with black background
+    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
+    
+    setFont(&Org_01);
+    setTextSize(2);
+    setTextColor(DISPLAY_WHITE); // Use white text on black background
+    
+    // Display error message with corrected coordinates for 144x168 display
+    setCursor(5, 30);
+    print("Card error,");
+    setCursor(5, 50);
+    print("data won't");
+    setCursor(5, 70);
+    print("be saved.");
+    setCursor(5, 100);
+    print("Continue?");
+    refresh();
+    
+    // Blink red LEDs and wait for Button1 press
+    while (digitalRead(BUTTON_1) == LOW) {
+        unsigned long currentTime = millis();
+        
+        if (currentTime - lastBlinkTime >= blinkInterval) {
+            if (ledsOn) {
+                colorWipe("red", 0); // Turn all LEDs red
+            } else {
+                clearStrip(); // Turn all LEDs off
+            }
+            ledsOn = !ledsOn;
+            lastBlinkTime = currentTime;
+        }
+        
+        delay(10); // Small delay to prevent excessive CPU usage
+    }
+    
+    // Button1 was pressed, play highBeep and stop blinking
+    lowBeep();
+    clearStrip();
+    
+    // Clear display and show continuing message
+    clearDisplay();
+    
+    // Fill the entire display area with black background
+    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
+    
+    setCursor(5, 80);
+    print("Continuing...");
+    refresh();
+    delay(1000);
+    
+    Serial.println("User chose to continue without SD card");
 }

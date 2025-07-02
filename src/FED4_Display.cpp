@@ -36,6 +36,7 @@ void FED4::updateDisplay() {
   // draw screen elements
   displayEnvironmental();
   displayBattery();
+  displaySDCardStatus();
   displayCounters();
   displayIndicators();
   displayDateTime();
@@ -140,6 +141,10 @@ void FED4::displayBattery(){
   setCursor(105, 9);
   print((int)cellPercent);
   print("%");
+}
+
+void FED4::displaySDCardStatus() {
+  // Implementation of displaySDCardStatus function
 }
 
 void FED4::displayCounters()
@@ -396,6 +401,7 @@ void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)
 void FED4::startupAnimation(){
   setTextSize(5);
   setFont(&Org_01);
+  setTextColor(DISPLAY_BLACK);
 
   const char* text = "FED4";  // Text to animate
   int textWidth = 28;         // Approximate width of each character in pixels
@@ -414,10 +420,8 @@ void FED4::startupAnimation(){
     fillCircle(124, 98, 3, DISPLAY_WHITE);       //poke 2
     fillCircle(116, 104, 2, DISPLAY_WHITE);       //poke 3
 
-    // Draw the text sliding in from the right
+    // Draw the text sliding in from the right (single render to reduce flickering)
     setCursor(textX, textY);
-    print(text);
-    setCursor(textX+1, textY);
     print(text);
 
     // Move the text to the left
@@ -449,14 +453,13 @@ void FED4::startupAnimation(){
     }
     // Update the display
     refresh();
-    delay(1);   // Adjust the frame rate by changing this delay
+    delay(10);   // Increased delay to reduce flickering (was 1ms, now 10ms)
   }
 
   // Display the text in the center and hold
   setCursor(textX, textY);
-  setCursor(textX+1, textY);
   print(text);
   refresh();
   setTextSize(1);
-  delay(1500); // Pause to keep "FED4" displayed for 2s
+  delay(1500); // Pause to keep "FED4" displayed for 1.5s
 }

@@ -1,9 +1,9 @@
 /*
   Feeding experimentation device 4 (FED4)
 
-  This "Fixed-Ratio 1" or "FR1" program will beep each time the mouse touches the Left poke.
-  If the mouse is detected by the Prox sensor within 3 seconds it will feed, otherwise it will time out.
-  Touching the center or right poke will result in a short click stimulus.
+  This "Fixed-Ratio 1" or "FR1" program will beep and dispense a pellet 
+  each time the mouse touches the Left poke. Touching the center or right
+  poke will result in a short click stimulus.
   
   This task is useful for quantifying simple learning rates and 
   accuracy after acquisition.  Most mice can be trained on this task without

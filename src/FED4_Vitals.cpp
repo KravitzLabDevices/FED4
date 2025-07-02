@@ -193,13 +193,15 @@ void FED4::pollSensors() {
     motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
     motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(40);
+    motionSensor.setMotionThreshold(20);
     motionSensor.setMotionHysteresis(5);
   }
     
   //update motion detection
   prox(); // Why does this need to be here for motion to work?
-  motionDetected = motion();
+
+  // Check motion 3 times, if any are true, set motionDetected to true
+  motionDetected = motion() || motion() || motion();
   if (motionDetected) {
     motionCount++; // Aggregate motion detections
   }

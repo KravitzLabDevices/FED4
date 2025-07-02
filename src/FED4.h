@@ -215,8 +215,8 @@ public:
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
     bool createMetaJson();
-    void createLogFile();
-    void logData(const String &newEvent = "");
+    bool createLogFile();
+    bool logData(const String &newEvent = "");
     String getMetaValue(const char *rootKey, const char *subKey);
     bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
     void setProgram(String program);
@@ -224,6 +224,8 @@ public:
     void setSex(String sex);        
     void setStrain(String strain);
     void setAge(String age);
+    void handleSDCardError();
+    bool isSDCardAvailable() const { return sdCardAvailable; }
 
     // Public counters and timing
     int pelletCount;
@@ -312,6 +314,7 @@ public:
     int motorTurns;
     int reBaselineTouches;
     char filename[32];
+    bool sdCardAvailable = true; // Track if SD card operations are available
 
     void clearDisplay();
     void refresh();
