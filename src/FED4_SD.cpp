@@ -186,9 +186,16 @@ bool FED4::createLogFile()
     }
 
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
-    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
-    dataFile.print("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent,");
-    dataFile.println("Proximity,0,0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0,4.2,4.4,4.6,4.8");
+    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,DispenseTurns,Motion,");
+    dataFile.print("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
+    
+    // Only include proximity sensor headers if logProx is enabled
+    if (logProx) {
+        dataFile.print(",Proximity,");
+        dataFile.println("0,0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0,4.2,4.4,4.6,4.8");
+    } else {
+        dataFile.println();
+    }
     dataFile.close();
 
     Serial.print("New file created: ");
@@ -274,10 +281,12 @@ bool FED4::logData(const String &newEvent)
         }
         dataFile.write(',');
         dataFile.write(dispenseError ? '1' : '0'); // Write single character
-        dataFile.write(',');    
+        dataFile.write(',');
+        dataFile.printf("%d,", (int)motorTurns / 125); // DispenseTurns
     }
     else {
-        dataFile.print(",,");
+        dataFile.print(",,"); // RetrievalTime, DispenseError
+        dataFile.print(","); // DispenseTurns
     }
 
     // Write counters and status
@@ -295,15 +304,14 @@ bool FED4::logData(const String &newEvent)
                         ESP.getHeapSize(),
                         ESP.getMinFreeHeap(),
                         wakeCount,
-                        (int)motorTurns / 125, // 125 turns = 1 pellet position
                         cellVoltage,
                         cellPercent);
     } else {
         // Fill empty cells for all data fields when Event is not "Status"
         dataFile.print(",,,,,,,,,,,,,");
         
-        // If Event == PelletTaken, log prox sensor for 5s at 100ms intervals
-        if (event == "PelletTaken") {
+        // If Event == PelletTaken and logProx is enabled, log prox sensor for 5s at 200ms intervals
+        if (event == "PelletTaken" && logProx) {
             bluePix();
             unsigned long startTime = millis();
             unsigned long interval = 200; // 200ms interval between prox readings

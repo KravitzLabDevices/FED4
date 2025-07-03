@@ -242,6 +242,7 @@ public:
     float motionPercentage = 0.0; // Percentage of motion detections in the last 5-minute period
     int pollCount = 0; // Track total number of polls in each 5-minute period
     unsigned long waketime;
+    bool logProx = false; // Flag to control proximity sensor logging
 
     // RTC functions
     bool initializeRTC();

@@ -19,6 +19,7 @@ FED4 fed4;                 // start FED4 object
 char task[] = "FR1_Prox";  // give the task a unique name
 
 void setup() {
+  fed4.logProx = true;  //log prox sensor to SD card for 5s after a pellet is taken
   fed4.begin(task);  // initialize FED4 hardware
 }
 
