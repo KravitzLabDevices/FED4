@@ -186,13 +186,13 @@ bool FED4::createLogFile()
     }
 
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
-    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,DispenseTurns,Motion,");
+    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,MotorTurns,Motion,");
     dataFile.print("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
     // Only include proximity sensor headers if logProx is enabled
     if (logProx) {
-        dataFile.print(",Proximity,");
-        dataFile.println("0,0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0,4.2,4.4,4.6,4.8");
+        dataFile.print(",,ProxReadings:,");
+        dataFile.println("0,0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.25,2.5,2.75,3.0,3.25,3.5,3.75,4.0,4.25,4.5,4.75");
     } else {
         dataFile.println();
     }
@@ -269,24 +269,33 @@ bool FED4::logData(const String &newEvent)
 
     dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
 
+    // Write motor turns for events where motor has been running
     if (event == "PelletTaken") {
         // Write retrievalTime as string to avoid conversion issues
-        if (retrievalTime > 19.9)
-        {
-            dataFile.print("TimedOut");
-        }
-        else
-        {
-            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+        if (event == "PelletTaken") {
+            if (retrievalTime > 19.9)
+            {
+                dataFile.print("TimedOut");
+            }
+            else
+            {
+                dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+            }
+        } else {
+            dataFile.print(","); // Empty retrieval time for non-PelletTaken events
         }
         dataFile.write(',');
         dataFile.write(dispenseError ? '1' : '0'); // Write single character
         dataFile.write(',');
-        dataFile.printf("%d,", (int)motorTurns / 125); // DispenseTurns
+        dataFile.print(int(motorTurns/25)); // MotorTurns
+        dataFile.write(',');
+        // Only reset motorTurns after the final event (PelletTaken)
+        if (event == "PelletTaken") {
+            motorTurns = 0; // Reset after logging
+        }
     }
     else {
-        dataFile.print(",,"); // RetrievalTime, DispenseError
-        dataFile.print(","); // DispenseTurns
+        dataFile.print(",,,"); // RetrievalTime, DispenseError
     }
 
     // Write counters and status
@@ -299,7 +308,7 @@ bool FED4::logData(const String &newEvent)
                         temperature, humidity, lux, white);
 
         // Write system stats
-        dataFile.printf("%d,%d,%d,%d,%d,%.2f,%.2f\n",
+        dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
                         ESP.getFreeHeap(),
                         ESP.getHeapSize(),
                         ESP.getMinFreeHeap(),
@@ -312,20 +321,24 @@ bool FED4::logData(const String &newEvent)
         
         // If Event == PelletTaken and logProx is enabled, log prox sensor for 5s at 200ms intervals
         if (event == "PelletTaken" && logProx) {
-            bluePix();
+            
             unsigned long startTime = millis();
-            unsigned long interval = 200; // 200ms interval between prox readings
+            unsigned long nextReadingTime = startTime;
+            unsigned long interval = 250; // 250ms interval between prox readings
             int count = 0;
             
-            while (count < 25) { // Take exactly 25 readings
-                unsigned long elapsed = millis() - startTime;
-                if (elapsed >= count * interval) {
-                    dataFile.printf("%d,", prox());
+            while (count < 20) { // Take exactly 20 readings (4Hz for 5s)
+                unsigned long currentTime = millis();
+                if (currentTime >= nextReadingTime) {
+                    bluePix();
+                    int proximity = prox();
+                    dataFile.printf("%d,", proximity);
+                    noPix();
                     count++;
+                    nextReadingTime = startTime + (count * interval); // Calculate next reading time for next iteration
                 }
-                delay(1); // Small delay to prevent tight loop
+                delay(1); // Small delay to prevent tight loop      
             }
-            noPix();
         }
         
         dataFile.println();

@@ -28,7 +28,7 @@ void loop() {
 
 if (fed4.leftTouch) {     // if left poke is touched
     fed4.lowBeep();         // 500hz 200ms beep
-    fed4.leftLight("red");  // light LEDs around left poke red
+    fed4. centerLight("red");  // light LEDs around left poke red
     fed4.logData("Left");
 
     // Check proximity sensor for 3s, log "Approach" if <20mm, "No_approach" otherwise

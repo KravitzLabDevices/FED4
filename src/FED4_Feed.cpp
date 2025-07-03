@@ -31,7 +31,8 @@ void FED4::dispense() {
         pelletReady = true;
 
         // small motor movement
-        stepper.step(-5); 
+        stepper.step(-10);
+        delay(2);
         motorTurns++;
         // delay for 1s roughly each pellet position
         if (motorTurns % 25 == 0)
@@ -47,17 +48,17 @@ void FED4::dispense() {
 
 void FED4::handleJams() {
         // if stepper is called too many times without a dispense do a small movement to remove jam
-        if (motorTurns % 500 == 0)
+        if (motorTurns % 100 == 0)
         {
             minorJamClear();
         }
 
-        if (motorTurns % 1000 == 0)
+        if (motorTurns % 200 == 0)
         {
             vibrateJamClear();
         }
 
-        if (motorTurns > 10000)  //how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
+        if (motorTurns > 2000)  //how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
         {
             jammed();
     }
@@ -70,7 +71,7 @@ void FED4::handlePelletSettling() {
         pelletCount++;
         logData("PelletDrop");
         }        
-    motorTurns = 0;
+  
     releaseMotor();
 
     // Wait up to 500ms for pellet to settle in well if 500ms passes without detection, set dispenseError to true
@@ -83,7 +84,7 @@ void FED4::handlePelletSettling() {
             pelletWellTime = millis();
             break; // Exit if pellet is detected
         }
-        delay(1);
+        delay(10);
     }
 
     // if pellet is not detected, set dispenseError to true
@@ -124,40 +125,45 @@ void FED4::handlePelletInWell() {
             leftCount++;
             retrievalTime = 0.0;
             dispenseError = false;
+            // Serial.println("LeftWithPellet");
+            logData("LeftWithPellet");
             click();
             updateDisplay();
             greenPix();
-            logData("LeftWithPellet"); //log data at end to reduce lag
+            outputPulse(1, 100);
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(1);
+                delay(10);
             }
         }
         else if (centerDev >= TOUCH_THRESHOLD) {
             centerCount++;
             retrievalTime = 0.0;
             dispenseError = false;
+            // Serial.println("CenterWithPellet");
+            logData("CenterWithPellet"); 
             click();
             updateDisplay();
             bluePix();
-            logData("CenterWithPellet"); //log data at end to reduce lag
+            outputPulse(2, 100);
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(1);
+                delay(10);
             }
         }
         else if (rightDev >= TOUCH_THRESHOLD) {
             rightCount++;
             retrievalTime = 0.0;
             dispenseError = false;
+            // Serial.println("RightWithPellet");
+            logData("RightWithPellet");
             click();
             updateDisplay();
             redPix();
-            logData("RightWithPellet"); //log data at end to reduce lag
-
+            outputPulse(3, 100);
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(5);
+                delay(10);
             }
         }
     }
@@ -173,7 +179,7 @@ void FED4::finishFeeding() {
             logData("PelletNotDetected");
         } else {
             logData("PelletTaken");
-
+            
         }
     }
 
@@ -183,7 +189,9 @@ void FED4::finishFeeding() {
     dispenseError = false;
     
     // Reset touch states after handling the feed
-    // (Touch flags will be reset before next sleep cycle)
+    leftTouch = false;
+    centerTouch = false;
+    rightTouch = false;
 
     // Rebaseline touch sensors
     reBaselineTouches = 3;
@@ -192,7 +200,6 @@ void FED4::finishFeeding() {
         calibrateTouchSensors();
     }
 
-    pollSensors(); //only poll sensors after a feed event so we don't block responsiveness after pokes
 }
 
 /** 
@@ -214,3 +221,5 @@ bool FED4::didPelletDrop()
 {
     return mcp.digitalRead(EXP_PHOTOGATE_4);
 }
+// THIS IS A HACK FOR WHEN SENSOR IS NOT WORKING
+// WITH DROP SENSOR CHANGE TO !mcp.digitalRead(EXP_PHOTOGATE_4);
