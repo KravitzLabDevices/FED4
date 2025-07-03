@@ -25,37 +25,37 @@ void setup() {
 void loop() {
   fed4.run();  // run this once per loop
 
-  if (fed4.leftTouch) {     // if left poke is touched
+if (fed4.leftTouch) {     // if left poke is touched
     fed4.lowBeep();         // 500hz 200ms beep
     fed4.leftLight("red");  // light LEDs around left poke red
     fed4.logData("Left");
 
-    //Check proximity sensor to see if mouse is in front of pellet well within 3s
-    unsigned long starttime = millis();
-    int proximity = fed4.prox();  // Take Prox measurement
-    while (millis() < starttime + 3000) {
-      proximity = fed4.prox();  // Take Prox measurement
-      if (proximity < 20) {
-        fed4.bopBeep();             // two beeps
-        fed4.centerLight("white");  // light LEDs around center poke
-        fed4.logData("Approach");
-        fed4.feed();  // feed one pellet, logging drop and retrieval
-      } else {
-        fed4.logData("No_approach");
-      }
+    // Check proximity sensor for 3s, log "Approach" if <20mm, "No_approach" otherwise
+    unsigned long startTime = millis();
+    while (millis() < startTime + 3000) {
+        if (fed4.prox() < 20) {
+            fed4.bopBeep();
+            fed4.centerLight("white");
+            fed4.logData("Approach");
+            fed4.feed();
+            return; // Exit early if approach detected
+        }
+        delay(10);
     }
-  }
+    
+    fed4.logData("No_approach");
+}
 
-  if (fed4.centerTouch) {  // if center poke is touched
-    fed4.click();          // audio click stimulus
-    fed4.hapticBuzz();
-    fed4.centerLight("green");  // light LEDs around center poke green
-    fed4.logData("Center");
-  }
+if (fed4.centerTouch) {  // if center poke is touched
+  fed4.click();          // audio click stimulus
+  fed4.hapticBuzz();
+  fed4.centerLight("green");  // light LEDs around center poke green
+  fed4.logData("Center");
+}
 
-  if (fed4.rightTouch) {      // if right poke is touched
-    fed4.click();             // audio click stimulus
-    fed4.rightLight("blue");  // light LEDs around right poke blue
-    fed4.logData("Right");
-  }
+if (fed4.rightTouch) {      // if right poke is touched
+  fed4.click();             // audio click stimulus
+  fed4.rightLight("blue");  // light LEDs around right poke blue
+  fed4.logData("Right");
+}
 }

@@ -169,16 +169,16 @@ public:
     // (pixel)
     bool initializePixel();
     void setPixBrightness(uint8_t brightness);
-    void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 255);
-    void setPixColor(const char *colorName, uint8_t brightness = 64);
-    void bluePix(uint8_t brightness = 255);
-    void greenPix(uint8_t brightness = 255);
-    void redPix(uint8_t brightness = 255);
-    void purplePix(uint8_t brightness = 255);
-    void yellowPix(uint8_t brightness = 255);
-    void cyanPix(uint8_t brightness = 255);
-    void whitePix(uint8_t brightness = 255);
-    void orangePix(uint8_t brightness = 255);
+    void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 5);
+    void setPixColor(const char *colorName, uint8_t brightness = 5);
+    void bluePix(uint8_t brightness = 5);
+    void greenPix(uint8_t brightness = 5);
+    void redPix(uint8_t brightness = 5);
+    void purplePix(uint8_t brightness = 5);
+    void yellowPix(uint8_t brightness = 5);
+    void cyanPix(uint8_t brightness = 5);
+    void whitePix(uint8_t brightness = 5);
+    void orangePix(uint8_t brightness = 5);
     void noPix();
     // (shared)
     uint32_t getColorFromString(const char *colorName);

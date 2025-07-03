@@ -1,5 +1,4 @@
 #include "FED4.h"
-#include "SparkFun_VL53L1X.h"
 
 // ToF sensor instance - using MCP pin 1 like the working script
 SFEVL53L1X distanceSensor(Wire, 1); // Changed from EXP_XSHUT_1 (pin 2) to pin 1

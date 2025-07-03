@@ -222,15 +222,7 @@ bool FED4::begin(const char* programName)
             Serial.println("Log file creation failed - handling error");
             sdCardAvailable = false;
             handleSDCardError();
-        } else {
-            // Try to log startup data
-            bool startupLogged = logData("Startup");
-            if (!startupLogged) {
-                Serial.println("Startup logging failed - handling error");
-                sdCardAvailable = false;
-                handleSDCardError();
-            }
-        }
+        } 
     }
 
     // Only pull JSON data from SD card if it's available
@@ -259,7 +251,8 @@ bool FED4::begin(const char* programName)
         if (strain.length() == 0) strain = "Unknown";
         if (age.length() == 0) age = "Unknown";
     }
-    
+    logData("Startup");
+
     stripRainbow(3, 1);
 
     // Print initialization report

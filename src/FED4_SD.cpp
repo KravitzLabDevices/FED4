@@ -187,7 +187,8 @@ bool FED4::createLogFile()
 
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
     dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,Motion,");
-    dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent");
+    dataFile.print("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,DispenseTurns,BatteryVoltage,BatteryPercent,");
+    dataFile.println("Proximity,0,0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0,4.2,4.4,4.6,4.8");
     dataFile.close();
 
     Serial.print("New file created: ");
@@ -260,23 +261,27 @@ bool FED4::logData(const String &newEvent)
                     event.c_str());
 
     dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
-    // Write retrievalTime as string to avoid conversion issues
-    if (retrievalTime > 19.9)
-    {
-        dataFile.print("TimedOut");
+
+    if (event == "PelletTaken") {
+        // Write retrievalTime as string to avoid conversion issues
+        if (retrievalTime > 19.9)
+        {
+            dataFile.print("TimedOut");
+        }
+        else
+        {
+            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+        }
+        dataFile.write(',');
+        dataFile.write(dispenseError ? '1' : '0'); // Write single character
+        dataFile.write(',');    
     }
-    else
-    {
-        dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+    else {
+        dataFile.print(",,");
     }
-    dataFile.write(',');
-    dataFile.write(dispenseError ? '1' : '0'); // Write single character
-    dataFile.write(',');    
 
     // Write counters and status
-    if (event == "Status") {
-                   // Write comma as single character
-
+    if (event == "Status" || event == "Startup") {
         // Write motion percentage with 2 decimal places
         dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
 
@@ -295,14 +300,22 @@ bool FED4::logData(const String &newEvent)
                         cellPercent);
     } else {
         // Fill empty cells for all data fields when Event is not "Status"
-        dataFile.print(",,,,,,,,,,,,,,,,,");
+        dataFile.print(",,,,,,,,,,,,,");
         
         // If Event == PelletTaken, log prox sensor for 5s at 100ms intervals
         if (event == "PelletTaken") {
             bluePix();
-            for (int i = 0; i < 50; i++) {
-                dataFile.printf("%d,", prox());
-                delay(100);
+            unsigned long startTime = millis();
+            unsigned long interval = 200; // 200ms interval between prox readings
+            int count = 0;
+            
+            while (count < 25) { // Take exactly 25 readings
+                unsigned long elapsed = millis() - startTime;
+                if (elapsed >= count * interval) {
+                    dataFile.printf("%d,", prox());
+                    count++;
+                }
+                delay(1); // Small delay to prevent tight loop
             }
             noPix();
         }
