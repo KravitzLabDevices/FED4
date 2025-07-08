@@ -36,7 +36,7 @@ bool FED4::initializeMotion()
     }
     
     // Set low-pass filter bandwidth
-    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_9) != 0) {
+    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }

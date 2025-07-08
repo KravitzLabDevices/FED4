@@ -187,15 +187,8 @@ bool FED4::createLogFile()
 
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
     dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,MotorTurns,Motion,");
-    dataFile.print("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
+    dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
-    // Only include proximity sensor headers if logProx is enabled
-    if (logProx) {
-        dataFile.print(",,ProxReadings:,");
-        dataFile.println("0,0.25,0.5,0.75,1.0,1.25,1.5,1.75,2.0,2.25,2.5,2.75,3.0,3.25,3.5,3.75,4.0,4.25,4.5,4.75");
-    } else {
-        dataFile.println();
-    }
     dataFile.close();
 
     Serial.print("New file created: ");
@@ -318,29 +311,6 @@ bool FED4::logData(const String &newEvent)
     } else {
         // Fill empty cells for all data fields when Event is not "Status"
         dataFile.print(",,,,,,,,,,,,,");
-        
-        // If Event == PelletTaken and logProx is enabled, log prox sensor for 5s at 200ms intervals
-        if (event == "PelletTaken" && logProx) {
-            
-            unsigned long startTime = millis();
-            unsigned long nextReadingTime = startTime;
-            unsigned long interval = 250; // 250ms interval between prox readings
-            int count = 0;
-            
-            while (count < 20) { // Take exactly 20 readings (4Hz for 5s)
-                unsigned long currentTime = millis();
-                if (currentTime >= nextReadingTime) {
-                    bluePix();
-                    int proximity = prox();
-                    dataFile.printf("%d,", proximity);
-                    noPix();
-                    count++;
-                    nextReadingTime = startTime + (count * interval); // Calculate next reading time for next iteration
-                }
-                delay(1); // Small delay to prevent tight loop      
-            }
-        }
-        
         dataFile.println();
     }
 

@@ -189,26 +189,26 @@ void FED4::bopBeep(){
 
 void FED4::resetJingle() { // 🎵 Power cycle jingle
     // Descending sequence to signify "powering down"
-    playTone(1500, 80, 1);    // Starting even higher
-    playTone(1300, 80, 1);    // First step down
-    playTone(1100, 80, 0.9);  // Continuing descent
-    playTone(900, 80, 0.8);   // Mid-range
-    playTone(700, 80, 0.7);   // Getting lower
-    playTone(500, 100, 0.6);  // Lower still
-    playTone(300, 120, 0.5);  // Almost there
-    playTone(200, 400, 0.4);  // Final deep note
+    playTone(1500, 80, 0.15);    // Starting even higher
+    playTone(1300, 80, 0.15);    // First step down
+    playTone(1100, 80, 0.15);  // Continuing descent
+    playTone(900, 80, 0.15);   // Mid-range
+    playTone(700, 80, 0.15);   // Getting lower
+    playTone(500, 100, 0.15);  // Lower still
+    playTone(300, 120, 0.15);  // Almost there
+    playTone(200, 400, 0.15);  // Final deep note
     delay(300);                 // Longer dramatic pause
     
     // Ascending sequence to signify "powering up" 
-    playTone(300, 50, 0.2);     // Quick low start
-    playTone(600, 50, 0.3);     // Building up
-    playTone(900, 50, 0.4);     // Getting stronger
-    playTone(1200, 100, 0.5);   // Peak
-    playTone(1500, 200, 0.6);   // Triumphant final note
+    playTone(300, 50, 0.15);     // Quick low start
+    playTone(600, 50, 0.2);     // Building up
+    playTone(900, 50, 0.2);     // Getting stronger
+    playTone(1200, 100, 0.2);   // Peak
+    playTone(1500, 200, 0.2);   // Triumphant final note
     
     // Final flourish
     delay(500);
-    playTone(1600, 500, 0.4);    // Quick high note
+    playTone(1600, 500, 0.15);    // Quick high note
 }
 
 void FED4::menuJingle(){
@@ -234,7 +234,7 @@ void FED4::menuJingle(){
  * Plays a single low-pitched beep at 300 Hz
  */
 void FED4::lowBeep(){
-    playTone(300, 200, 0.4);  // Play 300 Hz for 200ms at 40% amplitude
+    playTone(300, 200, 0.2);  // Play 300 Hz for 200ms at 40% amplitude
 
 }
 

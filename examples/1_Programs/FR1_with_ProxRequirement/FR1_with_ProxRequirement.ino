@@ -19,7 +19,6 @@ FED4 fed4;                 // start FED4 object
 char task[] = "FR1_Prox";  // give the task a unique name
 
 void setup() {
-  fed4.logProx = true;  //log prox sensor to SD card for 5s after a pellet is taken
   fed4.begin(task);  // initialize FED4 hardware
 }
 
@@ -31,9 +30,9 @@ if (fed4.leftTouch) {     // if left poke is touched
     fed4. centerLight("red");  // light LEDs around left poke red
     fed4.logData("Left");
 
-    // Check proximity sensor for 3s, log "Approach" if <20mm, "No_approach" otherwise
+    // Check proximity sensor for 1s, log "Approach" if <20mm, "No_approach" otherwise
     unsigned long startTime = millis();
-    while (millis() < startTime + 3000) {
+    while (millis() < startTime + 1000) {
         if (fed4.prox() < 20) {
             fed4.bopBeep();
             fed4.centerLight("white");

@@ -64,7 +64,11 @@ void FED4::jammed(){
     enableAmp(false); 
     // put FED4 to sleep
     esp_light_sleep_start();
-    delay(1000);
+    LDO3_ON();
+    LDO2_ON();
+    enableAmp(true);
+    checkButton2();
+    delay(100);
   }
 }
 
