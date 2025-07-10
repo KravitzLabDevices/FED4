@@ -3,8 +3,7 @@
 // High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep() {
   // Enable timer-based wake-up every N seconds
-  int sleepSeconds = 6; //how many seconds to sleep between timer based wake-ups
-  esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000); // Convert 6 seconds to microseconds
+  esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000); // Convert sleepSeconds to microseconds
   noPix(); 
   startSleep();
   wakeUp();

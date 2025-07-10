@@ -37,6 +37,4 @@ void FED4::outputPulse(uint8_t trrs, uint8_t duration)
     digitalWrite(pin, HIGH);
     delay(duration);
     digitalWrite(pin, LOW);
-}
-
-
+} 

@@ -1,4 +1,4 @@
-// src/FED4_Speaker.cpp
+// src/FED4_Audio.cpp
 #include "FED4.h"
 
 /**
@@ -319,4 +319,4 @@ void FED4::noise(uint32_t duration_ms, float amplitude){
         size_t bytes_written;
         i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
     }
-}
+} 

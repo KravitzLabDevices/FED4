@@ -86,6 +86,9 @@ public:
     // Corefunctions
     void feed();
     void run();
+    
+    // Sleep configuration
+    int sleepSeconds = 6; //how many seconds to sleep between timer based wake-ups
 
     // Menu functions
     void menu();
@@ -416,12 +419,14 @@ private:
     friend class FED4_Vitals;
     friend class FED4_Feed;
     friend class FED4_Begin;
-    friend class FED4_Speaker;
+    friend class FED4_Audio;
     friend class FED4_Magnet;
     friend class FED4_Accel;
     friend class FED4_Menu;
     friend class FED4_Motion;
     friend class FED4_Sleep;
+    friend class FED4_Timeout;
+    friend class FED4_Prox;
 };
 
 // Standard ASCII 5x7 font

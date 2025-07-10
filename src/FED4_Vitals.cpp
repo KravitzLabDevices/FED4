@@ -18,11 +18,16 @@ float FED4::getBatteryPercentage()
 {
     float percent = maxlipo.cellPercent();
     // Check for invalid readings (NaN, negative, or over 100%)
-    if (isnan(percent) || percent < 0.0 || percent > 100.0) {
+    if (isnan(percent) || percent < 0.0 || percent > 130.0) {
         Serial.printf("Battery percentage invalid: %f (NaN=%d, <0=%d, >100=%d)\n", 
                      percent, isnan(percent), percent < 0.0, percent > 100.0);
         return 0.0; // Return 0.0 to indicate invalid reading
     }
+
+    if (percent > 100.0) {
+        percent = 100.0;
+    }
+
     return percent;
 }
 
@@ -195,7 +200,7 @@ void FED4::pollSensors() {
     motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
     motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(20);
+    motionSensor.setMotionThreshold(30);
     motionSensor.setMotionHysteresis(5);
   }
 
