@@ -132,6 +132,9 @@ public:
     void majorJamClear();
     void vibrateJamClear();
     void jammed();
+    
+    // Timeout functionality (defined in FED4_Timeout.cpp)
+    void timeout(uint16_t min, uint16_t max);
 
     // Haptic motor vibration stimuli
     void hapticBuzz(uint8_t duration = 200);
