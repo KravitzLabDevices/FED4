@@ -47,11 +47,9 @@ void loop() {
       esp_sleep_enable_timer_wakeup(5000000);  // 5 second in microseconds
     }
 
-    fed4.timeout(3, 6);  // variable timeout
+    fed4.timeout(60, 120);  // variable timeout
     proxCompleted = false;
   }
-
-
 
   //also log pokes during the task
   if (fed4.leftTouch) {    // if poke is touched
