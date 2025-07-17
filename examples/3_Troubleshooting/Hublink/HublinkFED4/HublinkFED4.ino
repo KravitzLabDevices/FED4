@@ -8,7 +8,6 @@ void setup()
 {
   Serial.begin(9600);
   delay(1000);
-  Serial.println("Hello, Hublink.");
 
   fed.begin(); // inits SD card
   hublink.begin(); // Uses default callbacks
