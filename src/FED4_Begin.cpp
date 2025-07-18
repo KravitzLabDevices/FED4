@@ -187,6 +187,14 @@ bool FED4::begin(const char* programName)
     // check battery and environmental sensors
     startupPollSensors(); 
 
+    // Low battery check and warning
+    float voltage = getBatteryVoltage();
+    if (voltage > 0 && voltage < 3.55) {
+        displayLowBatteryWarning();
+        delay(100); 
+        startSleep(); // Enter light sleep
+    }
+
  // Initialize Speaker
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();

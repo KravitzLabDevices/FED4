@@ -204,6 +204,7 @@ public:
     void displaySDCardStatus();
     void displayIndicators();
     void startupAnimation();
+    void displayLowBatteryWarning();
 
     
     void serialStatusReport();

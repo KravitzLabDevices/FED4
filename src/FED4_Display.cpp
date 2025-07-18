@@ -242,6 +242,33 @@ void FED4::displayDateTime() {
   print(timeStr);
 }
 
+// Displays a low battery warning with an icon and message
+void FED4::displayLowBatteryWarning() {
+    clearDisplay();
+    setFont(&FreeSans9pt7b);
+    setTextSize(1);
+    setTextColor(DISPLAY_BLACK);
+    
+    // Draw battery outline (x=40, y=40, width=60, height=30)
+    int bx = 40, by = 40, bw = 60, bh = 30;
+    drawRect(bx, by, bw, bh, DISPLAY_BLACK); // Battery body
+    fillRect(bx + bw, by + 8, 6, 14, DISPLAY_BLACK); // Battery terminal
+    
+    // Draw empty battery (just outline, no fill)
+    // Draw exclamation mark inside battery
+    int ex = bx + bw/2 - 2;
+    int ey = by + 6;
+    fillRect(ex, ey, 4, 12, DISPLAY_BLACK); // vertical bar
+    fillRect(ex, ey + 16, 4, 4, DISPLAY_BLACK); // dot
+    
+    // Draw warning text
+    setCursor(10, by + bh + 30);
+    print("LOW BATTERY");
+    setCursor(12, by + bh + 50);
+    print("Please charge!");
+    refresh();
+}
+
 /**
  * Initializes the Sharp Memory Display
  * 

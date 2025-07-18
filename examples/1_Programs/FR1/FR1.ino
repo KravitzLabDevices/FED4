@@ -43,24 +43,5 @@ void loop() {
     fed4.click();             // audio click stimulus
     fed4.rightLight("blue");  // light LEDs around right poke blue
     fed4.logData("Right");
-    unsigned long starttime = millis();
-
-    //Check ToF
-    while (millis() < starttime + 3000) {
-      int distance = fed4.Prox();  // Take and print measurement
-
-      if (distance < 150) {
-        fed4.bluePix();
-      }
-      if (distance < 80) {
-        fed4.greenPix();
-      }
-      if (distance < 30) {
-        fed4.redPix();
-      }
-      delay(50);
-      Serial.println (distance);
-
-    }
   }
 }
