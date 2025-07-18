@@ -8,18 +8,16 @@ void setup()
 {
   Serial.begin(9600);
   delay(1000);
-  Serial.println("Hello, Hublink.");
 
   fed.begin(); // inits SD card
-
-  // Serial.println(hublink.initSD() ? "✓ SD Card." : "✗ SD Card");
-  // hublink.init(); // Uses default callbacks
+  hublink.begin(); // Uses default callbacks
 }
 
 void loop()
 {
-  // hublink.sync(); // only blocks when ready
+  hublink.sync(); // only blocks when ready
   // fed.Feed();
   // fed.sleep();
   delay(1000);
+  Serial.println("I'm alive");
 }
