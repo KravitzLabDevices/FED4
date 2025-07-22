@@ -16,8 +16,9 @@ void setup()
   Serial.begin(9600);
   delay(1000);
 
-  fed.begin();     // inits SD card
-  hublink.begin(); // Uses default callbacks
+  fed.begin(); // inits SD card
+  hublink.begin();
+  hublink.onTimestampReceived(onTimestampReceived);
 }
 
 void loop()
