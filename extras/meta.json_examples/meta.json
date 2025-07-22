@@ -6,7 +6,9 @@
     "try_reconnect": false,
     "reconnect_attempts": 2,
     "reconnect_every": 10,
-    "disable": false
+    "disable": false,
+    "upload_path": "/TEST",
+    "append_path": "subject:id"
   },
   "subject": {
     "id": "mouse002",
