@@ -23,7 +23,7 @@ void setup()
 
 void loop()
 {
-  hublink.setBatteryLevel((int)fed.getBatteryPercentage()); // set before sync
+  hublink.setBatteryLevel((int)fed.getBatteryPercentage()); // set before sync; consider 1s timer if loop delay ~= 0
   hublink.sync();                                           // only blocks when ready
   // fed.Feed();
   // fed.sleep();
