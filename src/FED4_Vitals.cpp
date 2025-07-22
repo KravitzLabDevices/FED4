@@ -17,15 +17,12 @@ float FED4::getBatteryVoltage()
 float FED4::getBatteryPercentage()
 {
     float percent = maxlipo.cellPercent();
-    // Check for invalid readings (NaN, negative, or over 100%)
-    if (isnan(percent) || percent < 0.0 || percent > 130.0) {
-        Serial.printf("Battery percentage invalid: %f (NaN=%d, <0=%d, >100=%d)\n", 
-                     percent, isnan(percent), percent < 0.0, percent > 100.0);
-        return 0.0; // Return 0.0 to indicate invalid reading
-    }
-
     if (percent > 100.0) {
         percent = 100.0;
+    }
+
+    if (percent < 0.0) {
+        percent = 0.0;
     }
 
     return percent;
