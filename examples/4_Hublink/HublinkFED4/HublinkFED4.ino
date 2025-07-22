@@ -9,12 +9,13 @@ void setup()
   Serial.begin(9600);
   delay(1000);
 
-  fed.begin(); // inits SD card
+  fed.begin();     // inits SD card
   hublink.begin(); // Uses default callbacks
 }
 
 void loop()
 {
+  hublink.setBatteryLevel((int)fed.getBatteryPercentage()); // set before sync
   hublink.sync(); // only blocks when ready
   // fed.Feed();
   // fed.sleep();
