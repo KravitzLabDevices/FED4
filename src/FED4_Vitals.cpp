@@ -215,7 +215,7 @@ void FED4::pollSensors() {
   // Increment poll counter for percentage calculation
   pollCount++;
 
-  int minToUpdateSensors = 10;  //update sensors every N minutes
+  int minToUpdateSensors = 1;  //update sensors every N minutes
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
     lastPollTime = millis();
 
@@ -269,6 +269,15 @@ void FED4::pollSensors() {
 
     if (cellPercent > 100) {
       cellPercent = 100;
+    }
+
+    // Halt device and display warning if battery is low
+    if (cellVoltage > 0 && cellVoltage < 3.5) {
+      displayLowBatteryWarning();
+      Serial.println("LOW BATTERY: Device halted to protect battery.");
+      while (1) {
+        delay(1000); // Halt here
+      }
     }
 
     //get lux with timeout
