@@ -3,9 +3,9 @@
     "advertise": "HUBLINK",
     "advertise_every": 300,
     "advertise_for": 30,
-    "try_reconnect": true,
-    "reconnect_attempts": 3,
-    "reconnect_every": 30000,
+    "try_reconnect": false,
+    "reconnect_attempts": 2,
+    "reconnect_every": 10,
     "disable": false
   },
   "subject": {
