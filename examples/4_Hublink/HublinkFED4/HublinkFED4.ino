@@ -4,6 +4,13 @@ FED4 fed;
 #include <Hublink.h>
 Hublink hublink(SD_CS); // Use default Hublink instance
 
+// Hublink callback function to handle timestamp
+void onTimestampReceived(uint32_t timestamp)
+{
+  Serial.println("Received timestamp: " + String(timestamp));
+  fed.adjustRTC(timestamp);
+}
+
 void setup()
 {
   Serial.begin(9600);
@@ -16,7 +23,7 @@ void setup()
 void loop()
 {
   hublink.setBatteryLevel((int)fed.getBatteryPercentage()); // set before sync
-  hublink.sync(); // only blocks when ready
+  hublink.sync();                                           // only blocks when ready
   // fed.Feed();
   // fed.sleep();
   delay(1000);
