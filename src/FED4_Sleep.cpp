@@ -56,6 +56,8 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   wakeCount++;
+
+
   LDO2_ON();
   Wire.begin();  // Reinitialize primary I2C
   I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C for light sensor
