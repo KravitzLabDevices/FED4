@@ -27,8 +27,12 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
                pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
                stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
                I2C_2(1)
+#ifndef FED4_EXCLUDE_HUBLINK
+               ,
+               hublink(SD_CS)
+#endif
 {
-    
+
     pelletReady = true;
     feedReady = false;
     displayBuffer = nullptr; // Initialize our display buffer pointer
@@ -62,9 +66,11 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 /**
  * Main run loop that updates time, display, prints status and handles sleep
  */
-void FED4::run(){
+void FED4::run()
+{
     updateTime();
     updateDisplay();
     serialStatusReport();
+    syncHublink(); // Sync with Hublink before sleep
     sleep();
 }

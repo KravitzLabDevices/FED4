@@ -3,15 +3,15 @@
 /********************************************************
  * Initialization
  * Initializes all components and sets up the FED4 system
- * 
+ *
  * @return bool - true if initialization is successful, false otherwise
- */ 
+ */
 //********************************************************
 
-bool FED4::begin(const char* programName)
+bool FED4::begin(const char *programName)
 {
     Serial.begin(115200);
-    
+
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
@@ -46,7 +46,12 @@ bool FED4::begin(const char* programName)
         {"Accelerometer", {false, ""}},
         {"Magnet", {false, ""}},
         {"Motion", {false, ""}},
-        {"ToF Sensor", {false, ""}}}; 
+        {"ToF Sensor", {false, ""}}
+#ifndef FED4_EXCLUDE_HUBLINK
+        ,
+        {"Hublink", {false, ""}}
+#endif
+    };
 
     // Initialize I2C buses
     statuses["I2C Primary"].initialized = Wire.begin(SDA, SCL);
@@ -75,13 +80,14 @@ bool FED4::begin(const char* programName)
     // Retry logic like the working test script
     int maxRetries = 3;
     int retryCount = 0;
-    Serial.println("Initializing temperature/humidity sensor"); 
-    while (!maxlipo.begin() && retryCount < maxRetries) {
+    Serial.println("Initializing temperature/humidity sensor");
+    while (!maxlipo.begin() && retryCount < maxRetries)
+    {
         retryCount++;
         Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
         delay(100); // Wait before retry
     }
-    
+
     statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
     if (!statuses["Battery Monitor"].initialized)
     {
@@ -93,16 +99,16 @@ bool FED4::begin(const char* programName)
     statuses["LDOs"].initialized = initializeLDOs();
 
     Serial.println("Initializing NeoPixel");
-    // Initialize LEDs 
+    // Initialize LEDs
     statuses["NeoPixel"].initialized = initializePixel();
-    redPix(1); //very dim red pix to indicate when FED4 is awake
+    redPix(1); // very dim red pix to indicate when FED4 is awake
 
     // Initialize RTC
     Serial.println("Initializing RTC");
     statuses["RTC"].initialized = initializeRTC();
-    
+
     // Initialize temperature/humidity sensor directly
-    Serial.println("Initializing temperature/humidity sensor");  
+    Serial.println("Initializing temperature/humidity sensor");
     statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
     if (!statuses["Temp/Humidity"].initialized)
     {
@@ -120,28 +126,28 @@ bool FED4::begin(const char* programName)
     // startup front LEDs
     Serial.println("Initializing LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
-    stripRainbow(3, 1);  
-    
+    stripRainbow(3, 1);
+
     // Configure all GPIO pins
     Serial.println("Initializing GPIO pins");
     mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
-    mcp.pinMode(1, OUTPUT);  // Configure ToF sensor XSHUT pin (pin 1, not EXP_XSHUT_1)
-    mcp.digitalWrite(1, HIGH);  // Enable ToF sensor
+    mcp.pinMode(1, OUTPUT);    // Configure ToF sensor XSHUT pin (pin 1, not EXP_XSHUT_1)
+    mcp.digitalWrite(1, HIGH); // Enable ToF sensor
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
     pinMode(AUDIO_TRRS_2, INPUT);
     pinMode(AUDIO_TRRS_3, INPUT);
     pinMode(USER_PIN_18, OUTPUT);
     digitalWrite(USER_PIN_18, LOW);
-    
+
     // Configure haptic motor pin
     mcp.pinMode(EXP_HAPTIC, OUTPUT);
     mcp.digitalWrite(EXP_HAPTIC, LOW);
 
-    // Initialize Touch 
+    // Initialize Touch
     Serial.println("Initializing Touch Sensors");
     statuses["Touch Sensors"].initialized = initializeTouch();
     calibrateTouchSensors();
-    
+
     // Initialize Buttons
     Serial.println("Initializing Buttons");
     statuses["Buttons"].initialized = initializeButtons();
@@ -149,7 +155,7 @@ bool FED4::begin(const char* programName)
     {
         Serial.println("Button initialization failed");
     }
-    
+
     Serial.println("Initializing Motor");
     statuses["Motor"].initialized = initializeMotor();
 
@@ -166,7 +172,7 @@ bool FED4::begin(const char* programName)
         Serial.println("Magnet sensor initialization failed");
     }
 
-    stripRainbow(3, 1);  
+    stripRainbow(3, 1);
 
     // Initialize ToF sensor
     statuses["ToF Sensor"].initialized = initializeToF();
@@ -183,64 +189,84 @@ bool FED4::begin(const char* programName)
     }
 
     statuses["Display"].initialized = initializeDisplay();
-   
+
     // check battery and environmental sensors
-    startupPollSensors(); 
+    startupPollSensors();
 
     // Low battery check and warning
     float voltage = getBatteryVoltage();
-    if (voltage > 0 && voltage < 3.55) {
+    if (voltage > 0 && voltage < 3.55)
+    {
         displayLowBatteryWarning();
-        delay(100); 
+        delay(100);
         startSleep(); // Enter light sleep
     }
 
- // Initialize Speaker
+    // Initialize Speaker
     Serial.println("Initializing Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
-    playTone(1000, 8, 0.3);  //first playTone doesn't play for some reason - need to call once to get it going?
+    playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going?
 
-    // Initialize SD 
+    // Initialize SD
     Serial.println("Initializing SD Card");
     statuses["SD Card"].initialized = initializeSD();
 
+// Initialize Hublink if enabled
+#ifndef FED4_EXCLUDE_HUBLINK
+    if (useHublink)
+    {
+        Serial.println("Initializing Hublink");
+        statuses["Hublink"].initialized = initializeHublink();
+        if (!statuses["Hublink"].initialized)
+        {
+            Serial.println("Hublink initialization failed");
+        }
+    }
+#endif
+
     // This is used to set the program name in the meta.json file
-    // and to get the program name from the meta.json file  
+    // and to get the program name from the meta.json file
     //
     // Usage: When begin() is called in the FED4 Arduino script it can be called with a program name:
     //        begin("programName");
     //        programName will be used to set the program name in the meta.json file
     //        and change what shows up on the display and in the log file
-    if (programName != nullptr) {
+    if (programName != nullptr)
+    {
         setProgram(programName);
     }
 
     // Check for SD card errors and handle them
-    if (!statuses["SD Card"].initialized) {
+    if (!statuses["SD Card"].initialized)
+    {
         Serial.println("SD Card initialization failed - handling error");
         sdCardAvailable = false;
         handleSDCardError();
-    } else {
+    }
+    else
+    {
         // Try to create log file and check for filename creation errors
         Serial.println();
         Serial.println("Creating log file");
         bool logFileCreated = createLogFile();
-        
-        if (!logFileCreated) {
+
+        if (!logFileCreated)
+        {
             Serial.println("Log file creation failed - handling error");
             sdCardAvailable = false;
             handleSDCardError();
-        } 
+        }
     }
 
     // Only pull JSON data from SD card if it's available
-    if (sdCardAvailable) {
+    if (sdCardAvailable)
+    {
         Serial.println();
         Serial.println("Pulling JSON data from SD card:");
-        program = getMetaValue("subject", "program");     
-        mouseId = getMetaValue("subject", "id");    
-        sex = getMetaValue("subject", "sex");    
-        strain = getMetaValue("subject", "strain"); 
+        program = getMetaValue("subject", "program");
+        mouseId = getMetaValue("subject", "id");
+        sex = getMetaValue("subject", "sex");
+        strain = getMetaValue("subject", "strain");
         age = getMetaValue("subject", "age");
 
         // Check meta value
@@ -250,14 +276,21 @@ bool FED4::begin(const char* programName)
             Serial.print(" - Subject ID: ");
             Serial.println(subjectId);
         }
-    } else {
+    }
+    else
+    {
         // Set default values when SD card is not available
         Serial.println("SD card not available - using default values");
-        if (program.length() == 0) program = "Default";
-        if (mouseId.length() == 0) mouseId = "0000";
-        if (sex.length() == 0) sex = "Unknown";
-        if (strain.length() == 0) strain = "Unknown";
-        if (age.length() == 0) age = "Unknown";
+        if (program.length() == 0)
+            program = "Default";
+        if (mouseId.length() == 0)
+            mouseId = "0000";
+        if (sex.length() == 0)
+            sex = "Unknown";
+        if (strain.length() == 0)
+            strain = "Unknown";
+        if (age.length() == 0)
+            age = "Unknown";
     }
     logData("Startup");
 
@@ -284,14 +317,14 @@ bool FED4::begin(const char* programName)
                   statuses.size() - failCount,
                   statuses.size());
     Serial.println("================================\n");
-    
+
     startupAnimation();
-    //three clicks to confirm initialization
-    playTone(1000, 8, 0.5);  
-    delay (100);
-    playTone(1000, 8, 0.5);  
-    delay (100);
-    playTone(1000, 8, 0.5);  
+    // three clicks to confirm initialization
+    playTone(1000, 8, 0.5);
+    delay(100);
+    playTone(1000, 8, 0.5);
+    delay(100);
+    playTone(1000, 8, 0.5);
 
     return true;
 }
