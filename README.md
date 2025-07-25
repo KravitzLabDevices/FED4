@@ -20,6 +20,7 @@ FED4 (Feeding Experimentation Device) is an open-source device for training mice
 - 🎵 Audio feedback
 - 💾 SD card storage
 - 🕹️ Touch and button controls
+- 🌐 Optional Hublink integration for network connectivity
 
 ## Hardware Components
 
@@ -222,6 +223,48 @@ void loop() {
   fed.run();
 }
 ```
+
+## Hublink Integration
+
+The FED4 library includes optional Hublink integration for network connectivity and time synchronization.
+
+### Basic Hublink Usage
+
+```cpp
+#include "FED4.h"
+
+FED4 fed;
+
+void setup() {
+  // Enable Hublink functionality
+  fed.useHublink = true;
+  
+  // Initialize FED4 (Hublink will be initialized automatically)
+  fed.begin("MyExperiment");
+}
+
+void loop() {
+  // Hublink sync happens automatically in run()
+  fed.run();
+}
+```
+
+### Excluding Hublink
+
+To exclude Hublink functionality and reduce code size:
+
+```cpp
+#define FED4_EXCLUDE_HUBLINK
+#include "FED4.h"
+
+FED4 fed;
+
+void setup() {
+  fed.begin("MyExperiment");
+}
+```
+
+For more details, see the [Hublink examples](examples/4_Hublink/) and the [official Hublink documentation](https://hublink.cloud/docs).
 
 ## Contributing
 

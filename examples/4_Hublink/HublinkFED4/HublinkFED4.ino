@@ -1,5 +1,5 @@
 #include <FED4.h> //Include the FED3 library
-FED4 fed;
+FED4 fed4;
 
 #include <Hublink.h>
 Hublink hublink(SD_CS); // Use default Hublink instance
@@ -8,7 +8,7 @@ Hublink hublink(SD_CS); // Use default Hublink instance
 void onTimestampReceived(uint32_t timestamp)
 {
   Serial.println("Received timestamp: " + String(timestamp));
-  fed.adjustRTC(timestamp);
+  fed4.adjustRTC(timestamp);
 }
 
 void setup()
@@ -16,15 +16,20 @@ void setup()
   Serial.begin(9600);
   delay(1000);
 
-  fed.begin(); // inits SD card
+  fed4.begin(); // inits SD card
   hublink.begin();
   hublink.onTimestampReceived(onTimestampReceived);
 }
 
 void loop()
 {
-  hublink.setBatteryLevel((int)fed.getBatteryPercentage()); // set before sync; consider 1s timer if loop delay ~= 0
-  hublink.sync();                                           // only blocks when ready
+  int batteryLevel = (int)fed4.getBatteryPercentage();
+  if (batteryLevel < 20)
+  {
+    hublink.setAlert("Low Battery!");
+  }
+  hublink.setBatteryLevel(batteryLevel); // set before sync; consider 1s timer if loop delay ~= 0
+  hublink.sync();                        // only blocks when ready
   // fed.Feed();
   // fed.sleep();
   delay(1000);

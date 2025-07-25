@@ -34,12 +34,17 @@
 #include "Adafruit_VEML7700.h"
 #include <ESP32Time.h>
 
+// Optional Hublink integration - can be excluded via compiler directive
+#ifndef FED4_EXCLUDE_HUBLINK
+#include <Hublink.h>
+#endif
+
 // Pin Definitions
 #include "FED4_Pins.h"
 
 // Device Constants
-static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;        // Default I2C address for LIS3DH accelerometer
-static const uint8_t MLX90393_I2C_ADDRESS = 0x0C;      // Default I2C address for MLX90393 magnetometer
+static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;   // Default I2C address for LIS3DH accelerometer
+static const uint8_t MLX90393_I2C_ADDRESS = 0x0C; // Default I2C address for MLX90393 magnetometer
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -72,8 +77,14 @@ public:
     static const char libraryVer[];
 
     // Initialization
-    bool begin(const char* programName = nullptr);
-    
+    bool begin(const char *programName = nullptr);
+
+    // Hublink integration
+    bool useHublink = false; // Default to false, can be set by user
+    bool initializeHublink();
+    void syncHublink();
+    static void onHublinkTimestampReceived(uint32_t timestamp);
+
     // Button functions
     bool initializeButtons();
     static void IRAM_ATTR onButton1WakeUp();
@@ -86,9 +97,9 @@ public:
     // Corefunctions
     void feed();
     void run();
-    
+
     // Sleep configuration
-    int sleepSeconds = 6; //how many seconds to sleep between timer based wake-ups
+    int sleepSeconds = 6; // how many seconds to sleep between timer based wake-ups
 
     // Menu functions
     void menu();
@@ -135,7 +146,7 @@ public:
     void majorJamClear();
     void vibrateJamClear();
     void jammed();
-    
+
     // Timeout functionality (defined in FED4_Timeout.cpp)
     void timeout(uint16_t min, uint16_t max);
 
@@ -151,16 +162,16 @@ public:
     static void IRAM_ATTR onTouchWakeUp();
     void monitorTouchSensors();
     void clearTouch();
-    void resetTouchFlags();  // Reset all touch flags to false
-    static uint8_t wakePad;  // 0=none, 1=left, 2=center, 3=right
+    void resetTouchFlags(); // Reset all touch flags to false
+    static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right
 
     // Pixel an Strip control (defined in FED4_LEDs.cpp)
     // (strip)
     bool initializeStrip();
     void setStripBrightness(uint8_t brightness);
-    void colorWipe(const char* colorName, unsigned long wait);
+    void colorWipe(const char *colorName, unsigned long wait);
     void colorWipe(uint32_t color, unsigned long wait);
-    void stripTheaterChase(const char* colorName, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
+    void stripTheaterChase(const char *colorName, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripRainbow(unsigned long wait, unsigned int numLoops);
     void clearStrip();
@@ -206,7 +217,6 @@ public:
     void startupAnimation();
     void displayLowBatteryWarning();
 
-    
     void serialStatusReport();
 
     // Sleep management (defined in FED4_Sleep.cpp)
@@ -229,7 +239,7 @@ public:
     bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
     void setProgram(String program);
     void setMouseId(String mouseId);
-    void setSex(String sex);        
+    void setSex(String sex);
     void setStrain(String strain);
     void setAge(String age);
     void handleSDCardError();
@@ -244,10 +254,10 @@ public:
     bool leftTouch;
     bool centerTouch;
     bool rightTouch;
-    bool motionDetected = false; // Track motion detection status
-    int motionCount = 0; // Aggregate motion detections between 5-minute intervals
+    bool motionDetected = false;  // Track motion detection status
+    int motionCount = 0;          // Aggregate motion detections between 5-minute intervals
     float motionPercentage = 0.0; // Percentage of motion detections in the last 5-minute period
-    int pollCount = 0; // Track total number of polls in each 5-minute period
+    int pollCount = 0;            // Track total number of polls in each 5-minute period
     unsigned long waketime;
 
     // RTC functions
@@ -358,7 +368,7 @@ public:
 
     // Memory monitoring function
     void printMemoryStatus();
-    
+
     // Debug function for lux sensor
     void debugLuxSensor();
     void testI2CConnectivity();
@@ -389,6 +399,11 @@ private:
     Adafruit_MLX90393 magnet;
     STHS34PF80_I2C motionSensor;
     Adafruit_VEML7700 lightSensor;
+
+// Hublink integration
+#ifndef FED4_EXCLUDE_HUBLINK
+    Hublink hublink;
+#endif
     // Device state variables
     esp_adc_cal_characteristics_t *adc_cal;
     uint32_t millivolts;
