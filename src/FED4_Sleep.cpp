@@ -7,14 +7,6 @@ void FED4::sleep() {
   noPix(); 
   startSleep();
   wakeUp();
-  redPix(1); //very dim red pix to indicate when FED4 is awake
-
-  // Check sensors on timer wake-up and buttons
-  handleTouch();
-  checkButton1();
-  checkButton2();
-  checkButton3();
-  pollSensors();
 }
 
 // Prepares device for sleep mode by disabling components and entering light sleep
@@ -56,11 +48,12 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   wakeCount++;
+  redPix(1); //very dim red pix to indicate when FED4 is awake
 
-
+  // Reinitialize I2C buses FIRST before any sensor operations
   LDO2_ON();
   Wire.begin();  // Reinitialize primary I2C
-  I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C for light sensor
+  I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C 
   
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
@@ -68,8 +61,21 @@ void FED4::wakeUp() {
   mcp.digitalWrite(EXP_HAPTIC, LOW);
   mcp.pinMode(EXP_LDO3, OUTPUT);
   
-  LDO3_ON();  // Turn on LDO3 to power up NeoPixel
+  LDO3_ON();  // Turn on LDO3 
   enableAmp(true);
+
+  // Only check button and sensor polling if not woken up by touch
+  if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    checkButton1();
+    checkButton2(); 
+    checkButton3();
+    pollSensors();
+  }
+
+  // Only check touch sensors if woken up by touch
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    interpretTouch();
+  }
 }
 
 // Handles touch inputs and only checks them if a button was not pressed
@@ -80,8 +86,6 @@ void FED4::handleTouch() {
 
   // Check if wake-up was caused by timer
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
-    // This is a timer wake-up, skip touch interpretation
-    Serial.print("Timer wake-up");
     wakePad = 0;  // Reset wake pad for timer wake-up
     return;
   }

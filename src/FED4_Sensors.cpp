@@ -83,20 +83,17 @@ void FED4::calibrateTouchSensors()
  */
 void FED4::interpretTouch()
 {
-    // Set flags first for fastest response (no serial output here)
     if (wakePad == 1) {
         leftCount++;
-        leftTouch = true;  // Set flag first for fastest response
+        leftTouch = true; 
     } else if (wakePad == 2) {
         centerCount++;
-        centerTouch = true;  // Set flag first for fastest response
+        centerTouch = true; 
     } else if (wakePad == 3) {
         rightCount++;
-        rightTouch = true;  // Set flag first for fastest response
-    } 
-
+        rightTouch = true; 
+    }
     wakePad = 0;  // Reset the wake pad flag
-    // No need to clear status again - already done in interrupt
 }
 
 void FED4::resetTouchFlags()
