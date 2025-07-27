@@ -297,6 +297,8 @@ public:
     void playTone(uint32_t frequency = 500, uint32_t duration_ms = 200, float amplitude = 0.25);
     void playTones(const Tone *tones, size_t count);
     void enableAmp(bool enable);
+    void silence();
+    void unsilence();
     void resetSpeaker();
 
     // Sound stimuli
@@ -333,6 +335,7 @@ public:
     int reBaselineTouches;
     char filename[32];
     bool sdCardAvailable = true; // Track if SD card operations are available
+    bool audioSilenced = false; // Track if audio has been silenced
 
     void clearDisplay();
     void refresh();

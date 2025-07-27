@@ -85,13 +85,31 @@ void FED4::checkButton2() {
   }
 }
 
-// Checks if Button 3 is held and dispenses test pellet after 1 second
+// Checks if Button 3 is held for silence toggle (500ms) or menu (1500ms)
 void FED4::checkButton3() {
   int holdTime = 0;
+  bool silenceToggled = false; // Track if we've already toggled silence
+  
   while (digitalRead(BUTTON_3) == 1) {
     delay(100);
     holdTime += 100;
-    if (holdTime >= 1000) {
+    
+    // At 500ms: Toggle silence/unsilence with haptic feedback
+    if (holdTime >= 500 && !silenceToggled) {
+        hapticBuzz(200);
+        if (audioSilenced) {
+            unsilence();
+            Serial.println("********** AUDIO ENABLED **********");
+        } else {
+            silence();
+            Serial.println("********** AUDIO DISABLED **********");
+        }
+        silenceToggled = true; // Prevent multiple toggles
+    }
+    
+    // At 1500ms: Enter menu with double haptic feedback
+    if (holdTime >= 1500) {
+        hapticDoubleBuzz(200);
         menuJingle();
         Serial.println("********** BUTTON 3 MENU START **********");
         menu();

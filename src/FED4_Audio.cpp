@@ -58,11 +58,38 @@ bool FED4::initializeSpeaker()
  */
 void FED4::enableAmp(bool enable)
 {
+    // If audio has been silenced, don't allow re-enabling unless explicitly reset
+    if (enable && audioSilenced) {
+        return; // Silently ignore enable requests when silenced
+    }
+    
     digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
     if (enable)
     {
         delay(1); // stabilize amp
     }
+}
+
+/**
+ * Permanently disables the speaker amplifier and prevents it from being re-enabled
+ * This function will keep the amp disabled even if enableAmp(true) is called later
+ */
+void FED4::silence()
+{
+    digitalWrite(AUDIO_SD, LOW);
+    audioSilenced = true; // Set flag to prevent re-enabling
+    // Note: This function disables the amp permanently
+    // To re-enable audio, you would need to call enableAmp(true) explicitly
+}
+
+/**
+ * Re-enables the speaker amplifier by clearing the silence flag
+ * This allows enableAmp(true) calls to work again
+ */
+void FED4::unsilence()
+{
+    audioSilenced = false; // Clear the silence flag
+    // Note: This doesn't automatically enable the amp, just allows it to be enabled
 }
 
 /**

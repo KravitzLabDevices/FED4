@@ -19,6 +19,7 @@ char task[] = "FR1_Approach";  // give the task a unique name
 
 void setup() {
   fed4.begin(task);  // initialize FED4 hardware
+  fed4.silence();    //silence audio for troubleshooting
 }
 
 void loop() {
@@ -32,7 +33,9 @@ void loop() {
     // Check proximity sensor for 1s, log "Approach" if <20mm, "No_approach" otherwise
     unsigned long startTime = millis();
     while (millis() < startTime + 1000) {
-      if (fed4.prox() > 0 && fed4.prox() < 20) {
+      int proximity = fed4.prox();
+      Serial.println(proximity);
+      if (proximity > 0 && proximity < 20) {
         fed4.bopBeep();
         fed4.centerLight("white");
         fed4.logData("Approach");
@@ -44,13 +47,13 @@ void loop() {
     fed4.logData("No_approach");
   }
 
-  if (fed4.centerTouch) {       // if center poke is touched
-    fed4.click();               // audio click stimulus
+  if (fed4.centerTouch) {  // if center poke is touched
+    fed4.click();          // audio click stimulus
     fed4.logData("Center");
   }
 
-  if (fed4.rightTouch) {       // if right poke is touched
-    fed4.click();              // audio click stimulus
+  if (fed4.rightTouch) {  // if right poke is touched
+    fed4.click();         // audio click stimulus
     fed4.logData("Right");
   }
 }

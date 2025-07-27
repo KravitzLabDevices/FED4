@@ -220,8 +220,8 @@ bool FED4::checkForPellet()
 bool FED4::didPelletDrop()
 {
     //Without drop sensor use:
-    // return mcp.digitalRead(EXP_PHOTOGATE_4);
+    return mcp.digitalRead(EXP_PHOTOGATE_4);
 
     //With drop sensor use:
-    return !mcp.digitalRead(EXP_PHOTOGATE_4);
+    // return !mcp.digitalRead(EXP_PHOTOGATE_4);
 }

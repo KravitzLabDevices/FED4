@@ -128,6 +128,12 @@ void FED4::displayEnvironmental(){
   drawCircle(31, 3, 2, DISPLAY_WHITE); 
   setCursor(35, 9);
   print("C");
+  
+  // Add "X" icon if audio is silenced
+  if (audioSilenced) {
+    setCursor(50, 9);
+    print("X");
+  }
 }
 
 void FED4::displayBattery(){
