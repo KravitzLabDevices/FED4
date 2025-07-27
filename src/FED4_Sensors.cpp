@@ -18,7 +18,7 @@ void IRAM_ATTR FED4::onTouchWakeUp()
         wakePad = 3;
     }
     
-    // Clear the touch pad status
+    // Clear the touch pad status only once here
     touch_pad_clear_status();
 }
 
@@ -44,7 +44,7 @@ bool FED4::initializeTouch()
         return false;
 
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-    delay(50);  // Reduced from 200ms to 50ms - minimum time needed for voltage stabilization
+    delay(25);  // Reduced from 50ms to 25ms - optimized for faster response
     return true;
 }
 
@@ -83,25 +83,20 @@ void FED4::calibrateTouchSensors()
  */
 void FED4::interpretTouch()
 {
-    // Print which pad triggered the wake-up
-      if (wakePad == 1) {
-          Serial.print("LEFT touch   ");
-          leftCount++;
-          leftTouch = true;  // Set flag first for fastest response
-      } else if (wakePad == 2) {
-          Serial.print("CENTER touch ");
-          centerCount++;
-          centerTouch = true;  // Set flag first for fastest response
-      } else if (wakePad == 3) {
-          Serial.print("RIGHT touch  ");
-          rightCount++;
-          rightTouch = true;  // Set flag first for fastest response
-      } 
+    // Set flags first for fastest response (no serial output here)
+    if (wakePad == 1) {
+        leftCount++;
+        leftTouch = true;  // Set flag first for fastest response
+    } else if (wakePad == 2) {
+        centerCount++;
+        centerTouch = true;  // Set flag first for fastest response
+    } else if (wakePad == 3) {
+        rightCount++;
+        rightTouch = true;  // Set flag first for fastest response
+    } 
 
     wakePad = 0;  // Reset the wake pad flag
-    // Clear any pending touch pad interrupts
-    displayIndicators();
-    touch_pad_clear_status();
+    // No need to clear status again - already done in interrupt
 }
 
 void FED4::resetTouchFlags()
@@ -109,4 +104,16 @@ void FED4::resetTouchFlags()
     leftTouch = false;
     centerTouch = false;
     rightTouch = false;
+}
+
+// Optional: Add this function to log touch events separately from the critical path
+void FED4::logTouchEvent()
+{
+    if (leftTouch) {
+        Serial.print("LEFT touch   ");
+    } else if (centerTouch) {
+        Serial.print("CENTER touch ");
+    } else if (rightTouch) {
+        Serial.print("RIGHT touch  ");
+    }
 }

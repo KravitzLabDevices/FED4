@@ -131,9 +131,11 @@ void FED4::handlePelletInWell() {
             updateDisplay();
             greenPix();
             outputPulse(1, 100);
-            //wait for touch to return to baseline
+            // Non-blocking touch return check - only wait briefly
+            unsigned long startTime = millis();
             while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+                if (millis() - startTime > 500) break; // Max 500ms wait
+                delay(5); // Reduced delay
             }
         }
         else if (centerDev >= TOUCH_THRESHOLD) {
@@ -146,9 +148,11 @@ void FED4::handlePelletInWell() {
             updateDisplay();
             bluePix();
             outputPulse(2, 100);
-            //wait for touch to return to baseline
+            // Non-blocking touch return check - only wait briefly
+            unsigned long startTime = millis();
             while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+                if (millis() - startTime > 500) break; // Max 500ms wait
+                delay(5); // Reduced delay
             }
         }
         else if (rightDev >= TOUCH_THRESHOLD) {
@@ -161,9 +165,11 @@ void FED4::handlePelletInWell() {
             updateDisplay();
             redPix();
             outputPulse(3, 100);
-            //wait for touch to return to baseline
+            // Non-blocking touch return check - only wait briefly
+            unsigned long startTime = millis();
             while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+                if (millis() - startTime > 500) break; // Max 500ms wait
+                delay(5); // Reduced delay
             }
         }
     }

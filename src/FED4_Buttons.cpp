@@ -96,6 +96,9 @@ void FED4::checkButton3() {
     
     // At 500ms: Toggle silence/unsilence with haptic feedback
     if (holdTime >= 500 && !silenceToggled) {
+        // temporarily unmute audio even if it is silenced
+        digitalWrite(AUDIO_SD, HIGH);
+        click();
         hapticBuzz(200);
         if (audioSilenced) {
             unsilence();

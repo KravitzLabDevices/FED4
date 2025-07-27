@@ -327,6 +327,10 @@ bool FED4::begin(const char *programName)
     Serial.println("================================\n");
 
     startupAnimation();
+    
+    // temporarily unmute audio even if it is silenced
+    digitalWrite(AUDIO_SD, HIGH);
+    delay (100);
     // three clicks to confirm initialization
     playTone(1000, 8, 0.5);
     delay(100);

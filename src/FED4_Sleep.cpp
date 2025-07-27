@@ -83,7 +83,6 @@ void FED4::handleTouch() {
     // This is a timer wake-up, skip touch interpretation
     Serial.print("Timer wake-up");
     wakePad = 0;  // Reset wake pad for timer wake-up
-    touch_pad_clear_status();
     return;
   }
 
@@ -92,7 +91,6 @@ void FED4::handleTouch() {
     // This is a button wake-up, skip touch interpretation
     Serial.println("Button wake-up");
     wakePad = 0;  // Reset wake pad for button wake-up
-    touch_pad_clear_status();
     return;
   }
 
