@@ -46,7 +46,8 @@ bool FED4::begin(const char *programName)
         {"Accelerometer", {false, ""}},
         {"Magnet", {false, ""}},
         {"Motion", {false, ""}},
-        {"ToF Sensor", {false, ""}}
+        {"ToF Sensor", {false, ""}},
+        {"Drop Sensor", {false, ""}}
 #ifndef FED4_EXCLUDE_HUBLINK
         ,
         {"Hublink", {false, ""}}
@@ -186,6 +187,13 @@ bool FED4::begin(const char *programName)
     if (!statuses["Motion"].initialized)
     {
         Serial.println("Motion sensor initialization failed");
+    }
+
+    // Initialize Drop sensor
+    statuses["Drop Sensor"].initialized = initializeDropSensor();
+    if (!statuses["Drop Sensor"].initialized)
+    {
+        Serial.println("Drop sensor not detected or not working");
     }
 
     statuses["Display"].initialized = initializeDisplay();

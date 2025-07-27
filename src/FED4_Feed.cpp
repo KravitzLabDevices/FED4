@@ -219,9 +219,28 @@ bool FED4::checkForPellet()
  */
 bool FED4::didPelletDrop()
 {
-    //Without drop sensor use:
-    return mcp.digitalRead(EXP_PHOTOGATE_4);
+    if (dropSensorAvailable) {
+        //With drop sensor use:
+        return !mcp.digitalRead(EXP_PHOTOGATE_4);
+    } else {
+        //Without drop sensor use:
+        return false; // Always return false when sensor is not available
+    }
+}
 
-    //With drop sensor use:
-    // return !mcp.digitalRead(EXP_PHOTOGATE_4);
+/**
+ * Initializes the drop sensor and checks its status
+ * 
+ * @return bool - true if drop sensor is working (HIGH), false if broken or not present (LOW)
+ */
+bool FED4::initializeDropSensor()
+{
+    // Read the drop sensor status
+    bool sensorStatus = mcp.digitalRead(EXP_PHOTOGATE_4);
+    
+    // Set the flag based on sensor status
+    dropSensorAvailable = sensorStatus;
+    
+    // Return true if HIGH (sensor is good), false if LOW (broken or not present)
+    return sensorStatus;
 }

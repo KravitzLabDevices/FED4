@@ -112,8 +112,6 @@ void FED4::displayAge(){
   print(" months");
 }
 
-
-
 void FED4::displayEnvironmental(){
   //try to make text inverse white on black
   fillRect (0, 0, 144, 17, DISPLAY_BLACK);
@@ -168,7 +166,7 @@ void FED4::displayCounters()
   setTextColor(DISPLAY_BLACK);
   
   // Clear all counter value areas with one white rectangle
-  fillRect(90, 70, 50, 80, DISPLAY_WHITE);  // Clear area for all counter values
+  fillRect(90, 70, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
   
   setCursor(30, 80);
   print("Left: ");

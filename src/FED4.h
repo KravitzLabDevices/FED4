@@ -368,6 +368,9 @@ public:
     bool initializeMotion();
     bool motion();
 
+    // Drop sensor functions
+    bool initializeDropSensor();
+
     // Memory monitoring function
     void printMemoryStatus();
 
@@ -414,6 +417,7 @@ private:
     String sex;
     String strain;
     String age;
+    bool dropSensorAvailable; // Flag to store drop sensor availability status
 
     // RTC functions
     Preferences preferences;
