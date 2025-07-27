@@ -319,6 +319,15 @@ bool FED4::logData(const String &newEvent)
     digitalWrite(SD_CS, HIGH);
     SPI.endTransaction();
     noPix();
+    
+    // update screen counters when logging except at startup
+    if (leftCount > 0 || rightCount > 0 || centerCount > 0) {
+      displayIndicators();
+      displayCounters();
+    }
+
+    refresh();
+
     return true;
 }
 

@@ -29,7 +29,7 @@ void loop() {
     fed4.lowBeep();           // 500hz 200ms beep
     fed4.centerLight("red");  // light LEDs around center poke red
     fed4.logData("Left");
-
+    
     // Check proximity sensor for 1s, log "Approach" if <20mm, "No_approach" otherwise
     unsigned long startTime = millis();
     while (millis() < startTime + 1000) {
