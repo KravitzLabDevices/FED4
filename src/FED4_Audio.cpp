@@ -49,6 +49,15 @@ bool FED4::initializeSpeaker()
         return false;
     }
 
+    // Load audio silence state from preferences
+    if (preferences.begin(PREFS_NAMESPACE, true)) {
+        audioSilenced = preferences.getBool("audioSilenced", false);
+        preferences.end();
+        if (audioSilenced) {
+            Serial.println("Audio silence state loaded from preferences: SILENCED");
+        }
+    }
+
     return true;
 }
 
@@ -78,6 +87,14 @@ void FED4::silence()
 {
     digitalWrite(AUDIO_SD, LOW);
     audioSilenced = true; // Set flag to prevent re-enabling
+    
+    // Save silence state to preferences
+    if (preferences.begin(PREFS_NAMESPACE, false)) {
+        preferences.putBool("audioSilenced", true);
+        preferences.end();
+        Serial.println("Audio silence state saved to preferences");
+    }
+    
     // Note: This function disables the amp permanently
     // To re-enable audio, you would need to call enableAmp(true) explicitly
 }
@@ -89,6 +106,14 @@ void FED4::silence()
 void FED4::unsilence()
 {
     audioSilenced = false; // Clear the silence flag
+    
+    // Save unsilence state to preferences
+    if (preferences.begin(PREFS_NAMESPACE, false)) {
+        preferences.putBool("audioSilenced", false);
+        preferences.end();
+        Serial.println("Audio unsilence state saved to preferences");
+    }
+    
     // Note: This doesn't automatically enable the amp, just allows it to be enabled
 }
 
