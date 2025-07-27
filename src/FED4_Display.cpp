@@ -21,7 +21,7 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
 
 void FED4::updateDisplay() {
   //TODO: Stop clearing display and just clear needed areas 
-  clearDisplay();
+  //clearDisplay();
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
@@ -166,6 +166,10 @@ void FED4::displayCounters()
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
+  
+  // Clear all counter value areas with one white rectangle
+  fillRect(90, 70, 50, 80, DISPLAY_WHITE);  // Clear area for all counter values
+  
   setCursor(30, 80);
   print("Left: ");
   setCursor(90, 80);

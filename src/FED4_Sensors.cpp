@@ -100,27 +100,8 @@ void FED4::interpretTouch()
 
     wakePad = 0;  // Reset the wake pad flag
     // Clear any pending touch pad interrupts
+    displayIndicators();
     touch_pad_clear_status();
-}
-
-void FED4::monitorTouchSensors()
-{
-    Serial.println("Starting touch sensor monitoring...");
-    Serial.println("LEFT,CENTER,RIGHT"); // CSV header
-
-    while (digitalRead(BUTTON_2) == HIGH)
-    {
-        uint16_t leftVal = touchRead(TOUCH_PAD_LEFT);
-        uint16_t centerVal = touchRead(TOUCH_PAD_CENTER);
-        uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
-
-        // Print in CSV format for easy plotting
-        Serial.printf("%d,%d,%d\n", leftVal, centerVal, rightVal);
-
-        delay(10);
-    }
-
-    Serial.println("Touch sensor monitoring stopped.");
 }
 
 void FED4::resetTouchFlags()

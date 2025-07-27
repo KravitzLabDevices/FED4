@@ -325,6 +325,7 @@ bool FED4::begin(const char *programName)
     playTone(1000, 8, 0.5);
     delay(100);
     playTone(1000, 8, 0.5);
-
+    clearDisplay();
+  
     return true;
 }

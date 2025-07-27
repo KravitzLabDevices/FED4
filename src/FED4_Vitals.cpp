@@ -212,8 +212,9 @@ void FED4::pollSensors() {
   // Increment poll counter for percentage calculation
   pollCount++;
 
-  int minToUpdateSensors = 1;  //update sensors every N minutes
+  int minToUpdateSensors = 10;  //update sensors every N minutes
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
+    clearDisplay();
     lastPollTime = millis();
 
     // Calculate motion percentage for the last 5-minute period using actual poll count

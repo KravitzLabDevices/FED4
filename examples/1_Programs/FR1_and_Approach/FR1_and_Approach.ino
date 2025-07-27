@@ -34,7 +34,6 @@ void loop() {
     unsigned long startTime = millis();
     while (millis() < startTime + 1000) {
       int proximity = fed4.prox();
-      Serial.println(proximity);
       if (proximity > 0 && proximity < 20) {
         fed4.bopBeep();
         fed4.centerLight("white");
