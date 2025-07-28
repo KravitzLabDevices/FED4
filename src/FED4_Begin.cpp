@@ -219,18 +219,18 @@ bool FED4::begin(const char *programName)
     Serial.println("Initializing SD Card");
     statuses["SD Card"].initialized = initializeSD();
 
-// Initialize Hublink if enabled
-#ifndef FED4_EXCLUDE_HUBLINK
-    if (useHublink)
-    {
-        Serial.println("Initializing Hublink");
-        statuses["Hublink"].initialized = initializeHublink();
-        if (!statuses["Hublink"].initialized)
+    // Initialize Hublink if enabled
+    #ifndef FED4_EXCLUDE_HUBLINK
+        if (useHublink)
         {
-            Serial.println("Hublink initialization failed");
+            Serial.println("Initializing Hublink");
+            statuses["Hublink"].initialized = initializeHublink();
+            if (!statuses["Hublink"].initialized)
+            {
+                Serial.println("Hublink initialization failed");
+            }
         }
-    }
-#endif
+    #endif
 
     // This is used to set the program name in the meta.json file
     // and to get the program name from the meta.json file
@@ -327,16 +327,21 @@ bool FED4::begin(const char *programName)
     Serial.println("================================\n");
 
     startupAnimation();
+    lightsOff();
     
     // temporarily unmute audio even if it is silenced
     digitalWrite(AUDIO_SD, HIGH);
     delay (100);
-    // three clicks to confirm initialization
     playTone(1000, 8, 0.5);
+
+    digitalWrite(AUDIO_SD, HIGH);
     delay(100);
     playTone(1000, 8, 0.5);
+
+    digitalWrite(AUDIO_SD, HIGH);
     delay(100);
     playTone(1000, 8, 0.5);
+
     clearDisplay();
   
     return true;

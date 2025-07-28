@@ -100,6 +100,7 @@ public:
 
     // Sleep configuration
     int sleepSeconds = 6; // how many seconds to sleep between timer based wake-ups
+    bool sleepyLEDs = true; // Flag to control whether LEDs stay on during sleep (true = LEDs sleep with sleep, false = LEDs stay on during sleep)
 
     // Menu functions
     void menu();
@@ -176,7 +177,7 @@ public:
     void stripTheaterChase(const char *colorName, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripRainbow(unsigned long wait, unsigned int numLoops);
-    void clearStrip();
+    void lightsOff();
     void setStripPixel(uint8_t pixel, uint32_t color);
     void leftLight(uint32_t color);
     void centerLight(uint32_t color);
@@ -227,6 +228,7 @@ public:
     void startSleep();
     void wakeUp();
     void handleTouch();
+    
     bool initializeLDOs();
     void LDO2_ON();
     void LDO2_OFF();

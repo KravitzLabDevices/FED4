@@ -218,7 +218,7 @@ bool FED4::logData(const String &newEvent)
 
     File dataFile;
     SPI.setBitOrder(MSBFIRST);
-    greenPix();
+    cyanPix(1); //dim cyan every time logData is called
 
     DateTime now = rtc.now();
     float currentSeconds = round((millis() / 1000.000) * 1000) / 1000.0; // Get current seconds rounded to 3 decimals
@@ -548,7 +548,7 @@ void FED4::handleSDCardError()
             if (ledsOn) {
                 colorWipe("red", 0); // Turn all LEDs red
             } else {
-                clearStrip(); // Turn all LEDs off
+                lightsOff(); // Turn all LEDs off
             }
             ledsOn = !ledsOn;
             lastBlinkTime = currentTime;
@@ -559,7 +559,7 @@ void FED4::handleSDCardError()
     
     // Button1 was pressed, play highBeep and stop blinking
     lowBeep();
-    clearStrip();
+    lightsOff();
     
     // Clear display and show continuing message
     clearDisplay();

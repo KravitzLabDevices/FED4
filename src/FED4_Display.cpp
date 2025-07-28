@@ -241,7 +241,7 @@ void FED4::displayDateTime() {
            current.minute());
 
   // Display formatted strings
-  setCursor(2, 160);
+  setCursor(5, 160);
   print(dateStr);
   
   setCursor(97, 160);

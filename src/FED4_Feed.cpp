@@ -17,7 +17,7 @@ void FED4::initFeeding() {
     pelletDropped = didPelletDrop();
     pelletReady = false;
     dispenseError = false;
-    clearStrip();
+    //lightsOff();
     // Serial.println("Feeding!");
 }
 
@@ -129,7 +129,6 @@ void FED4::handlePelletInWell() {
             logData("LeftWithPellet");
             click();
             updateDisplay();
-            greenPix();
             outputPulse(1, 100);
             //wait for touch to return to baseline
             while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {

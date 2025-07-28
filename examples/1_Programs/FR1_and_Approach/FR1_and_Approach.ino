@@ -19,6 +19,7 @@ char task[] = "FR1_Approach";  // give the task a unique name
 
 void setup() {
   fed4.begin(task);  // initialize FED4 hardware
+  fed4.sleepyLEDs = false;
 }
 
 void loop() {
@@ -57,5 +58,6 @@ void loop() {
     fed4.click();         // audio click stimulus
     fed4.rightLight("blue");
     fed4.logData("Right");
+    fed4.lightsOff();
   }
 }

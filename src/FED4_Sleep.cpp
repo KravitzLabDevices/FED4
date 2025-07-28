@@ -37,10 +37,15 @@ void FED4::startSleep() {
   resetTouchFlags();
 
   Serial.flush();
-  clearStrip();
-  noPix();  // Turn off the LED when going to sleep
-  LDO3_OFF();  // Turn off LDO3 to power down NeoPixel
-  LDO2_OFF();
+  
+  // Check if sleepyLEDs flag is enabled
+  if (sleepyLEDs) {
+    lightsOff(); // clear the front LED strip
+    noPix();  // Turn off the LED when going to sleep
+    LDO3_OFF();  // Turn off LDO3 to power down NeoPixel
+  }
+
+  LDO2_OFF(); // turn off LDO2 every sleep
   enableAmp(false);
   esp_light_sleep_start();
 }
@@ -134,4 +139,4 @@ void FED4::LDO3_ON()
 void FED4::LDO3_OFF()
 {
     mcp.digitalWrite(EXP_LDO3, LOW);
-} 
+}
