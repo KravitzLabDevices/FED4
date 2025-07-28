@@ -30,9 +30,10 @@ void loop() {
     fed4.centerLight("red");  // light LEDs around center poke red
     fed4.logData("Left");
 
-    // Check proximity sensor for 1s, log "Approach" if <20mm, "No_approach" otherwise
+    // Check proximity sensor, log "Approach" if <20mm, "No_approach" otherwise
     unsigned long startTime = millis();
-    while (millis() < startTime + 1000) {
+    int approachTime = 2; //how many seconds does the mouse have to approach?
+    while (millis() < (startTime + (approachTime * 1000))) {
       int proximity = fed4.prox();
       if (proximity > 0 && proximity < 20) {
         fed4.bopBeep();

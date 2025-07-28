@@ -1,5 +1,14 @@
 #include "FED4.h"
 
+// Helper function to get days in a month (accounting for leap years)
+int getDaysInMonth(int year, int month) {
+    const int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    if (month == 2 && ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0))) {
+        return 29; // Leap year February
+    }
+    return daysInMonth[month - 1];
+}
+
 void FED4::menu() {
     menuStart();
     menuProgram();
@@ -7,6 +16,7 @@ void FED4::menu() {
     menuSex();
     menuStrain();
     menuAge();
+    menuRTC();
     menuEnd();
 }
 
@@ -233,13 +243,179 @@ void FED4::menuAge() {
     }
 }
 
+void FED4::menuRTC() {
+    // Get current time from RTC
+    DateTime current = rtc.now();
+    int currentYear = current.year();
+    int currentMonth = current.month();
+    int currentDay = current.day();
+    int currentHour = current.hour();
+    int currentMinute = current.minute();
+    
+    // Wait for all buttons to be released before starting
+    while (digitalRead(BUTTON_1) == HIGH || digitalRead(BUTTON_2) == HIGH || digitalRead(BUTTON_3) == HIGH) {
+        delay(50);
+    }
+    delay(200); // Additional debounce delay
+    
+    bool menuActive = true;
+    bool timeVisible = true; // For blinking effect
+    unsigned long lastBlink = 0;
+    const unsigned long blinkInterval = 100; // 100ms blink interval
+    
+    while (menuActive) {
+        unsigned long currentTime = millis();
+        
+        // Handle blinking effect
+        if (currentTime - lastBlink >= blinkInterval) {
+            timeVisible = !timeVisible;
+            lastBlink = currentTime;
+            
+            // Clear the time area and redraw
+            fillRect(94, 146, 50, 22, DISPLAY_BLACK);
+            refresh();
+            
+            if (timeVisible) {
+                // Display the time
+                setFont(&Org_01);
+                setTextSize(2);
+                setTextColor(DISPLAY_WHITE);
+                setCursor(94, 160);
+                
+                char timeStr[6];
+                snprintf(timeStr, sizeof(timeStr), "%02d:%02d", currentHour, currentMinute);
+                print(timeStr);
+                refresh();
+            }
+        }
+        
+        // Handle button presses with different increment speeds
+        if (digitalRead(BUTTON_1) == HIGH) {
+            unsigned long pressStart = millis();
+            int increment = 1; // Start with 1 minute increment
+            
+            // Wait for button release and determine press duration
+            while (digitalRead(BUTTON_1) == HIGH) {
+                unsigned long pressDuration = millis() - pressStart;
+                
+                if (pressDuration > 2000) { // 2+ seconds = 1 hour increment
+                    increment = 60;
+                } else if (pressDuration > 500) { // 0.5+ seconds = 10 minute increment
+                    increment = 10;
+                }
+                
+                delay(50);
+            }
+            
+            // Apply the increment
+            currentMinute += increment;
+            
+            // Handle rollover
+            while (currentMinute >= 60) {
+                currentMinute -= 60;
+                currentHour++;
+                if (currentHour >= 24) {
+                    currentHour = 0;
+                    // Roll over to next day
+                    currentDay++;
+                    if (currentDay > getDaysInMonth(currentYear, currentMonth)) {
+                        currentDay = 1;
+                        currentMonth++;
+                        if (currentMonth > 12) {
+                            currentMonth = 1;
+                            currentYear++;
+                        }
+                    }
+                }
+            }
+            
+            // Update RTC immediately
+            DateTime newTime = DateTime(currentYear, currentMonth, currentDay, 
+                                      currentHour, currentMinute, current.second());
+            rtc.adjust(newTime);
+            
+            Serial.printf("Time set to: %04d-%02d-%02d %02d:%02d\n", 
+                         currentYear, currentMonth, currentDay, currentHour, currentMinute);
+            delay(200); // Debounce
+        }
+        else if (digitalRead(BUTTON_3) == HIGH) {
+            unsigned long pressStart = millis();
+            int decrement = 1; // Start with 1 minute decrement
+            
+            // Wait for button release and determine press duration
+            while (digitalRead(BUTTON_3) == HIGH) {
+                unsigned long pressDuration = millis() - pressStart;
+                
+                if (pressDuration > 2000) { // 2+ seconds = 1 hour decrement
+                    decrement = 60;
+                } else if (pressDuration > 500) { // 0.5+ seconds = 10 minute decrement
+                    decrement = 10;
+                }
+                
+                delay(50);
+            }
+            
+            // Apply the decrement
+            currentMinute -= decrement;
+            
+            // Handle rollunder
+            while (currentMinute < 0) {
+                currentMinute += 60;
+                currentHour--;
+                if (currentHour < 0) {
+                    currentHour = 23;
+                    // Roll under to previous day
+                    currentDay--;
+                    if (currentDay < 1) {
+                        currentMonth--;
+                        if (currentMonth < 1) {
+                            currentMonth = 12;
+                            currentYear--;
+                        }
+                        currentDay = getDaysInMonth(currentYear, currentMonth);
+                    }
+                }
+            }
+            
+            // Update RTC immediately
+            DateTime newTime = DateTime(currentYear, currentMonth, currentDay, 
+                                      currentHour, currentMinute, current.second());
+            rtc.adjust(newTime);
+            
+            Serial.printf("Time set to: %04d-%02d-%02d %02d:%02d\n", 
+                         currentYear, currentMonth, currentDay, currentHour, currentMinute);
+            delay(200); // Debounce
+        }
+        else if (digitalRead(BUTTON_2) == HIGH) {
+            click();
+            // Save and exit - time is already saved to RTC
+            menuActive = false;
+            delay(200); // Debounce
+            
+            // Show final time without blinking
+            fillRect(94, 146, 50, 22, DISPLAY_BLACK);
+            setFont(&Org_01);
+            setTextSize(2);
+            setTextColor(DISPLAY_WHITE);
+            setCursor(94, 160);
+            char timeStr[6];
+            snprintf(timeStr, sizeof(timeStr), "%02d:%02d", currentHour, currentMinute);
+            print(timeStr);
+            refresh();
+        }
+        
+        delay(50); // Small delay to prevent excessive CPU usage
+    }
+}
+
 void FED4::menuEnd() {
     click();
     clearDisplay();
+    refresh();
     setCursor(15, 30);
-    print("Menu saved...");
+    print("Menu saved.");
     setCursor(15, 51);
-    print("Restarting!");
+    print("Restarting...");
     refresh();
     resetJingle();
     esp_restart();

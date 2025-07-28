@@ -109,6 +109,7 @@ public:
     void menuSex();
     void menuStrain();
     void menuAge();
+    void menuRTC();
     void menuEnd();
 
     // Sensor polling
