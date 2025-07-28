@@ -103,12 +103,13 @@ public:
 
     // Menu functions
     void menu();
-    void startMenu();
+    void menuStart();
     void menuProgram();
     void menuMouseId();
     void menuSex();
     void menuStrain();
     void menuAge();
+    void menuEnd();
 
     // Sensor polling
     void pollSensors();

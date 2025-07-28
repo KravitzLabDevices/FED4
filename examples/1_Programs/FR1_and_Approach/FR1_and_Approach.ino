@@ -24,11 +24,12 @@ void setup() {
 void loop() {
   fed4.run();  // run this once per loop
 
-  if (fed4.leftTouch) {       // if left poke is touched
-    fed4.lowBeep();           // 500hz 200ms beep
+  if (fed4.leftTouch) {  // if left poke is touched
+    fed4.lowBeep();      // 500hz 200ms beep
+    fed4.leftLight("blue");
     fed4.centerLight("red");  // light LEDs around center poke red
     fed4.logData("Left");
-    
+
     // Check proximity sensor for 1s, log "Approach" if <20mm, "No_approach" otherwise
     unsigned long startTime = millis();
     while (millis() < startTime + 1000) {
@@ -47,11 +48,13 @@ void loop() {
 
   if (fed4.centerTouch) {  // if center poke is touched
     fed4.click();          // audio click stimulus
+    fed4.centerLight("blue");
     fed4.logData("Center");
   }
 
   if (fed4.rightTouch) {  // if right poke is touched
     fed4.click();         // audio click stimulus
+    fed4.rightLight("blue");
     fed4.logData("Right");
   }
 }

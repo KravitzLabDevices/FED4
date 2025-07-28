@@ -112,8 +112,9 @@ void FED4::checkButton3() {
     
     // At 1500ms: Enter menu with double haptic feedback
     if (holdTime >= 1500) {
+        click();
         hapticDoubleBuzz(200);
-        menuJingle();
+        click();
         Serial.println("********** BUTTON 3 MENU START **********");
         menu();
         break;

@@ -1,15 +1,16 @@
 #include "FED4.h"
 
 void FED4::menu() {
-    startMenu();
+    menuStart();
     menuProgram();
     menuMouseId();
     menuSex();
     menuStrain();
     menuAge();
+    menuEnd();
 }
 
-void FED4::startMenu() {
+void FED4::menuStart() {
     Serial.println("********** MENU **********");
 
     //clear display area below mouse ID
@@ -225,11 +226,19 @@ void FED4::menuAge() {
             Serial.println(currentAgeValue);
         }
         else if (digitalRead(BUTTON_2) == HIGH) {
-            click();
             menuActive = false;
-            delay(200);
-            resetJingle();
-            esp_restart();
         }
     }
+}
+
+void FED4::menuEnd() {
+    click();
+    clearDisplay();
+    setCursor(15, 30);
+    print("Menu saved...");
+    setCursor(15, 55);
+    print("Restarting!");
+    refresh();
+    resetJingle();
+    esp_restart();
 }

@@ -127,16 +127,14 @@ void FED4::displayEnvironmental(){
   setCursor(35, 9);
   print("C");
   
-  // Add "X" icon if audio is silenced
+  // Add speaker muted icon if audio is silenced
   if (audioSilenced) {
-    setCursor(50, 9);
-    print("X");
+    setCursor(55, 9);
+    print("X"); // X means no audio
   }
 }
 
 void FED4::displayBattery(){
-  //   cellPercent = 50;  //for testing battery graphic
-
   //battery graphic
   fillRect (80, 1, 18, 10, DISPLAY_WHITE); //body
   fillRect (82, 3, 14, 6, DISPLAY_BLACK); //body
