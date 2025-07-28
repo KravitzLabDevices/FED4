@@ -161,7 +161,6 @@ public:
     void calibrateTouchSensors();
     void interpretTouch();
     static void IRAM_ATTR onTouchWakeUp();
-    void clearTouch();
     void resetTouchFlags(); // Reset all touch flags to false
     void logTouchEvent(); // Log touch events separately from critical path
     static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right
@@ -209,6 +208,7 @@ public:
     void displayStrain();
     void displaySex();
     void displayAge();
+    void displayAudio();
     void displayCounters();
     void displayDateTime();
     void displayEnvironmental();
@@ -265,7 +265,6 @@ public:
     bool initializeRTC();
     void updateRTC();
     DateTime now();
-    void serialPrintRTC();
     void adjustRTC(uint32_t timestamp);
 
     // Vitals functions (defined in FED4_Vitals.cpp)
@@ -342,8 +341,7 @@ public:
     void refresh();
     void drawPixel(int16_t x, int16_t y, uint16_t color);
 
-    void drawChar(int16_t x, int16_t y, unsigned char c, uint8_t size = 1);
-    void drawText(const char *text, uint8_t size = 1);
+
 
     // Accelerometer functions (defined in FED4_Accel.cpp)
     bool initializeAccel();
@@ -375,11 +373,6 @@ public:
 
     // Memory monitoring function
     void printMemoryStatus();
-
-    // Debug function for lux sensor
-    void debugLuxSensor();
-    void testI2CConnectivity();
-    void checkLightSensorConfig();
 
     ~FED4()
     {

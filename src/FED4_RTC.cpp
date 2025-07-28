@@ -72,9 +72,7 @@ void FED4::updateRTC()
     // Update RTC with compilation time
     rtc.adjust(DateTime(year, month, day, hour, minute, second));
 
-    Serial.print("RTC time after update: ");
-    serialPrintRTC();
-    Serial.println();
+    Serial.println("RTC time updated successfully");
 }
 
 // enables use of fed4.now() when fed4 is instantiated; use rtc.now() internally
@@ -83,13 +81,7 @@ DateTime FED4::now()
     return rtc.now();
 }
 
-void FED4::serialPrintRTC()
-{
-    DateTime current = now();
-    Serial.printf("%04d-%02d-%02d %02d:%02d:%02d",
-                  current.year(), current.month(), current.day(),
-                  current.hour(), current.minute(), current.second());
-}
+
 
 /********************************************************
  * Compilation ID Management
@@ -119,8 +111,7 @@ void FED4::adjustRTC(uint32_t timestamp)
 {
     Serial.println("Adjusting RTC with Unix timestamp: " + String(timestamp));
     rtc.adjust(DateTime(timestamp));
-    Serial.print("RTC time after adjustment: ");
-    serialPrintRTC();
+    Serial.println("RTC time adjusted successfully");
 }
 
 /**

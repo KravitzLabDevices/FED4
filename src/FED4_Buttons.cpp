@@ -88,36 +88,36 @@ void FED4::checkButton2() {
 // Checks if Button 3 is held for silence toggle (500ms) or menu (1500ms)
 void FED4::checkButton3() {
   int holdTime = 0;
-  bool silenceToggled = false; // Track if we've already toggled silence
   
   while (digitalRead(BUTTON_3) == 1) {
     delay(100);
     holdTime += 100;
     
-    // At 500ms: Toggle silence/unsilence with haptic feedback
-    if (holdTime >= 500 && !silenceToggled) {
-        // temporarily unmute audio even if it is silenced
-        digitalWrite(AUDIO_SD, HIGH);
-        click();
-        hapticBuzz(200);
-        if (audioSilenced) {
-            unsilence();
-            Serial.println("********** AUDIO ENABLED **********");
-        } else {
-            silence();
-            Serial.println("********** AUDIO DISABLED **********");
-        }
-        silenceToggled = true; // Prevent multiple toggles
+    // At 500ms: Provide haptic feedback for audio toggle threshold
+    if (holdTime == 500) {
+      // temporarily unmute audio even if it is silenced
+      digitalWrite(AUDIO_SD, HIGH);
+      click();
+      hapticBuzz(200);
     }
     
-    // At 1500ms: Enter menu with double haptic feedback
+    // At 1500ms: Enter menu with double haptic feedback (no audio toggle)
     if (holdTime >= 1500) {
-        click();
-        hapticDoubleBuzz(200);
-        click();
+        hapticDoubleBuzz(100);
         Serial.println("********** BUTTON 3 MENU START **********");
         menu();
         break;
+    }
+  }
+  
+  // Only toggle audio if button was released between 500ms and 1500ms
+  if (holdTime >= 500 && holdTime < 1500) {
+    if (audioSilenced) {
+        unsilence();
+        Serial.println("********** AUDIO ENABLED **********");
+    } else {
+        silence();
+        Serial.println("********** AUDIO DISABLED **********");
     }
   }
 }

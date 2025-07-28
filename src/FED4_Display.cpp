@@ -244,7 +244,7 @@ void FED4::displayDateTime() {
   setCursor(5, 160);
   print(dateStr);
   
-  setCursor(99, 160);
+  setCursor(94, 160);
   print(timeStr);
 }
 
@@ -503,4 +503,10 @@ void FED4::startupAnimation(){
   refresh();
   setTextSize(1);
   delay(1500); // Pause to keep "FED4" displayed for 1.5s
+}
+
+void FED4::displayAudio() {
+  setCursor(6, 125);
+  print("Audio: ");
+  print(audioSilenced ? "Off" : "On");
 }

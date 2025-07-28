@@ -191,6 +191,9 @@ void FED4::startupPollSensors(){
  * Uses timeouts to prevent hanging if sensors are unresponsive.
  */
 void FED4::pollSensors() {
+  // Increment poll counter
+  pollCount++;
+
   // Reconfigure motion sensor after I2C bus reinitialization
   if (motionSensor.begin(0x5A, I2C_2)) {
     // Reconfigure motion sensor settings
@@ -209,22 +212,19 @@ void FED4::pollSensors() {
     motionCount++;  // Aggregate motion detections
   }
 
-  // Increment poll counter for percentage calculation
-  pollCount++;
-
   int minToUpdateSensors = 10;  //update sensors every N minutes
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
     clearDisplay();
     lastPollTime = millis();
 
-    // Calculate motion percentage for the last 5-minute period using actual poll count
+    // Calculate motion percentage over the last period using poll count
     if (pollCount > 0) {
       motionPercentage = (float)motionCount / pollCount * 100.0;
     } else {
       motionPercentage = 0.0;
     }
 
-    // Reset counters for next 5-minute period
+    // Reset counters for next sampling period
     motionCount = 0;
     pollCount = 0;
 
@@ -236,20 +236,20 @@ void FED4::pollSensors() {
     //get temp with timeout
     while (millis() - startTime < 100) {  // 0.1 second timeout
       temp = getTemperature();
-      if (temp > 5) break;  // Valid reading obtained
+      if (temp > 1) break;  // Valid reading obtained
       delay(1);
     }
-    if (temp > 5) temperature = temp;
+    if (temp > 1) temperature = temp;
 
     //get humidity with timeout
     startTime = millis();                 // Reset timer for humidity
     while (millis() - startTime < 100) {  // 0.1 second timeout
       hum = getHumidity();
-      if (hum > 5) break;  // Valid reading obtained
+      if (hum > 1) break;  // Valid reading obtained
       delay(1);
     }
 
-    if (hum > 5) humidity = hum;
+    if (hum > 1) humidity = hum;
 
     //get battery info with timeout
     startTime = millis();
@@ -282,7 +282,6 @@ void FED4::pollSensors() {
     lightSensor.setGain(VEML7700_GAIN_2);
     lightSensor.setIntegrationTime(VEML7700_IT_800MS);
     lightSensor.enable(true);
-    delay(5);
 
     startTime = millis();
     float luxReading = -1;
@@ -298,7 +297,7 @@ void FED4::pollSensors() {
     if (luxReading < 0 && luxAttempts > 10) {  // More than 50ms of failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
-        delay(5);  // Give sensor time to stabilize (reduced from 50ms)
+        delay(1);  // Give sensor time to stabilize (reduced from 50ms)
         luxReading = getLux();
       }
     }
@@ -320,14 +319,14 @@ void FED4::pollSensors() {
     if (whiteReading < 0 && whiteAttempts > 50) {  // More than 50ms of failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
-        delay(5);  // Give sensor time to stabilize
+        delay(1);  // Give sensor time to stabilize
         whiteReading = getWhite();
       }
     }
 
     if (whiteReading >= 0) white = whiteReading;  // Only update if we got a valid reading >= 0
 
-    //log sensor data
+    //log Status to capture sensor data for each period
     logData("Status");
   }
 }

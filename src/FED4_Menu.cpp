@@ -15,15 +15,17 @@ void FED4::menuStart() {
 
     //clear display area below mouse ID
     fillRect(0, 65, 144, 145, DISPLAY_WHITE);   
-    // draw line to split on screen text 
+    // // draw line to split on screen text 
     drawLine(0,59,168,59, DISPLAY_WHITE);  
     drawLine(0,60,168,60, DISPLAY_WHITE);   
     refresh();
+    displayDateTime();
     displayTask();
     displayMouseId();
     displaySex();
     displayStrain();
     displayAge();
+    displayAudio();
     refresh();    
     delay (500); // more debounce
 }
@@ -236,7 +238,7 @@ void FED4::menuEnd() {
     clearDisplay();
     setCursor(15, 30);
     print("Menu saved...");
-    setCursor(15, 55);
+    setCursor(15, 51);
     print("Restarting!");
     refresh();
     resetJingle();
