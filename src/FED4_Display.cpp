@@ -244,7 +244,7 @@ void FED4::displayDateTime() {
   setCursor(5, 160);
   print(dateStr);
   
-  setCursor(94, 160);
+  setCursor(97, 160);
   print(timeStr);
 }
 
