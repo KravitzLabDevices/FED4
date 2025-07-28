@@ -109,6 +109,7 @@ public:
     void menuSex();
     void menuStrain();
     void menuAge();
+    void menuAudio();
     void menuRTC();
     void menuEnd();
 

@@ -98,7 +98,6 @@ void FED4::checkButton3() {
       // temporarily unmute audio even if it is silenced
       digitalWrite(AUDIO_SD, HIGH);
       click();
-      hapticBuzz(200);
     }
     
     // At 1500ms: Enter menu with double haptic feedback (no audio toggle)

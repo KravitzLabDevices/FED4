@@ -253,7 +253,7 @@ void FED4::menuAudio() {
     
     bool menuActive = true;
     while (menuActive) {
-        fillRect(48, 112, 80, 16, DISPLAY_WHITE); // Clear area for audio display
+        fillRect(54, 112, 80, 16, DISPLAY_WHITE); // Clear area for audio display
         refresh();
         delay(100);
         displayAudio();
@@ -303,7 +303,7 @@ void FED4::menuRTC() {
     bool menuActive = true;
     bool timeVisible = true; // For blinking effect
     unsigned long lastBlink = 0;
-    const unsigned long blinkInterval = 250; // 100ms blink interval
+    const unsigned long blinkInterval = 200; // 100ms blink interval
     
     while (menuActive) {
         unsigned long currentTime = millis();
@@ -499,7 +499,6 @@ void FED4::menuRTC() {
             delay(200); // Debounce
         }
         else if (digitalRead(BUTTON_2) == HIGH) {
-            click();
             // Save and exit - time is already saved to RTC
             menuActive = false;
             delay(200); // Debounce
@@ -530,7 +529,6 @@ void FED4::menuRTC() {
 }
 
 void FED4::menuEnd() {
-    click();    
     // Fill display with black background
     fillRect(0, 0, 144, 168, DISPLAY_BLACK);
     refresh();

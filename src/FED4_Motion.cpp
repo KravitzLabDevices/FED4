@@ -23,7 +23,7 @@ bool FED4::initializeMotion()
     }
     
     // Configure sensor settings
-    // Set data rate for motion sensing (30Hz)
+    // Set data rate for motion sensing (30Hz - maximum available)
     if (motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
@@ -36,19 +36,19 @@ bool FED4::initializeMotion()
     }
     
     // Set low-pass filter bandwidth
-    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20) != 0) {
+    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_9) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
-    // Set motion threshold (200 is a good starting value)
-    if (motionSensor.setMotionThreshold(20) != 0) {
+    // Set motion threshold (20 is a good starting value)
+    if (motionSensor.setMotionThreshold(15) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
-    // Set motion hysteresis (10 is a good starting value)
-    if (motionSensor.setMotionHysteresis(5) != 0) {
+    // Set motion hysteresis (5 is a good starting value)
+    if (motionSensor.setMotionHysteresis(3) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
