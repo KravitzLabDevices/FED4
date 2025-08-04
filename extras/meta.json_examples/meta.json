@@ -1,11 +1,13 @@
 {
   "hublink": {
-    "advertise": "HUBLINK",
-    "advertise_every": 300,
+    "advertise": "KRAVITZFED",
+    "advertise_every": 600,
     "advertise_for": 30,
     "try_reconnect": false,
     "reconnect_attempts": 2,
-    "reconnect_every": 10,
+    "reconnect_every": 30,
+    "upload_path": "/test",
+    "append_path": "device:id",
     "disable": false
   },
   "subject": {
