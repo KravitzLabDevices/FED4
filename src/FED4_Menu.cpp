@@ -42,8 +42,68 @@ void FED4::menuStart() {
 }
 
 void FED4::menuProgram() {
-    displayTask();
-    refresh();
+    // Define available tasks
+    const char* taskOptions[] = {"Free_feeding", "FR1", "FR1_Approach"};
+    const int numTasks = 3;
+    
+    // Get current program from meta.json
+    String currentProgram = getMetaValue("fed", "program");
+    if (currentProgram.length() == 0) {
+        currentProgram = "FR1"; // Default task if not set
+    }
+    
+    int currentTaskIndex = 0;
+    
+    // Find index of current program
+    for (int i = 0; i < numTasks; i++) {
+        if (String(taskOptions[i]) == currentProgram) {
+            currentTaskIndex = i;
+            break;
+        }
+    }
+    
+    // Wait for all buttons to be released before starting
+    while (digitalRead(BUTTON_1) == HIGH || digitalRead(BUTTON_2) == HIGH || digitalRead(BUTTON_3) == HIGH) {
+        delay(50);
+    }
+    delay(200); // Additional debounce delay
+    
+    bool menuActive = true;
+    while (menuActive) {
+        fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
+        refresh();
+        delay(100);
+        displayTask();
+        refresh();
+        delay(100);
+
+        // Wait for button press
+        if (digitalRead(BUTTON_1) == HIGH) {
+            currentTaskIndex = (currentTaskIndex - 1 + numTasks) % numTasks;
+            currentProgram = taskOptions[currentTaskIndex];
+            setProgram(currentProgram);
+            program = currentProgram;
+
+            Serial.print("Current Task: ");
+            Serial.println(currentProgram);
+        }
+        else if (digitalRead(BUTTON_3) == HIGH) {
+            currentTaskIndex = (currentTaskIndex + 1) % numTasks;
+            currentProgram = taskOptions[currentTaskIndex];
+            setProgram(currentProgram);
+            program = currentProgram;
+
+            Serial.print("Current Task: ");
+            Serial.println(currentProgram);
+        }
+        else if (digitalRead(BUTTON_2) == HIGH) {
+            click();
+            // Save and exit
+            menuActive = false;
+            delay(200); // Debounce
+            displayTask();
+        }
+    }
 }
 
 void FED4::menuMouseId() {

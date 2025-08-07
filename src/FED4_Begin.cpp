@@ -271,11 +271,16 @@ bool FED4::begin(const char *programName)
     {
         Serial.println();
         Serial.println("Pulling JSON data from SD card:");
-        program = getMetaValue("subject", "program");
+        program = getMetaValue("fed", "program");  // Changed from "subject" to "fed" to match menu
         mouseId = getMetaValue("subject", "id");
         sex = getMetaValue("subject", "sex");
         strain = getMetaValue("subject", "strain");
         age = getMetaValue("subject", "age");
+
+        // Debug output for program loading
+        Serial.print(" - Program loaded: '");
+        Serial.print(program);
+        Serial.println("'");
 
         // Check meta value
         String subjectId = getMetaValue("subject", "id");
