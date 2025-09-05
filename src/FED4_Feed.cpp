@@ -178,7 +178,7 @@ void FED4::finishFeeding() {
             logData("PelletNotDetected");
         } else {
             logData("PelletTaken");
-            
+            blockPokeCount = 0;  // Reset block poke count when pellet is taken
         }
     }
 

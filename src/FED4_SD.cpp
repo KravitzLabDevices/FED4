@@ -483,6 +483,13 @@ void FED4::setProgram(String program)
     setMetaValue("fed", "program", program.c_str());
 }
 
+void FED4::setSequenceDisplay(const String& sequence, int index, int level)
+{
+    currentSequence = sequence;
+    currentSequenceIndex = index;
+    currentSequenceLevel = level;
+}
+
 void FED4::setMouseId(String mouseId)
 {
     setMetaValue("subject", "id", mouseId.c_str());

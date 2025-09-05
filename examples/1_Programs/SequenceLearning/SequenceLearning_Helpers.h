@@ -55,6 +55,9 @@ private:
     for (int i = 0; i < sequenceLength; i++) {
       currentSequence[i] = '\0';
     }
+    // Update display with reset sequence information
+    String cleanSequence = getCleanTargetSequence();
+    fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
   }
 
 public:
@@ -98,6 +101,10 @@ public:
     // Set FR value to current level
     fed4.FR = currentLevel;
     
+    // Update display with current sequence information
+    String cleanSequence = getCleanTargetSequence();
+    fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
+    
     if (sequenceIndex < sequenceLength) {
       char currentPoke = pokeToChar(poke);
       
@@ -129,6 +136,9 @@ public:
             pelletsAtCurrentLevel = 0;
             fed4.highBeep();  // Signal level increase
             fed4.logData("Level_Increase");
+            // Update display with new level
+            String cleanSequence = getCleanTargetSequence();
+            fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
           }
           
           // Reset sequence for next trial

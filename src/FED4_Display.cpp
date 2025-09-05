@@ -47,11 +47,57 @@ void FED4::displayTask() {
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  //display program name
-  setCursor(6, 35);
-  print("Task: ");
-  fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
-  print(program);
+  
+  if (program == "SequenceLearning") {
+    // Display sequence information
+    setCursor(6, 35);
+    print("Seq:");
+    
+    // Clear area for sequence display
+    fillRect(40, 35, 120, 30, DISPLAY_WHITE);
+    
+    if (currentSequence.length() > 0) {
+      setCursor(50, 35);
+      
+      // Display each character in the sequence
+      for (int i = 0; i < currentSequence.length(); i++) {
+        char c = currentSequence[i];
+        
+        if (i < currentSequenceLevel) {
+          // Current level items - show with black background and white text
+          if (i < currentSequenceIndex) {
+            // Completed items - black background, white text
+            fillRect(40 + (i * 12), 33, 10, 12, DISPLAY_BLACK);
+            setTextColor(DISPLAY_WHITE);
+          } else if (i == currentSequenceIndex) {
+            // Current item - black background, white text
+            fillRect(40 + (i * 12), 33, 10, 12, DISPLAY_BLACK);
+            setTextColor(DISPLAY_WHITE);
+          } else {
+            // Future items in current level - white background, black text
+            fillRect(40 + (i * 12), 33, 10, 12, DISPLAY_WHITE);
+            setTextColor(DISPLAY_BLACK);
+          }
+        } else {
+          // Future level items - white background, black text
+          fillRect(40 + (i * 12), 33, 10, 12, DISPLAY_WHITE);
+          setTextColor(DISPLAY_BLACK);
+        }
+        
+        print(c);
+      }
+    }
+  } else {
+    // Display regular program name (limited to first 8 characters)
+    setCursor(6, 35);
+    print("Task: ");
+    fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
+    String shortProgram = program;
+    if (shortProgram.length() > 8) {
+      shortProgram = shortProgram.substring(0, 8);
+    }
+    print(shortProgram);
+  }
 }
 
 void FED4::displayMouseId() {

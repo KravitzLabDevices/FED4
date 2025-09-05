@@ -249,6 +249,9 @@ public:
     void setAge(String age);
     void handleSDCardError();
     bool isSDCardAvailable() const { return sdCardAvailable; }
+    
+    // Sequence display methods
+    void setSequenceDisplay(const String& sequence, int index, int level);
 
     // Public counters and timing
     int pelletCount;
@@ -258,6 +261,9 @@ public:
     int blockPokeCount;
     int blockPelletCount;
     int FR;
+    String currentSequence;  // For display purposes
+    int currentSequenceIndex; // Current position in sequence
+    int currentSequenceLevel; // Current level (FR)
     int wakeCount = 0;
     bool leftTouch;
     bool centerTouch;
