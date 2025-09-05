@@ -164,7 +164,7 @@ void FED4::displayCounters()
   setTextColor(DISPLAY_BLACK);
   
   // Clear all counter value areas with one white rectangle
-  fillRect(90, 70, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
+  fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
   
   setCursor(30, 80);
   print("Left: ");
