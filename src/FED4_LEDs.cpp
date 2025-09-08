@@ -119,7 +119,7 @@ void FED4::stripRainbow(unsigned long wait, unsigned int numLoops)
 
 // Clear the strip
 // Example usage:
-// lightsOff();    // Clears the strip
+// lightsOff();    // Clears the front LEDs on FED4
 void FED4::lightsOff()
 {
     fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);

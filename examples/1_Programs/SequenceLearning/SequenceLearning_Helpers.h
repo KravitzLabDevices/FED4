@@ -126,6 +126,7 @@ public:
           // Correct sequence! Give reward
           fed4.blockPokeCount++;  // Increment block poke count for final successful poke
           fed4.bopBeep();  // Special beep for completed sequence
+          fed4.lightsOff();
           fed4.feed();
           fed4.blockPelletCount++;  // Increment block pellet count for completed sequence
           
