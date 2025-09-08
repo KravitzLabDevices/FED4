@@ -29,6 +29,11 @@ void FED4::dispense() {
         pelletDropped = didPelletDrop();
         pelletPresent = checkForPellet();
         pelletReady = true;
+        
+        // Increment block pellet count when pellet drops
+        if (pelletDropped) {
+            blockPelletCount++;
+        }
 
         // small motor movement
         stepper.step(-10);

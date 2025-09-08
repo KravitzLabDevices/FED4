@@ -26,9 +26,9 @@ char task[] = "SequenceLearning";  // give the task a unique name
 
 // Core sequence settings
 const char* targetSequence = "L,C,R,C,L,C,R,C";          // Target sequence for the mouse to learn
-const int pelletsPerLevel = 3;                           // Pellets needed to advance to next level
+const int pelletsPerLevel = 50;                           // Pellets needed to advance to next level
 const int sequenceTimeout = 10;                          // Timeout in seconds before the sequence is reset
-const int startLevel = 3;                                // Level to start at (1 = first item, 3 = first 3 items, etc.)
+const int startLevel = 1;                                // Level to start at (1 = first item, 3 = first 3 items, etc.)
 
 // Sequence manager instance using core settings
 SequenceManager sequenceManager(fed4, targetSequence, pelletsPerLevel, sequenceTimeout, startLevel);

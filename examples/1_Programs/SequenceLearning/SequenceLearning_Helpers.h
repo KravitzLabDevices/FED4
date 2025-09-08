@@ -136,6 +136,9 @@ public:
             pelletsAtCurrentLevel = 0;
             fed4.highBeep();  // Signal level increase
             fed4.logData("Level_Increase");
+            // Reset counters when level changes
+            fed4.blockPelletCount = 0;
+            fed4.blockPokeCount = 0;
             // Update display with new level
             String cleanSequence = getCleanTargetSequence();
             fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
