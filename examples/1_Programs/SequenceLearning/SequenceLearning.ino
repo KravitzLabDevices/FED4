@@ -35,33 +35,36 @@ SequenceManager sequenceManager(fed4, targetSequence, pelletsPerLevel, sequenceT
 
 
 void setup() {
-  fed4.begin(task);  // initialize FED4 hardware
+  // Enable Hublink functionality
+  //fed4.useHublink = true;
+  
+  // Initialize FED4 hardware
+  fed4.begin(task);
   fed4.logData("Sequence: " + sequenceManager.getCleanTargetSequence());
+  //fed4.sleepyLEDs = false;
 }
 
 void loop() {
   fed4.run();  // run this once per loop
 
-  // Turn on side red LED when USB is connected
-  bool usbConnected = fed4.isUSBPowered();
-  if (usbConnected) {
-    fed4.redPix(1);    // Turn on side red LED 
-  } else {
-    fed4.noPix();      // Turn off side LED when USB disconnected
+  //look for voltage on USBC line
+  float voltage = fed4.getBatteryVoltage();
+  if (voltage > 4.1) {
+    fed4.redPix(5);
   }
 
   // Check for timeout
   sequenceManager.checkTimeout();
 
   //Check for button 1 press to advance sequence level
-  if (digitalRead(BUTTON_1) == HIGH) {    
+  if (digitalRead(BUTTON_1) == HIGH) {
     sequenceManager.forceLevelAdvance();
     fed4.playTone(800, 100, 0.3);  // Audio feedback
     delay(50);
     fed4.playTone(1000, 100, 0.3);
     Serial.print("Button 1 pressed! Level advanced to: ");
     Serial.println(sequenceManager.getCurrentLevel());
-    delay (1000);
+    delay(1000);
   }
 
   if (fed4.leftTouch) {     // if left poke is touched

@@ -113,16 +113,15 @@ public:
       
       // Check if we've completed the current level
       if (sequenceIndex >= currentLevel) {
-        // Log progress for the final poke before checking sequence
-        String logMsg = poke;
-        logMsg += " (";
-        logMsg += sequenceIndex;
-        logMsg += "/";
-        logMsg += currentLevel;
-        logMsg += ")";
-        fed4.logData(logMsg);
-        
         if (checkSequence()) {
+          // Log progress for the final poke only if sequence is correct
+          String logMsg = poke;
+          logMsg += " (";
+          logMsg += sequenceIndex;
+          logMsg += "/";
+          logMsg += currentLevel;
+          logMsg += ")";
+          fed4.logData(logMsg);
           // Correct sequence! Give reward
           fed4.blockPokeCount++;  // Increment block poke count for final successful poke
           fed4.bopBeep();  // Special beep for completed sequence

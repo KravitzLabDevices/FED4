@@ -293,7 +293,7 @@ void FED4::pollSensors() {
     }
 
     // If lux sensor failed after multiple attempts, try reinitializing it
-    if (luxReading < 0 && luxAttempts > 10) {  // More than 50ms of failed attempts
+    if (luxReading < 0 && luxAttempts > 2) {  // More than 2 failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(1);  // Give sensor time to stabilize (reduced from 50ms)
@@ -315,7 +315,7 @@ void FED4::pollSensors() {
     }
 
     // If white sensor failed after multiple attempts, try reinitializing it
-    if (whiteReading < 0 && whiteAttempts > 50) {  // More than 50ms of failed attempts
+    if (whiteReading < 0 && whiteAttempts > 2) {  // More than 2 failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(1);  // Give sensor time to stabilize
@@ -373,39 +373,4 @@ bool FED4::reinitializeLightSensor() {
     } else {
         return false;
     }
-}
-
-/**
- * Initializes USB detection using ESP32-S3's GPIO pin
- * Configures the USB detection pin to monitor VBUS
- * @return true if initialization successful, false otherwise
- */
-bool FED4::initializeUSBDetection() {
-    // Configure USB detection pin as input with pull-down
-    pinMode(USB_DETECT_PIN, INPUT_PULLDOWN);
-    
-    // Add a small delay for pin to stabilize
-    delay(10);
-    
-    Serial.println("USB detection initialized on GPIO " + String(USB_DETECT_PIN));
-    return true;
-}
-
-/**
- * Detects if the device is powered by USB using hardware detection
- * Uses ESP32-S3's GPIO pin to monitor USB VBUS line
- * Falls back to voltage-based detection if hardware detection fails
- * @return true if USB is connected, false otherwise
- */
-bool FED4::isUSBPowered() {
-    // First try hardware-based USB detection
-    int usbPinState = digitalRead(USB_DETECT_PIN);
-    
-    // If USB detection pin is HIGH, USB is definitely connected
-    if (usbPinState == HIGH) {
-        return true;
-    }
-    
-    // Low voltage - definitely battery
-    return false;
 }
