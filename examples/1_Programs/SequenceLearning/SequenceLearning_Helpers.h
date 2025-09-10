@@ -88,7 +88,7 @@ public:
         fed4.click();  // Use click instead of noise for timeout
         fed4.hapticBuzz();
         fed4.logData("Sequence_Timeout");
-        fed4.blockPokeCount = 0;  // Reset block poke count on timeout
+        // Don't reset counters on timeout - only reset when level increments
         resetSequence();
       }
     }
@@ -156,8 +156,7 @@ public:
           fed4.click();  // Third click
           fed4.hapticBuzz();
           fed4.logData(String(poke) + " (Error)");
-          fed4.blockPelletCount = 0;  // Reset block pellet count on error
-          fed4.blockPokeCount = 0;    // Reset block poke count on error
+          // Don't reset counters on error - only reset when level increments
           resetSequence();
         }
       } else {
@@ -177,6 +176,7 @@ public:
           fed4.logData(logMsg);
           
           fed4.lowBeep();  // Low beep for correct poke
+
         } else {
           // Wrong poke - immediate feedback and reset
           fed4.click();  // First click
@@ -186,8 +186,7 @@ public:
           fed4.click();  // Third click
           fed4.hapticBuzz();
           fed4.logData(String(poke) + " (Error)");
-          fed4.blockPelletCount = 0;  // Reset block pellet count on error
-          fed4.blockPokeCount = 0;    // Reset block poke count on error
+          // Don't reset counters on error - only reset when level increments
           resetSequence();
         }
       }
@@ -198,6 +197,18 @@ public:
   int getCurrentLevel() const { return currentLevel; }
   int getSequenceIndex() const { return sequenceIndex; }
   int getPelletsAtCurrentLevel() const { return pelletsAtCurrentLevel; }
+  int getSequenceLength() const { return sequenceLength; }
+  
+  // Force level advancement (for button boost functionality)
+  void forceLevelAdvance() {
+    if (currentLevel < sequenceLength) {
+      currentLevel++;
+      pelletsAtCurrentLevel = 0;
+      // Update display with new level
+      String cleanSequence = getCleanTargetSequence();
+      fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
+    }
+  }
   
   // Get clean target sequence without commas for logging
   String getCleanTargetSequence() const {
@@ -208,11 +219,6 @@ public:
       }
     }
     return cleanSequence;
-  }
-  
-  // Get the actual length of the sequence (number of pokes, not including commas)
-  int getSequenceLength() const {
-    return sequenceLength;
   }
 };
 

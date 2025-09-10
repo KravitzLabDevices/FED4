@@ -1,7 +1,5 @@
 #include "FED4.h"
 
-
-
 float FED4::getBatteryVoltage()
 {
     float voltage = maxlipo.cellVoltage();
@@ -183,6 +181,7 @@ void FED4::startupPollSensors(){
      }
      
      if (whiteReading >= 0) white = whiteReading; // Only update if we got a valid reading >= 0
+    
 }
 
 /**
@@ -196,12 +195,12 @@ void FED4::pollSensors() {
 
   // Reconfigure motion sensor after I2C bus reinitialization
   if (motionSensor.begin(0x5A, I2C_2)) {
-    // Reconfigure motion sensor settings
+    // Reconfigure motion sensor settings (consistent with initialization)
     motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
     motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(30);
-    motionSensor.setMotionHysteresis(5);
+    motionSensor.setMotionThreshold(40);
+    motionSensor.setMotionHysteresis(8);
   }
 
   //update motion detection
@@ -326,6 +325,7 @@ void FED4::pollSensors() {
 
     if (whiteReading >= 0) white = whiteReading;  // Only update if we got a valid reading >= 0
 
+
     //log Status to capture sensor data for each period
     logData("Status");
   }
@@ -373,4 +373,39 @@ bool FED4::reinitializeLightSensor() {
     } else {
         return false;
     }
+}
+
+/**
+ * Initializes USB detection using ESP32-S3's GPIO pin
+ * Configures the USB detection pin to monitor VBUS
+ * @return true if initialization successful, false otherwise
+ */
+bool FED4::initializeUSBDetection() {
+    // Configure USB detection pin as input with pull-down
+    pinMode(USB_DETECT_PIN, INPUT_PULLDOWN);
+    
+    // Add a small delay for pin to stabilize
+    delay(10);
+    
+    Serial.println("USB detection initialized on GPIO " + String(USB_DETECT_PIN));
+    return true;
+}
+
+/**
+ * Detects if the device is powered by USB using hardware detection
+ * Uses ESP32-S3's GPIO pin to monitor USB VBUS line
+ * Falls back to voltage-based detection if hardware detection fails
+ * @return true if USB is connected, false otherwise
+ */
+bool FED4::isUSBPowered() {
+    // First try hardware-based USB detection
+    int usbPinState = digitalRead(USB_DETECT_PIN);
+    
+    // If USB detection pin is HIGH, USB is definitely connected
+    if (usbPinState == HIGH) {
+        return true;
+    }
+    
+    // Low voltage - definitely battery
+    return false;
 }

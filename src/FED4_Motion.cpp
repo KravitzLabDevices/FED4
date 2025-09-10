@@ -35,20 +35,20 @@ bool FED4::initializeMotion()
         return false;
     }
     
-    // Set low-pass filter bandwidth
-    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_9) != 0) {
+    // Set low-pass filter bandwidth (more filtering for stability)
+    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
-    // Set motion threshold (20 is a good starting value)
-    if (motionSensor.setMotionThreshold(15) != 0) {
+    // Set motion threshold (higher value for less sensitivity during daytime)
+    if (motionSensor.setMotionThreshold(40) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
-    // Set motion hysteresis (5 is a good starting value)
-    if (motionSensor.setMotionHysteresis(3) != 0) {
+    // Set motion hysteresis (higher value for more stability)
+    if (motionSensor.setMotionHysteresis(8) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }

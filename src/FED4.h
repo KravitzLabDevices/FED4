@@ -289,6 +289,10 @@ public:
     float getWhite();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
+    
+    // USB/Charging detection functions
+    bool isUSBPowered();
+    bool initializeUSBDetection();
 
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature = -1.0;

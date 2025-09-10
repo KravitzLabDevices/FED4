@@ -35,6 +35,7 @@ bool FED4::begin(const char *programName)
         {"MCP23017", {false, ""}},
         {"RTC", {false, ""}},
         {"Battery Monitor", {false, ""}},
+        {"USB Detection", {false, ""}},
         {"Temp/Humidity", {false, ""}},
         {"Light Sensor", {false, ""}},
         {"Touch Sensors", {false, ""}},
@@ -93,6 +94,14 @@ bool FED4::begin(const char *programName)
     if (!statuses["Battery Monitor"].initialized)
     {
         Serial.println("Battery monitor initialization failed");
+    }
+    
+    // Initialize USB detection
+    Serial.println("Initializing USB detection");
+    statuses["USB Detection"].initialized = initializeUSBDetection();
+    if (!statuses["USB Detection"].initialized)
+    {
+        Serial.println("USB detection initialization failed");
     }
 
     Serial.println("Initializing LDOs");

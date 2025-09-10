@@ -44,6 +44,7 @@
 #define LDO2_ENABLE 47
 #define BAT_VOLTAGE 7
 #define USER_PIN_18 18
+#define USB_DETECT_PIN 1  // GPIO pin for USB VBUS detection
 
 // LED Control
 #define NEOPIXEL_PIN 35
