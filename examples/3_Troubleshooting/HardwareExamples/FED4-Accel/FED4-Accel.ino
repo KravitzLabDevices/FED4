@@ -43,7 +43,6 @@ void setup()
 
 void loop()
 {
-	/*
 
 	  int16_t dataHighres = 0;
 
@@ -66,9 +65,7 @@ void loop()
 	  Serial.println( myIMU.axisAccel( Z ), 4);
 	  delay(100);
 
-	  */
-
 	int accel = digitalRead(accel_int); // this just shows the interupt firing when the device is picked up.
 										// mind that the device needs to be in the orientation that it will sit in the device to fire accurately.
-	Serial.println(accel);
+	// Serial.println(accel);
 }

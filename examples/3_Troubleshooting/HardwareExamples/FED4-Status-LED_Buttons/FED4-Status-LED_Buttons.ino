@@ -3,9 +3,9 @@
 Adafruit_MCP23X17 mcp;
 
 #define PIN 35
-#define btn1 39
-#define btn2 40
-#define btn3 14
+#define btn1 14
+#define btn2 39
+#define btn3 40
 #define NUMPIXELS 1
 #define LDO3 14
 Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);

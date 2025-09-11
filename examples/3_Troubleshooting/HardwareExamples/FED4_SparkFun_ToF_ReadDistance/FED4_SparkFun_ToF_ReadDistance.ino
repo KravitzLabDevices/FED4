@@ -30,8 +30,6 @@ SFEVL53L1X distanceSensor(Wire, XSHUT);
 void setup(void) {
   SerialPort.begin(115200);
   SerialPort.println("Starting...");
-  pinMode(47, OUTPUT);
-  digitalWrite(47, HIGH);
   if (!mcp.begin_I2C()) {
     Serial.println("Error initializing MCP23017.");
     while (1)
