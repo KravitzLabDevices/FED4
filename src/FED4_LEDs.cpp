@@ -28,8 +28,11 @@
  * 2. LED Strip:
  *    setStripPixel(0, "green");    // First LED green
  *    leftLight("blue");            // Left poke blue
+ *    leftLight("blue", 100);       // Left poke blue with brightness 100
  *    centerLight("yellow");        // Center poke yellow
+ *    centerLight("yellow", 50);    // Center poke yellow with brightness 50
  *    rightLight("red");            // Right poke red
+ *    rightLight("red", 200);       // Right poke red with brightness 200
  *
  * Note: If an unrecognized color is provided, the LED(s)
  * will default to off.
@@ -151,6 +154,33 @@ void FED4::leftLight(uint32_t color)
     strip_leds[6] = color;
     strip_leds[7] = color;
     FastLED.show();
+    delay(1);
+}
+
+// Example usage:
+// Light up left port with specific colors and brightness:
+// leftLight("red", 100);    // Set left port to red with brightness 100
+// leftLight("green", 50);   // Set left port to green with brightness 50
+// leftLight("blue", 200);   // Set left port to blue with brightness 200
+// leftLight("yellow", 1);   // Set left port to yellow with minimum brightness 10
+void FED4::leftLight(uint32_t color, uint8_t brightness)
+{
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    // Enforce minimum brightness of 10
+    if (brightness < 10) {
+        brightness = 10;
+    }
+    // Apply brightness scaling to the color
+    uint8_t r = ((color >> 16) & 0xFF) * brightness / 255;
+    uint8_t g = ((color >> 8) & 0xFF) * brightness / 255;
+    uint8_t b = (color & 0xFF) * brightness / 255;
+    uint32_t dimmedColor = (r << 16) | (g << 8) | b;
+    strip_leds[5] = dimmedColor;
+    strip_leds[6] = dimmedColor;
+    strip_leds[7] = dimmedColor;
+    FastLED.show();
+    delay(1);
+
 }
 
 // Example usage:
@@ -164,6 +194,32 @@ void FED4::centerLight(uint32_t color)
     strip_leds[3] = color;
     strip_leds[4] = color;
     FastLED.show();
+    delay(1);
+
+}
+
+// Example usage:
+// Light up center port with specific colors and brightness:
+// centerLight("red", 100);    // Set center port to red with brightness 100
+// centerLight("green", 50);   // Set center port to green with brightness 50
+// centerLight("blue", 200);   // Set center port to blue with brightness 200
+// centerLight("yellow", 1);   // Set center port to yellow with minimum brightness 10
+void FED4::centerLight(uint32_t color, uint8_t brightness)
+{
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    // Enforce minimum brightness of 10
+    if (brightness < 10) {
+        brightness = 10;
+    }
+    // Apply brightness scaling to the color
+    uint8_t r = ((color >> 16) & 0xFF) * brightness / 255;
+    uint8_t g = ((color >> 8) & 0xFF) * brightness / 255;
+    uint8_t b = (color & 0xFF) * brightness / 255;
+    uint32_t dimmedColor = (r << 16) | (g << 8) | b;
+    strip_leds[3] = dimmedColor;
+    strip_leds[4] = dimmedColor;
+    FastLED.show();
+    delay(1);
 }
 
 // Example usage:
@@ -178,6 +234,32 @@ void FED4::rightLight(uint32_t color)
     strip_leds[1] = color;
     strip_leds[2] = color;
     FastLED.show();
+    delay(1);
+}
+
+// Example usage:
+// Light up right port with specific colors and brightness:
+// rightLight("red", 100);    // Set right port to red with brightness 100
+// rightLight("green", 50);   // Set right port to green with brightness 50
+// rightLight("blue", 200);   // Set right port to blue with brightness 200
+// rightLight("yellow", 1);   // Set right port to yellow with minimum brightness 10
+void FED4::rightLight(uint32_t color, uint8_t brightness)
+{
+    fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
+    // Enforce minimum brightness of 20
+    if (brightness < 20) {
+        brightness = 20;
+    }
+    // Apply brightness scaling to the color
+    uint8_t r = ((color >> 16) & 0xFF) * brightness / 255;
+    uint8_t g = ((color >> 8) & 0xFF) * brightness / 255;
+    uint8_t b = (color & 0xFF) * brightness / 255;
+    uint32_t dimmedColor = (r << 16) | (g << 8) | b;
+    strip_leds[0] = dimmedColor;
+    strip_leds[1] = dimmedColor;
+    strip_leds[2] = dimmedColor;
+    FastLED.show();
+    delay(1);
 }
 
 // Example usage:
@@ -201,6 +283,21 @@ void FED4::leftLight(const char *colorName)
 }
 
 // Example usage:
+// Light up left port using color names with brightness:
+// leftLight("red", 100);     // Set left port to red with brightness 100
+// leftLight("green", 50);    // Set left port to green with brightness 50
+// leftLight("blue", 200);    // Set left port to blue with brightness 200
+// leftLight("yellow", 1);    // Set left port to yellow with minimum brightness 10
+void FED4::leftLight(const char *colorName, uint8_t brightness)
+{
+    // Enforce minimum brightness of 10
+    if (brightness < 10) {
+        brightness = 10;
+    }
+    leftLight(getColorFromString(colorName), brightness);
+}
+
+// Example usage:
 // Light up center port using color names:
 // centerLight("red");     // Set center port to red
 // centerLight("green");   // Set center port to green
@@ -211,6 +308,21 @@ void FED4::centerLight(const char *colorName)
 }
 
 // Example usage:
+// Light up center port using color names with brightness:
+// centerLight("red", 100);     // Set center port to red with brightness 100
+// centerLight("green", 50);    // Set center port to green with brightness 50
+// centerLight("blue", 200);    // Set center port to blue with brightness 200
+// centerLight("yellow", 1);    // Set center port to yellow with minimum brightness 10
+void FED4::centerLight(const char *colorName, uint8_t brightness)
+{
+    // Enforce minimum brightness of 10
+    if (brightness < 10) {
+        brightness = 10;
+    }
+    centerLight(getColorFromString(colorName), brightness);
+}
+
+// Example usage:
 // Light up right port using color names:
 // rightLight("red");     // Set right port to red
 // rightLight("green");   // Set right port to green
@@ -218,6 +330,21 @@ void FED4::centerLight(const char *colorName)
 void FED4::rightLight(const char *colorName)
 {
     rightLight(getColorFromString(colorName));
+}
+
+// Example usage:
+// Light up right port using color names with brightness:
+// rightLight("red", 100);     // Set right port to red with brightness 100
+// rightLight("green", 50);    // Set right port to green with brightness 50
+// rightLight("blue", 200);    // Set right port to blue with brightness 200
+// rightLight("yellow", 1);    // Set right port to yellow with minimum brightness 10
+void FED4::rightLight(const char *colorName, uint8_t brightness)
+{
+    // Enforce minimum brightness of 10
+    if (brightness < 10) {
+        brightness = 10;
+    }
+    rightLight(getColorFromString(colorName), brightness);
 }
 
 // Example usage:

@@ -25,6 +25,7 @@ private:
   int sequenceLength;
   int pelletsPerLevel;
   unsigned long timeoutMs;
+  bool lightCuesEnabled;
   
   // State variables
   char* currentSequence;
@@ -59,13 +60,15 @@ private:
     String cleanSequence = getCleanTargetSequence();
     fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
     // Cue the first poke in the sequence
-    cueNextPoke();
+    if (lightCuesEnabled) {
+      cueNextPoke();
+    }
   }
 
 public:
-  SequenceManager(FED4& f4, const char* targetSeq, int pelletsPerLvl, int timeoutSeconds, int startLevel = 1) 
+  SequenceManager(FED4& f4, const char* targetSeq, int pelletsPerLvl, int timeoutSeconds, int startLevel = 1, bool lightCues = true) 
     : fed4(f4), targetSequence(targetSeq), 
-      pelletsPerLevel(pelletsPerLvl), timeoutMs(timeoutSeconds * 1000), sequenceIndex(0), currentLevel(startLevel), 
+      pelletsPerLevel(pelletsPerLvl), timeoutMs(timeoutSeconds * 1000), lightCuesEnabled(lightCues), sequenceIndex(0), currentLevel(startLevel), 
       pelletsAtCurrentLevel(0), lastPokeTime(0) {
     // Calculate sequence length automatically
     sequenceLength = 0;
@@ -178,7 +181,9 @@ public:
           fed4.lowBeep();  // Low beep for correct poke
           
           // Cue the next poke in the sequence
-          cueNextPoke();
+          if (lightCuesEnabled) {
+            cueNextPoke();
+          }
 
         } else {
           // Wrong poke - immediate feedback and reset
@@ -230,13 +235,13 @@ public:
       char nextPoke = targetSequence[sequenceIndex * 2];  // Skip commas in TARGET_SEQUENCE
       switch (nextPoke) {
         case 'L':
-          fed4.leftLight("yellow");  // Use yellow for cueing
+          fed4.leftLight("yellow", 10);  // Use for cueing
           break;
         case 'C':
-          fed4.centerLight("yellow");  // Use yellow for cueing
+          fed4.centerLight("cyan", 10);  // Use for cueing
           break;
         case 'R':
-          fed4.rightLight("yellow");  // Use yellow for cueing
+          fed4.rightLight("purple", 10);  // Use for cueing
           break;
         default:
           fed4.lightsOff();

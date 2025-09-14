@@ -180,12 +180,18 @@ public:
     void lightsOff();
     void setStripPixel(uint8_t pixel, uint32_t color);
     void leftLight(uint32_t color);
+    void leftLight(uint32_t color, uint8_t brightness);
     void centerLight(uint32_t color);
+    void centerLight(uint32_t color, uint8_t brightness);
     void rightLight(uint32_t color);
+    void rightLight(uint32_t color, uint8_t brightness);
     void setStripPixel(uint8_t pixel, const char *colorName);
     void leftLight(const char *colorName);
+    void leftLight(const char *colorName, uint8_t brightness);
     void centerLight(const char *colorName);
+    void centerLight(const char *colorName, uint8_t brightness);
     void rightLight(const char *colorName);
+    void rightLight(const char *colorName, uint8_t brightness);
     // (pixel)
     bool initializePixel();
     void setPixBrightness(uint8_t brightness);

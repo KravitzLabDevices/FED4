@@ -13,6 +13,7 @@
   - The next poke in the sequence is indicated by a yellow light
   - After each correct poke, the light moves to indicate the next poke
   - If the mouse makes an error, the sequence resets and the first poke is cued again
+  - Light cues can be enabled/disabled using the lightCues flag in the configuration section
 
   *** WARNING: If FED4 is their only source of food, ensure mice earn sufficient calories from 
   the task each day. For most mice this is ~150 20mg pellets (~3g of food) per 24 hours. *** 
@@ -35,9 +36,11 @@ const int pelletsPerLevel = 50;                  // Pellets needed to advance to
 const int sequenceTimeout = 10;                  // Timeout in seconds before the sequence is reset
 const int startLevel = 1;                        // Level to start at (1 = first item, 3 = first 3 items, etc.)
 
-// Sequence manager instance using core settings
-SequenceManager sequenceManager(fed4, targetSequence, pelletsPerLevel, sequenceTimeout, startLevel);
+// Light cueing control
+const bool lightCues = true;                     // Set to true to enable light cues, false to disable
 
+// Sequence manager instance using core settings
+SequenceManager sequenceManager(fed4, targetSequence, pelletsPerLevel, sequenceTimeout, startLevel, lightCues);
 
 void setup() {
   // Enable Hublink functionality
@@ -49,7 +52,9 @@ void setup() {
   fed4.sleepyLEDs = false;
   
   // Show initial cue for the first poke
-  sequenceManager.cueNextPoke();
+  if (lightCues) {
+    sequenceManager.cueNextPoke();
+  }
 }
 
 void loop() {
