@@ -58,6 +58,8 @@ private:
     // Update display with reset sequence information
     String cleanSequence = getCleanTargetSequence();
     fed4.setSequenceDisplay(cleanSequence, sequenceIndex, currentLevel);
+    // Cue the first poke in the sequence
+    cueNextPoke();
   }
 
 public:
@@ -175,6 +177,9 @@ public:
           fed4.logData(logMsg);
           
           fed4.lowBeep();  // Low beep for correct poke
+          
+          // Cue the next poke in the sequence
+          cueNextPoke();
 
         } else {
           // Wrong poke - immediate feedback and reset
@@ -218,6 +223,29 @@ public:
       }
     }
     return cleanSequence;
+  }
+  
+  // Cue the next poke in the sequence (public method for external access)
+  void cueNextPoke() {
+    if (sequenceIndex < currentLevel) {
+      char nextPoke = targetSequence[sequenceIndex * 2];  // Skip commas in TARGET_SEQUENCE
+      switch (nextPoke) {
+        case 'L':
+          fed4.leftLight("yellow");  // Use yellow for cueing
+          break;
+        case 'C':
+          fed4.centerLight("yellow");  // Use yellow for cueing
+          break;
+        case 'R':
+          fed4.rightLight("yellow");  // Use yellow for cueing
+          break;
+        default:
+          fed4.lightsOff();
+          break;
+      }
+    } else {
+      fed4.lightsOff();  // Turn off lights if sequence is complete
+    }
   }
 };
 

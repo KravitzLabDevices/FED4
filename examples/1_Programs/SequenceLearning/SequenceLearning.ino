@@ -9,6 +9,11 @@
   This task is useful for training mice to learn complex behavioral sequences
   and can be used to study sequence learning and memory.
 
+  LIGHT CUEING SYSTEM:
+  - The next poke in the sequence is indicated by a yellow light
+  - After each correct poke, the light moves to indicate the next poke
+  - If the mouse makes an error, the sequence resets and the first poke is cued again
+
   *** WARNING: If FED4 is their only source of food, ensure mice earn sufficient calories from 
   the task each day. For most mice this is ~150 20mg pellets (~3g of food) per 24 hours. *** 
 
@@ -41,17 +46,14 @@ void setup() {
   // Initialize FED4 hardware
   fed4.begin(task);
   fed4.logData("Sequence: " + sequenceManager.getCleanTargetSequence());
-  //fed4.sleepyLEDs = false;
+  fed4.sleepyLEDs = false;
+  
+  // Show initial cue for the first poke
+  sequenceManager.cueNextPoke();
 }
 
 void loop() {
   fed4.run();  // run this once per loop
-
-  //look for voltage on USBC line
-  float voltage = fed4.getBatteryVoltage();
-  if (voltage > 4.1) {
-    fed4.redPix(5);
-  }
 
   // Check for timeout
   sequenceManager.checkTimeout();
@@ -68,17 +70,14 @@ void loop() {
   }
 
   if (fed4.leftTouch) {     // if left poke is touched
-    fed4.leftLight("red");  // light LEDs around left poke
     sequenceManager.addToSequence("Left");
   }
 
   if (fed4.centerTouch) {      // if center poke is touched
-    fed4.centerLight("blue");  // light LEDs around center poke
     sequenceManager.addToSequence("Center");
   }
 
   if (fed4.rightTouch) {       // if right poke is touched
-    fed4.rightLight("green");  // light LEDs around right poke
     sequenceManager.addToSequence("Right");
   }
 }
