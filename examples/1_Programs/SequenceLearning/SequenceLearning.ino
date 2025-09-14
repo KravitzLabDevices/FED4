@@ -32,12 +32,10 @@ char task[] = "SequenceLearning";  // give the task a unique name
 
 // Core sequence settings
 const char* targetSequence = "L,C,R,C,L,C,R,C";  // Target sequence for the mouse to learn
+const bool lightCues = true;                     // Set to true to enable light cues, false to disable
 const int pelletsPerLevel = 50;                  // Pellets needed to advance to next level
 const int sequenceTimeout = 10;                  // Timeout in seconds before the sequence is reset
 const int startLevel = 1;                        // Level to start at (1 = first item, 3 = first 3 items, etc.)
-
-// Light cueing control
-const bool lightCues = true;                     // Set to true to enable light cues, false to disable
 
 // Sequence manager instance using core settings
 SequenceManager sequenceManager(fed4, targetSequence, pelletsPerLevel, sequenceTimeout, startLevel, lightCues);
@@ -60,21 +58,17 @@ void setup() {
 void loop() {
   fed4.run();  // run this once per loop
 
-  // Check for timeout
-  sequenceManager.checkTimeout();
-
   //Check for button 1 press to advance sequence level
   if (digitalRead(BUTTON_1) == HIGH) {
+    fed4.highBeep();
     sequenceManager.forceLevelAdvance();
-    fed4.playTone(800, 100, 0.3);  // Audio feedback
-    delay(50);
-    fed4.playTone(1000, 100, 0.3);
-    Serial.print("Button 1 pressed! Level advanced to: ");
-    Serial.println(sequenceManager.getCurrentLevel());
     delay(1000);
   }
 
-  if (fed4.leftTouch) {     // if left poke is touched
+  // Check for timeout
+  sequenceManager.checkTimeout();
+
+  if (fed4.leftTouch) {        // if left poke is touched
     sequenceManager.addToSequence("Left");
   }
 
