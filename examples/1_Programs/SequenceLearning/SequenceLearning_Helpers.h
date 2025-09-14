@@ -127,7 +127,6 @@ public:
           // Correct sequence! Give reward
           fed4.blockPokeCount++;  // Increment block poke count for final successful poke
           fed4.bopBeep();  // Special beep for completed sequence
-          fed4.lightsOff();
           fed4.feed();
           fed4.blockPelletCount++;  // Increment block pellet count for completed sequence
           
@@ -243,6 +242,8 @@ public:
           fed4.lightsOff();
           break;
       }
+      // Small delay to ensure LED state is properly set
+      delay(1);
     } else {
       fed4.lightsOff();  // Turn off lights if sequence is complete
     }
