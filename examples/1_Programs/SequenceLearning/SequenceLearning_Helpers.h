@@ -208,7 +208,7 @@ public:
   int getSequenceLength() const { return sequenceLength; }
   
   // Force level advancement (for button boost functionality)
-  void forceLevelAdvance() {
+  void sequenceAdvance() {
     if (currentLevel < sequenceLength) {
       currentLevel++;
       pelletsAtCurrentLevel = 0;

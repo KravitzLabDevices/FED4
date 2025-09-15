@@ -61,7 +61,7 @@ void loop() {
   //Check for button 1 press to advance sequence level
   if (digitalRead(BUTTON_1) == HIGH) {
     fed4.highBeep();
-    sequenceManager.forceLevelAdvance();
+    sequenceManager.sequenceAdvance();
     delay(1000);
   }
 
