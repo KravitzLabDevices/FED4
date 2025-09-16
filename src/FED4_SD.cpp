@@ -219,7 +219,13 @@ bool FED4::logData(const String &newEvent)
 
     // Open file for writing
     digitalWrite(SD_CS, LOW); // Select SD card for operation
-    dataFile = SD.open(filename, FILE_APPEND);
+
+    //SD.open() with a timeout
+    unsigned long timeout = millis() + 500;
+    do {
+        dataFile = SD.open(filename, FILE_APPEND);
+        if (!dataFile) delay(10);
+    } while (!dataFile && millis() < timeout);
 
     // If the file is not found, try to reinitialize the SD card - this allows for hot swapping of the SD card
     if (!dataFile)
@@ -241,24 +247,13 @@ bool FED4::logData(const String &newEvent)
         SPI.setBitOrder(MSBFIRST);
         SPI.setDataMode(SPI_MODE0);
         delay(10); // Allow SD card to stabilize
-        
-        // Reinitialize SD card with fresh SPI
-        
-        if (!SD.begin(SD_CS, SPI, 4000000)) {
-            Serial.println("Failed - SD.begin() returned false");
-            digitalWrite(SD_CS, HIGH);
-            return false;
-        }
-        
+                       
         // Test file system access
         if (!SD.exists("/")) {
-            Serial.print("Trying alternative initialization...");
-            
-            // Try a different approach - end and restart SD library
             SD.end();
             delay(10);
             
-            if (!SD.begin(SD_CS, SPI, 1000000)) { // Try slower speed
+            if (!SD.begin(SD_CS, SPI, 4000000)) { 
                 Serial.println("Failed");
                 digitalWrite(SD_CS, HIGH);
                 return false;
@@ -273,8 +268,14 @@ bool FED4::logData(const String &newEvent)
             digitalWrite(SD_CS, HIGH);
             return false;
         }
-        dataFile = SD.open(filename, FILE_APPEND);
-    
+
+        //SD.open() with a timeout
+        unsigned long timeout = millis() + 500;
+        do {
+            dataFile = SD.open(filename, FILE_APPEND);
+            if (!dataFile) delay(10);
+        } while (!dataFile && millis() < timeout);
+
         if (!dataFile) {
             Serial.println("Failed to open file even though it exists");
             Serial.print("SD card type: ");
