@@ -45,7 +45,7 @@ void FED4::syncHublink()
     }
 
     // Check battery level and set alert if low
-    int batteryLevel = (int)getBatteryPercentage();
+    int batteryLevel = (int)cellPercent;
     if (batteryLevel < 20)
     {
         hublink.setAlert("Low Battery!");
