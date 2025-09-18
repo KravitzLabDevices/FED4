@@ -4,8 +4,7 @@ Adafruit_MAX17048 maxlipo;
 Adafruit_MCP23X17 mcp;
 void setup() {
   Serial.begin(115200);
-   pinMode(47, OUTPUT);
-  digitalWrite(47, HIGH);
+
   while (!Serial) delay(10);    // wait until serial monitor opens
    if (!mcp.begin_I2C()) {      // for some very strange reason the GPIO Expander needs turned on otherwise it fails to find the fuel gage. 
     Serial.println("Error.");   // this is a library issue that is documented.
