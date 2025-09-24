@@ -200,16 +200,19 @@ void FED4::pollSensors() {
     motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
     motionSensor.setMotionThreshold(40);
-    motionSensor.setMotionHysteresis(8);
+    motionSensor.setMotionHysteresis(10);
   }
 
-  //update motion detection
-  prox();  // Why does this need to be here for motion to work?
-
-  motionDetected = motion();
-  if (motionDetected) {
-    motionCount++;  // Aggregate motion detections
+  // Debounced motion detection
+  prox();
+  bool currentMotion = motion();
+  if (currentMotion && lastMotionPositive) {
+    motionDetected = true;
+    motionCount++;
+  } else {
+    motionDetected = false;
   }
+  lastMotionPositive = currentMotion;
 
   int minToUpdateSensors = 10;  //update sensors every N minutes
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {

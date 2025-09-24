@@ -43,12 +43,14 @@ private:
   }
 
   bool checkSequence() {
-    for (int i = 0; i < currentLevel; i++) {
-      if (currentSequence[i] != targetSequence[i * 2]) {  // Skip commas in TARGET_SEQUENCE
-        return false;
-      }
+    // For repetitions allowed mode, we only need to check that the last poke
+    // matches the target for the current position
+    if (sequenceIndex > 0) {
+      char lastPoke = currentSequence[sequenceIndex - 1];
+      char targetPoke = targetSequence[(currentLevel - 1) * 2];  // Skip commas in TARGET_SEQUENCE
+      return (lastPoke == targetPoke);
     }
-    return true;
+    return false;
   }
 
   void resetSequence() {
