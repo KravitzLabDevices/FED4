@@ -43,14 +43,12 @@ private:
   }
 
   bool checkSequence() {
-    // For repetitions allowed mode, we only need to check that the last poke
-    // matches the target for the current position
-    if (sequenceIndex > 0) {
-      char lastPoke = currentSequence[sequenceIndex - 1];
-      char targetPoke = targetSequence[(currentLevel - 1) * 2];  // Skip commas in TARGET_SEQUENCE
-      return (lastPoke == targetPoke);
+    for (int i = 0; i < currentLevel; i++) {
+      if (currentSequence[i] != targetSequence[i]) {
+        return false;
+      }
     }
-    return false;
+    return true;
   }
 
   void resetSequence() {
@@ -73,12 +71,7 @@ public:
       pelletsPerLevel(pelletsPerLvl), timeoutMs(timeoutSeconds * 1000), lightCuesEnabled(lightCues), sequenceIndex(0), currentLevel(startLevel), 
       pelletsAtCurrentLevel(0), lastPokeTime(0) {
     // Calculate sequence length automatically
-    sequenceLength = 0;
-    for (int i = 0; i < strlen(targetSequence); i++) {
-      if (targetSequence[i] != ',') {
-        sequenceLength++;
-      }
-    }
+    sequenceLength = strlen(targetSequence);
     currentSequence = new char[sequenceLength];
     resetSequence();
   }
@@ -167,7 +160,7 @@ public:
       } else {
         // Give immediate feedback for individual pokes
         // Check if this poke is correct for the current position
-        if (currentPoke == targetSequence[(sequenceIndex - 1) * 2]) {
+        if (currentPoke == targetSequence[sequenceIndex - 1]) {
           // Correct poke for this position
           fed4.blockPokeCount++;  // Increment block poke count for successful poke
           
@@ -220,21 +213,15 @@ public:
     }
   }
   
-  // Get clean target sequence without commas for logging
+  // Get clean target sequence for logging
   String getCleanTargetSequence() const {
-    String cleanSequence = "";
-    for (int i = 0; i < strlen(targetSequence); i++) {
-      if (targetSequence[i] != ',') {
-        cleanSequence += targetSequence[i];
-      }
-    }
-    return cleanSequence;
+    return String(targetSequence);
   }
   
   // Cue the next poke in the sequence (public method for external access)
   void cueNextPoke() {
     if (sequenceIndex < currentLevel) {
-      char nextPoke = targetSequence[sequenceIndex * 2];  // Skip commas in TARGET_SEQUENCE
+      char nextPoke = targetSequence[sequenceIndex];
       switch (nextPoke) {
         case 'L':
           fed4.leftLight("yellow", 10);  // Use for cueing

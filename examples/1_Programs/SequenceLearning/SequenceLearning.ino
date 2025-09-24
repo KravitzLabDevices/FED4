@@ -31,7 +31,7 @@ char task[] = "SequenceLearning";  // give the task a unique name
 // ============================================================================
 
 // Core sequence settings
-const char* targetSequence = "L,C,R,C,L,C,R,C";  // Target sequence for the mouse to learn
+const char* targetSequence = "LCRCLCRC";  // Target sequence for the mouse to learn
 const bool lightCues = true;                     // Set to true to enable light cues, false to disable
 const int pelletsPerLevel = 30;                  // Pellets needed to advance to next level
 const int sequenceTimeout = 30;                  // Timeout in seconds before the sequence is reset
@@ -42,7 +42,7 @@ SequenceManager sequenceManager(fed4, targetSequence, pelletsPerLevel, sequenceT
 
 void setup() {
   // Enable Hublink functionality
-  fed4.useHublink = true;
+  fed4.useHublink = false;
   
   // Initialize FED4 hardware
   fed4.begin(task);
