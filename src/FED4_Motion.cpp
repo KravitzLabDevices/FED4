@@ -42,13 +42,13 @@ bool FED4::initializeMotion()
     }
     
     // Set motion threshold (higher value for less sensitivity during daytime)
-    if (motionSensor.setMotionThreshold(40) != 0) {
+    if (motionSensor.setMotionThreshold(30) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
     // Set motion hysteresis (higher value for more stability)
-    if (motionSensor.setMotionHysteresis(8) != 0) {
+    if (motionSensor.setMotionHysteresis(10) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }

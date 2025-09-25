@@ -199,7 +199,7 @@ void FED4::pollSensors() {
     motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
     motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(40);
+    motionSensor.setMotionThreshold(30);
     motionSensor.setMotionHysteresis(10);
   }
 
