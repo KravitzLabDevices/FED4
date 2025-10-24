@@ -26,6 +26,30 @@ void FED4::updateDisplay() {
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
 
+  // Check if this is ActivityMonitor program
+  if (program == "ActivityMonitor") {
+    displayActivityMonitor();
+  } else {
+    displayTask();
+    displayMouseId();
+
+    // draw line to split on screen text 
+    drawLine(0,59,168,59, DISPLAY_BLACK);  
+    drawLine(0,60,168,60, DISPLAY_BLACK);  
+
+    // draw screen elements
+    displayEnvironmental();
+    displayBattery();
+    displaySDCardStatus();
+    displayCounters();
+    displayIndicators();
+    displayDateTime();
+  }
+  refresh();
+}
+
+void FED4::displayActivityMonitor() {
+  // Use the same layout as normal FED4 display but replace counters and indicators
   displayTask();
   displayMouseId();
 
@@ -33,14 +57,39 @@ void FED4::updateDisplay() {
   drawLine(0,59,168,59, DISPLAY_BLACK);  
   drawLine(0,60,168,60, DISPLAY_BLACK);  
 
-  // draw screen elements
+  // draw screen elements (same as normal display)
   displayEnvironmental();
   displayBattery();
   displaySDCardStatus();
-  displayCounters();
-  displayIndicators();
+  
+  // Replace displayCounters() with activity information
+  displayActivityCounters();
+
   displayDateTime();
-  refresh();
+}
+
+void FED4::displayActivityCounters() {
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  
+  // Clear all counter value areas with one white rectangle (same as displayCounters)
+  fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
+  
+  setCursor(6, 80);
+  print("Active: ");
+  setCursor(90, 80);
+  print(motionCount);
+  
+  setCursor(6, 100);
+  print("Active%: ");
+  setCursor(90, 100);
+  printf("%.1f", motionPercentage);
+  
+  setCursor(6, 120);
+  print("Polls: ");
+  setCursor(90, 120);
+  print(pollCount);
 }
 
 void FED4::displayTask() {

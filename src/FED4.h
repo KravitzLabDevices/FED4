@@ -99,7 +99,7 @@ public:
     void run();
 
     // Sleep configuration
-    int sleepSeconds = 6; // how many seconds to sleep between timer based wake-ups
+    int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups
     bool sleepyLEDs = true; // Flag to control whether LEDs stay on during sleep (true = LEDs sleep with sleep, false = LEDs stay on during sleep)
 
     // Menu functions
@@ -115,7 +115,7 @@ public:
     void menuEnd();
 
     // Sensor polling
-    void pollSensors();
+    void pollSensors(int minToUpdateSensors = 10);
     void startupPollSensors();
 
     // Pellet functions
@@ -226,6 +226,8 @@ public:
     void displayIndicators();
     void startupAnimation();
     void displayLowBatteryWarning();
+    void displayActivityMonitor();
+    void displayActivityCounters();
 
     void serialStatusReport();
 

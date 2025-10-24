@@ -186,10 +186,11 @@ void FED4::startupPollSensors(){
 
 /**
  * Polls temperature, humidity and battery sensors periodically to update their values.
- * Only updates every 10 minutes to avoid excessive polling.
+ * Only updates every N minutes to avoid excessive polling.
  * Uses timeouts to prevent hanging if sensors are unresponsive.
+ * @param minToUpdateSensors Number of minutes between sensor updates (default: 10)
  */
-void FED4::pollSensors() {
+void FED4::pollSensors(int minToUpdateSensors) {
   // Increment poll counter
   pollCount++;
 
@@ -214,7 +215,6 @@ void FED4::pollSensors() {
   }
   lastMotionPositive = currentMotion;
 
-  int minToUpdateSensors = 10;  //update sensors every N minutes
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
     clearDisplay();
     lastPollTime = millis();
@@ -229,6 +229,7 @@ void FED4::pollSensors() {
     // Reset counters for next sampling period
     motionCount = 0;
     pollCount = 0;
+    motionPercentage = 0.0;  // Reset motion percentage to 0
 
     // get temp and humidity with timeouts
     unsigned long startTime = millis();
