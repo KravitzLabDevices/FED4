@@ -28,9 +28,6 @@ FED4 fed;
 unsigned long lastActivityTime = 0;
 unsigned long lastLEDUpdate = 0;
 bool ledState = false;
-int activityCount = 0;
-int totalPolls = 0;
-float activityPercentage = 0.0;
 
 void setup() {
   // Initialize FED4 with program name
@@ -58,20 +55,10 @@ void loop() {
   // Poll sensors every second with 1-minute update interval
   fed.pollSensors(1);  // Update sensors every 1 minute
   
-  // Update activity tracking
-  totalPolls++;
-  
-  // Only count activity if motion was detected in this polling cycle
-  // Reset the motionDetected flag after checking it
+  // Update activity tracking using FED4 variables
   if (fed.motionDetected) {
-    activityCount++;
     lastActivityTime = millis();
     fed.motionDetected = false; // Reset the flag after counting
-  }
-  
-  // Calculate activity percentage
-  if (totalPolls > 0) {
-    activityPercentage = (float)activityCount / totalPolls * 100.0;
   }
   
   // Update LED based on activity
@@ -84,8 +71,20 @@ void loop() {
   // Serial output every second
   printActivityStatus();
   
-  // Small delay to prevent excessive CPU usage
-  delay(100);
+  // Measure and print execution time for each loop iteration
+  static unsigned long lastLoopEnd = 0;
+  unsigned long loopStart = millis();
+  static unsigned long loopCount = 0;
+
+  delay(100); // Small delay to prevent excessive CPU usage
+
+  unsigned long loopEnd = millis();
+  unsigned long execTime = loopEnd - loopStart;
+  Serial.print("Loop ");
+  Serial.print(++loopCount);
+  Serial.print(" execution time: ");
+  Serial.print(execTime);
+  Serial.println(" ms");
 }
 
 void updateActivityLED() {
@@ -125,10 +124,16 @@ void printActivityStatus() {
     // Check if there was recent activity (within last 1 second)
     bool recentActivity = (currentTime - lastActivityTime) < 1000;
     
+    // Calculate real-time percentage using FED4 variables
+    float currentPercentage = 0.0;
+    if (fed.pollCount > 0) {
+      currentPercentage = (float)fed.motionCount / fed.pollCount * 100.0;
+    }
+    
     Serial.printf("%02lu:%02lu,%s,%d,%.1f\n", 
                   minutes, seconds,
                   recentActivity ? "YES" : "NO",
-                  activityCount,
-                  activityPercentage);
+                  fed.motionCount,
+                  currentPercentage);
   }
 }

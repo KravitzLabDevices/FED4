@@ -77,19 +77,24 @@ void FED4::displayActivityCounters() {
   fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
   
   setCursor(6, 80);
-  print("Active: ");
+  print("Activity: ");
   setCursor(90, 80);
   print(motionCount);
   
   setCursor(6, 100);
-  print("Active%: ");
+  print("Activity%: ");
   setCursor(90, 100);
-  printf("%.1f", motionPercentage);
+  // Calculate real-time percentage
+  float currentPercentage = 0.0;
+  if (pollCount > 0) {
+    currentPercentage = (float)motionCount / pollCount * 100.0;
+  }
+  printf("%.1f", currentPercentage);
   
   setCursor(6, 120);
-  print("Polls: ");
+  print("Seconds: ");
   setCursor(90, 120);
-  print(pollCount);
+  print(pollCount/2.16); // Convert polls to seconds
 }
 
 void FED4::displayTask() {

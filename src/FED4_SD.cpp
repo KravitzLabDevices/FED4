@@ -359,8 +359,13 @@ bool FED4::logData(const String &newEvent)
 
     // Write counters and status
     if (event == "Status" || event == "Startup") {
+        // Calculate real-time motion percentage
+        float currentMotionPercentage = 0.0;
+        if (pollCount > 0) {
+            currentMotionPercentage = (float)motionCount / pollCount * 100.0;
+        }
         // Write motion percentage with 2 decimal places
-        dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
+        dataFile.printf("%.2f,", currentMotionPercentage); // Write real-time motion percentage
 
         // Write environmental data
         dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
