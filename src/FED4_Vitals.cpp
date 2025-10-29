@@ -229,7 +229,6 @@ void FED4::pollSensors(int minToUpdateSensors) {
     // Reset counters for next sampling period
     motionCount = 0;
     pollCount = 0;
-    motionPercentage = 0.0;  // Reset motion percentage to 0
 
     // get temp and humidity with timeouts
     unsigned long startTime = millis();

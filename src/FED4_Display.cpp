@@ -94,7 +94,7 @@ void FED4::displayActivityCounters() {
   setCursor(6, 120);
   print("Seconds: ");
   setCursor(90, 120);
-  print(pollCount/2.16); // Convert polls to seconds
+  print(int(pollCount / 2.16 + 0.5)); // Convert polls to seconds and round to nearest int
 }
 
 void FED4::displayTask() {
