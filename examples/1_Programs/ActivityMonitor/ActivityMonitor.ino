@@ -12,8 +12,8 @@
  * - Serial output for monitoring
  * - Logs aggregated activity and environmental data to SD card every minute
  *
- * NOTE: If sleep is disabled, FED4 will last ~2.5 days
- *       If you sleep for 6s between readings, FED4 will last ~____
+ * NOTES: If sleep is disabled, FED4 will last ~2.5 days on battery
+ *        If you sleep for 6s between readings, FED4 will last ~____
  */
 
 #include "FED4.h"
@@ -37,7 +37,7 @@ void setup() {
   fed.sleepyLEDs = false;
 
   // Initialize display with activity monitor content
-  fed.updateDisplay();
+  fed.displayActivityMonitor();
 }
 
 void loop() {
@@ -52,7 +52,7 @@ void loop() {
   fed.syncHublink();
 
   // Put the device to sleep for 6 seconds and wake up automatically
-  fed.sleepSeconds = 6;
+  fed.sleepSeconds = 0.5;
   fed.sleep();  // This should call the FED4 sleep function, which handles timer-based sleep
 }
 
@@ -105,9 +105,8 @@ void printActivityStatus() {
       currentPercentage = (float)fed.motionCount / fed.pollCount * 100.0;
     }
 
-    Serial.printf("%02lu:%02lu,%s,%d,%.1f\n",
+    Serial.printf("%02lu:%02lu,%d,%.1f\n",
                   minutes, seconds,
-                  recentActivity ? "YES" : "NO",
                   fed.motionCount,
                   currentPercentage);
   }
