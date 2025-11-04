@@ -4,13 +4,16 @@
  * This program continuously monitors activity by calling pollSensors every second
  * with minToUpdateSensors set to 1 minute. This allows for frequent sensor updates
  * and comprehensive activity logging.
- * 
+ *  
  * Features:
  * - Polls sensors once per second for motion detection
  * - Displays real-time activity information with counts on screen
  * - Center port LED indicators: Red (no activity), Blue (activity detected)
  * - Serial output for monitoring
  * - Logs aggregated activity and environmental data to SD card every minute
+ *
+ * NOTE: If sleep is disabled, FED4 will last ~2.5 days
+ *       If you sleep for 6s between readings, FED4 will last ~____
  */
 
 #include "FED4.h"
@@ -24,13 +27,9 @@ bool ledState = false;
 
 void setup() {
   // Initialize FED4 with program name
-  if (!fed.begin("ActivityMonitor")) {
-    Serial.println("Failed to initialize FED4");
-    while (1) delay(1000);
-  }
+  fed.begin("ActivityMonitor");
 
   Serial.println("FED4 Activity Monitor Started");
-  Serial.println("Monitoring activity every second...");
   Serial.println("LED: Red = No Activity, Blue = Activity Detected");
   Serial.println("Time,Activity,Count,Percentage");
 
@@ -39,15 +38,9 @@ void setup() {
 
   // Initialize display with activity monitor content
   fed.updateDisplay();
-
-  // Log startup event
-  fed.logData("Startup");
 }
 
 void loop() {
-  // Poll sensors every second with 1-minute update interval
-  fed.pollSensors(1);  
-  
   // Update center port LED based on activity
   updateActivityLED();
 
@@ -57,6 +50,10 @@ void loop() {
   // Call FED4 system functions
   fed.updateDisplay();
   fed.syncHublink();
+
+  // Put the device to sleep for 6 seconds and wake up automatically
+  fed.sleepSeconds = 6;
+  fed.sleep();  // This should call the FED4 sleep function, which handles timer-based sleep
 }
 
 void updateActivityLED() {

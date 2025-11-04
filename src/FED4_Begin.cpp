@@ -349,6 +349,9 @@ bool FED4::begin(const char *programName)
     playTone(1000, 8, 0.5);
 
     clearDisplay();
-  
+
+    // Reset pollSensorsTimer so seconds display resets when data is written
+    pollSensorsTimer = millis();
+    
     return true;
 }

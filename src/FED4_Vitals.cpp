@@ -205,15 +205,11 @@ void FED4::pollSensors(int minToUpdateSensors) {
   }
 
   // Debounced motion detection
-  prox();
-  bool currentMotion = motion();
-  if (currentMotion && lastMotionPositive) {
-    motionDetected = true;
+  prox();  //for some reason I needed to call prox to get motion sensor to work - do I still need to do this?
+
+  if (motion()) {
     motionCount++;
-  } else {
-    motionDetected = false;
   }
-  lastMotionPositive = currentMotion;
 
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
     clearDisplay();
@@ -331,6 +327,9 @@ void FED4::pollSensors(int minToUpdateSensors) {
 
     //log Status to capture sensor data for each period
     logData("Status");
+    
+    // Reset pollSensorsTimer so seconds display resets when data is written
+    pollSensorsTimer = millis();
   }
 }
 

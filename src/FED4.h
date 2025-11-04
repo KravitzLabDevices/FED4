@@ -1,6 +1,12 @@
 #ifndef FED4_h
 #define FED4_h
 
+
+// note there is a known issue with FastLED 3.10.3 on ESP32-S3 devices
+// keep FastLED version 3.10.2 until this issue is fixed in the main FastLED repository
+// https://github.com/FastLED/FastLED/issues/5100
+// https://github.com/FastLED/FastLED/issues/5100
+
 #include <Arduino.h>
 #include <map>
 #include <string>
@@ -236,6 +242,8 @@ public:
     void startSleep();
     void wakeUp();
     void handleTouch();
+    unsigned long pollSensorsTimer = 0;
+
     
     bool initializeLDOs();
     void LDO2_ON();

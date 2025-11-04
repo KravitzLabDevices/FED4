@@ -74,7 +74,7 @@ void FED4::wakeUp() {
     checkButton1();
     checkButton2(); 
     checkButton3();
-    pollSensors();
+    pollSensors(1);  //default is 1 minute between polls, change this here
   }
 
   // Only check touch sensors if woken up by touch

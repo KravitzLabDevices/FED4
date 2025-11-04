@@ -94,7 +94,14 @@ void FED4::displayActivityCounters() {
   setCursor(6, 120);
   print("Seconds: ");
   setCursor(90, 120);
-  print(int(pollCount / 2.16 + 0.5)); // Convert polls to seconds and round to nearest int
+
+  // Initialize pollSensorsTimer if it hasn't been set yet
+  if (pollSensorsTimer == 0) {
+    pollSensorsTimer = millis();
+  }
+
+  //print elapsed seconds since pollSensorsTimer was reset
+  print((millis() - pollSensorsTimer) / 1000);
 }
 
 void FED4::displayTask() {

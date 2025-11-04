@@ -395,6 +395,9 @@ bool FED4::logData(const String &newEvent)
 
     refresh();
 
+    // Reset pollSensorsTimer so seconds display resets when data is written
+    pollSensorsTimer = millis();
+
     return true;
 }
 
