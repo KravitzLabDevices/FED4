@@ -51,9 +51,9 @@ void loop() {
   fed.updateDisplay();
   fed.syncHublink();
 
-  // Put the device to sleep for 6 seconds and wake up automatically
-  fed.sleepSeconds = 0.5;
-  fed.sleep();  // This should call the FED4 sleep function, which handles timer-based sleep
+  // Put the device to sleep for N seconds and wake up automatically
+  fed.sleepSeconds = 0;  //Setting this to 0 disables sleep
+  fed.sleep();  // This calls the FED4 sleep function, which handles timer-based sleep
 }
 
 void updateActivityLED() {

@@ -353,5 +353,17 @@ bool FED4::begin(const char *programName)
     // Reset pollSensorsTimer so seconds display resets when data is written
     pollSensorsTimer = millis();
     
+    // Check if mouseId is 99 - if so, launch Pong game
+    if (mouseId == "99" || mouseId == "0099") {
+        Serial.println("MouseID 99 detected - launching Pong game!");
+        greenPix(5);
+        delay(500);
+        
+        // Launch Pong game (runs indefinitely)
+        while (true) {
+            pong();
+        }
+    }
+    
     return true;
 }

@@ -102,6 +102,13 @@ void FED4::displayActivityCounters() {
 
   //print elapsed seconds since pollSensorsTimer was reset
   print((millis() - pollSensorsTimer) / 1000);
+  
+  setCursor(6, 140);
+  print("Uptime (hr): ");
+  setCursor(90, 140);
+  // Calculate total uptime in hours with 2 decimal places
+  float uptimeHours = millis() / 1000.0 / 3600.0;
+  printf("%.2f", uptimeHours);
 }
 
 void FED4::displayTask() {

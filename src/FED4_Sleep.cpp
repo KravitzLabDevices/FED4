@@ -47,7 +47,10 @@ void FED4::startSleep() {
 
   LDO2_OFF(); // turn off LDO2 every sleep
   enableAmp(false);
-  esp_light_sleep_start();
+
+  if (sleepSeconds > 0) {  //only sleep if sleepSeconds is greater than 0
+    esp_light_sleep_start();
+  } 
 }
 
 // Wakes up device by re-enabling components and initializing I2C/I2S

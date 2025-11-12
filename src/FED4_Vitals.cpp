@@ -202,12 +202,14 @@ void FED4::pollSensors(int minToUpdateSensors) {
     motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
     motionSensor.setMotionThreshold(30);
     motionSensor.setMotionHysteresis(10);
+    
+    // Allow thermal sensor to stabilize after wake-up and reconfiguration
+    delay(1);  
   }
-
-  // Debounced motion detection
-  prox();  //for some reason I needed to call prox to get motion sensor to work - do I still need to do this?
-
-  if (motion()) {
+  
+  //prox();  //for some reason I needed to call prox to get motion sensor to work - do I still need to do this?
+  
+  if (motion()) {  // check if motion is detected, keep this reading for motion percentage calculation
     motionCount++;
   }
 

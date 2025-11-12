@@ -103,6 +103,9 @@ public:
     // Corefunctions
     void feed();
     void run();
+    
+    // Game functions
+    void pong();
 
     // Sleep configuration
     int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups
