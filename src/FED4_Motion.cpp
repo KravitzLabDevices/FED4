@@ -42,19 +42,18 @@ bool FED4::initializeMotion()
     }
     
     // Set motion threshold (higher value for less sensitivity during daytime)
-    if (motionSensor.setMotionThreshold(30) != 0) {
+    if (motionSensor.setMotionThreshold(50) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
     // Set motion hysteresis (higher value for more stability)
-    if (motionSensor.setMotionHysteresis(10) != 0) {
+    if (motionSensor.setMotionHysteresis(35) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
     // Test basic functionality
-    delay(100); // Give sensor time to settle
     
     sths34pf80_tmos_drdy_status_t dataReady;
     if (motionSensor.getDataReady(&dataReady) == 0) {

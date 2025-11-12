@@ -194,21 +194,19 @@ void FED4::pollSensors(int minToUpdateSensors) {
   // Increment poll counter
   pollCount++;
 
-  // Reconfigure motion sensor after I2C bus reinitialization
-  if (motionSensor.begin(0x5A, I2C_2)) {
-    // Reconfigure motion sensor settings (consistent with initialization)
-    motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
-    motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
-    motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(30);
-    motionSensor.setMotionHysteresis(10);
-    
-    // Allow thermal sensor to stabilize after wake-up and reconfiguration
-    delay(1);  
+  // initialize motion sensor
+  bool motionSensorInitialized = initializeMotion();
+  if (!motionSensorInitialized) {
+    Serial.println("Motion sensor initialization failed");
+    return;
   }
   
-  //prox();  //for some reason I needed to call prox to get motion sensor to work - do I still need to do this?
-  
+  // a quirk of the ESP32-S3 is that the I2C bus must
+  // be exercised before I2C_2 works properly - this distnace sensor stuff does that
+  // TODO: See if there is a simpler way to do this.
+  SFEVL53L1X distanceSensor(Wire, 1); // Changed from EXP_XSHUT_1 (pin 2) to pin 1
+  distanceSensor.begin(); 
+
   if (motion()) {  // check if motion is detected, keep this reading for motion percentage calculation
     motionCount++;
   }

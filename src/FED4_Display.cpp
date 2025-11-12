@@ -20,8 +20,6 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                                       (uint8_t)~64, (uint8_t)~128};
 
 void FED4::updateDisplay() {
-  //TODO: Stop clearing display and just clear needed areas 
-  //clearDisplay();
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
@@ -77,12 +75,12 @@ void FED4::displayActivityCounters() {
   fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
   
   setCursor(6, 80);
-  print("Activity: ");
+  print("Activity ");
   setCursor(90, 80);
   print(motionCount);
   
   setCursor(6, 100);
-  print("Activity%: ");
+  print("Activity% ");
   setCursor(90, 100);
   // Calculate real-time percentage
   float currentPercentage = 0.0;
@@ -92,7 +90,7 @@ void FED4::displayActivityCounters() {
   printf("%.1f", currentPercentage);
   
   setCursor(6, 120);
-  print("Seconds: ");
+  print("Seconds");
   setCursor(90, 120);
 
   // Initialize pollSensorsTimer if it hasn't been set yet
@@ -104,7 +102,7 @@ void FED4::displayActivityCounters() {
   print((millis() - pollSensorsTimer) / 1000);
   
   setCursor(6, 140);
-  print("Uptime (hr): ");
+  print("Uptime(h)");
   setCursor(90, 140);
   // Calculate total uptime in hours with 2 decimal places
   float uptimeHours = millis() / 1000.0 / 3600.0;
@@ -349,7 +347,7 @@ void FED4::displayDateTime() {
   setCursor(5, 160);
   print(dateStr);
   
-  setCursor(97, 160);
+  setCursor(94, 160);
   print(timeStr);
 }
 
