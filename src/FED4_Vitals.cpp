@@ -221,6 +221,8 @@ void FED4::pollSensors(int minToUpdateSensors) {
       motionPercentage = 0.0;
     }
 
+    updateDisplay();
+
     // Reset counters for next sampling period
     motionCount = 0;
     pollCount = 0;
@@ -322,7 +324,6 @@ void FED4::pollSensors(int minToUpdateSensors) {
     }
 
     if (whiteReading >= 0) white = whiteReading;  // Only update if we got a valid reading >= 0
-
 
     //log Status to capture sensor data for each period
     logData("Status");

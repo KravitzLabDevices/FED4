@@ -17,7 +17,8 @@ void FED4::pong() {
     
     // Game constants
     const int PADDLE_WIDTH = 4;
-    const int PADDLE_HEIGHT = 40;  // Doubled from 20 to 40
+    const int PADDLE_HEIGHT = 40;  // Doubled from 20 to 40 (kept for reference)
+    const int MOUSE_HEIGHT = 20;   // Actual mouse graphic height for collision
     const int BALL_SIZE = 4;
     const int SCREEN_WIDTH = 144;
     const int SCREEN_HEIGHT = 168;
@@ -33,6 +34,8 @@ void FED4::pong() {
     static int cpuPaddleY;
     static int playerScore;
     static int cpuScore;
+    static int lastPlayerScore;  // Track previous scores
+    static int lastCpuScore;     // Track previous scores
     static bool gameOver;
     static bool paused;
     static unsigned long lastUpdateTime;
@@ -75,15 +78,30 @@ void FED4::pong() {
     ballY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT / 2;
     ballSpeedX = 1.2;  // Slower starting speed (was 2.0)
     ballSpeedY = 0.8;  // Slower starting speed (was 1.5)
-    paddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT / 2 - PADDLE_HEIGHT / 2;
-    cpuPaddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT / 2 - PADDLE_HEIGHT / 2;
+    paddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT / 2 - MOUSE_HEIGHT / 2;
+    cpuPaddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT / 2 - MOUSE_HEIGHT / 2;
     cpuTargetY = cpuPaddleY;
     playerScore = 0;
     cpuScore = 0;
+    lastPlayerScore = -1;  // Initialize to -1 to force initial draw
+    lastCpuScore = -1;     // Initialize to -1 to force initial draw
     gameOver = false;
     paused = false;
     lastUpdateTime = millis();
     cpuReactionDelay = 0;
+    
+    // Draw initial scores and static elements
+    clearDisplay();
+    setTextSize(3);
+    setTextColor(DISPLAY_BLACK);
+    setCursor(20, 20);
+    print("0");
+    setCursor(100, 20);
+    print("0");
+    drawLine(0, PLAY_AREA_TOP, SCREEN_WIDTH, PLAY_AREA_TOP, DISPLAY_BLACK);
+    refresh();
+    lastPlayerScore = 0;
+    lastCpuScore = 0;
     
     // Main game loop
     while (!gameOver) {
@@ -106,15 +124,15 @@ void FED4::pong() {
         }
         
         if (!paused) {
-            // Player paddle control
+            // Player mouse control
             if (digitalRead(BUTTON_1) == HIGH) {
                 paddleY -= 4;
                 if (paddleY < PLAY_AREA_TOP) paddleY = PLAY_AREA_TOP;
             }
             if (digitalRead(BUTTON_3) == HIGH) {
                 paddleY += 4;
-                if (paddleY > PLAY_AREA_TOP + PLAY_AREA_HEIGHT - PADDLE_HEIGHT) {
-                    paddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT - PADDLE_HEIGHT;
+                if (paddleY > PLAY_AREA_TOP + PLAY_AREA_HEIGHT - MOUSE_HEIGHT) {
+                    paddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT - MOUSE_HEIGHT;
                 }
             }
             
@@ -129,15 +147,19 @@ void FED4::pong() {
                 click();
             }
             
-            // Ball collision with player paddle (left side)
-            if (ballX <= PADDLE_WIDTH + 2 && 
+            // Ball collision with player mouse head (left side)
+            // Player mouse head is at x=27 to x=42, height is about 20 pixels
+            int playerMouseHeadX = 2 + 25; // Head position
+            int playerMouseHeadWidth = 15;
+            
+            if (ballX <= playerMouseHeadX + playerMouseHeadWidth && 
                 ballY + BALL_SIZE >= paddleY && 
-                ballY <= paddleY + PADDLE_HEIGHT) {
+                ballY <= paddleY + MOUSE_HEIGHT) {
                 ballSpeedX = abs(ballSpeedX); // Ensure it goes right
-                ballX = PADDLE_WIDTH + 2;
+                ballX = playerMouseHeadX + playerMouseHeadWidth;
                 
-                // Add spin based on where ball hits paddle
-                float hitPos = (ballY + BALL_SIZE/2 - paddleY) / PADDLE_HEIGHT;
+                // Add spin based on where ball hits mouse
+                float hitPos = (ballY + BALL_SIZE/2 - paddleY) / MOUSE_HEIGHT;
                 ballSpeedY = (hitPos - 0.5) * 4;
                 
                 // Increase speed slightly
@@ -151,15 +173,18 @@ void FED4::pong() {
                 hapticBuzz(30);
             }
             
-            // Ball collision with CPU paddle (right side)
-            if (ballX >= SCREEN_WIDTH - PADDLE_WIDTH - BALL_SIZE - 2 && 
+            // Ball collision with CPU mouse head (right side)
+            // CPU mouse head is at x=102 to x=117 (from cpuMouseX - 40)
+            int cpuMouseHeadX = SCREEN_WIDTH - 2 - 40; // Head position (left edge)
+            
+            if (ballX + BALL_SIZE >= cpuMouseHeadX && 
                 ballY + BALL_SIZE >= cpuPaddleY && 
-                ballY <= cpuPaddleY + PADDLE_HEIGHT) {
+                ballY <= cpuPaddleY + MOUSE_HEIGHT) {
                 ballSpeedX = -abs(ballSpeedX); // Ensure it goes left
-                ballX = SCREEN_WIDTH - PADDLE_WIDTH - BALL_SIZE - 2;
+                ballX = cpuMouseHeadX - BALL_SIZE;
                 
                 // Add spin
-                float hitPos = (ballY + BALL_SIZE/2 - cpuPaddleY) / PADDLE_HEIGHT;
+                float hitPos = (ballY + BALL_SIZE/2 - cpuPaddleY) / MOUSE_HEIGHT;
                 ballSpeedY = (hitPos - 0.5) * 4;
                 
                 // Increase speed
@@ -176,7 +201,7 @@ void FED4::pong() {
             // CPU AI - tracks ball with some delay and imperfection
             cpuReactionDelay -= deltaTime;
             if (cpuReactionDelay <= 0) {
-                cpuTargetY = ballY - PADDLE_HEIGHT / 2 + random(-10, 10); // Add some randomness
+                cpuTargetY = ballY - MOUSE_HEIGHT / 2 + random(-10, 10); // Add some randomness
                 cpuReactionDelay = 8 + random(0, 5); // Reaction delay
             }
             
@@ -187,10 +212,10 @@ void FED4::pong() {
                 cpuPaddleY -= 2;
             }
             
-            // Keep CPU paddle in bounds
+            // Keep CPU mouse in bounds
             if (cpuPaddleY < PLAY_AREA_TOP) cpuPaddleY = PLAY_AREA_TOP;
-            if (cpuPaddleY > PLAY_AREA_TOP + PLAY_AREA_HEIGHT - PADDLE_HEIGHT) {
-                cpuPaddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT - PADDLE_HEIGHT;
+            if (cpuPaddleY > PLAY_AREA_TOP + PLAY_AREA_HEIGHT - MOUSE_HEIGHT) {
+                cpuPaddleY = PLAY_AREA_TOP + PLAY_AREA_HEIGHT - MOUSE_HEIGHT;
             }
             
             // Scoring
@@ -209,7 +234,7 @@ void FED4::pong() {
             
             if (ballX >= SCREEN_WIDTH - BALL_SIZE) {
                 playerScore++;
-                highBeep();
+                lowBeep();
                 hapticBuzz(50);
                 
                 // Reset ball
@@ -226,28 +251,89 @@ void FED4::pong() {
             }
         }
         
-        // Draw everything
-        clearDisplay();
+        // Update scores only if they changed
+        if (playerScore != lastPlayerScore || cpuScore != lastCpuScore) {
+            // Clear score area only
+            fillRect(0, 0, SCREEN_WIDTH, PLAY_AREA_TOP, DISPLAY_WHITE);
+            
+            // Redraw scores
+            setTextSize(3);
+            setTextColor(DISPLAY_BLACK);
+            setCursor(20, 20);
+            print(playerScore);
+            setCursor(100, 20);
+            print(cpuScore);
+            
+            // Redraw boundary line
+            drawLine(0, PLAY_AREA_TOP, SCREEN_WIDTH, PLAY_AREA_TOP, DISPLAY_BLACK);
+            
+            lastPlayerScore = playerScore;
+            lastCpuScore = cpuScore;
+        }
         
-        // Draw scores at top (above play area)
-        setTextSize(3);
-        setTextColor(DISPLAY_BLACK);
-        setCursor(20, 20);
-        print(playerScore);
-        setCursor(100, 20);
-        print(cpuScore);
-        
-        // Draw play area boundary line
-        drawLine(0, PLAY_AREA_TOP, SCREEN_WIDTH, PLAY_AREA_TOP, DISPLAY_BLACK);
+        // Clear only the play area (below the score)
+        fillRect(0, PLAY_AREA_TOP + 1, SCREEN_WIDTH, PLAY_AREA_HEIGHT - 1, DISPLAY_WHITE);
         
         // Draw center line in play area
         for (int y = PLAY_AREA_TOP + 4; y < PLAY_AREA_TOP + PLAY_AREA_HEIGHT; y += 8) {
             fillRect(SCREEN_WIDTH/2 - 1, y, 2, 4, DISPLAY_BLACK);
         }
         
-        // Draw paddles
-        fillRect(2, paddleY, PADDLE_WIDTH, PADDLE_HEIGHT, DISPLAY_BLACK);
-        fillRect(SCREEN_WIDTH - PADDLE_WIDTH - 2, cpuPaddleY, PADDLE_WIDTH, PADDLE_HEIGHT, DISPLAY_BLACK);
+        // Draw paddles as mice
+        // Player mouse (left side) - facing right
+        int mouseFrame = (currentTime / 200) % 2; // Animate every 200ms
+        int playerMouseX = 2;
+        int playerMouseY = paddleY;
+        
+        // Draw player mouse
+        fillRoundRect(playerMouseX + 25, playerMouseY, 15, 10, 7, DISPLAY_BLACK);    // head
+        fillRoundRect(playerMouseX + 22, playerMouseY - 2, 8, 5, 3, DISPLAY_BLACK);  // ear
+        fillRoundRect(playerMouseX + 30, playerMouseY + 2, 1, 1, 1, DISPLAY_WHITE);  // eye
+        
+        if (mouseFrame == 0) {
+            fillRoundRect(playerMouseX, playerMouseY + 2, 32, 17, 10, DISPLAY_BLACK);      // body
+            drawFastHLine(playerMouseX - 8, playerMouseY + 3, 18, DISPLAY_BLACK);          // tail
+            drawFastHLine(playerMouseX - 8, playerMouseY + 4, 18, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 14, playerMouseY + 2, 8, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 14, playerMouseY + 3, 8, DISPLAY_BLACK);
+            fillRoundRect(playerMouseX + 22, playerMouseY + 17, 8, 4, 3, DISPLAY_BLACK);   // front foot
+            fillRoundRect(playerMouseX, playerMouseY + 15, 8, 6, 3, DISPLAY_BLACK);        // back foot
+        } else {
+            fillRoundRect(playerMouseX + 2, playerMouseY, 30, 17, 10, DISPLAY_BLACK);      // body
+            drawFastHLine(playerMouseX - 6, playerMouseY + 9, 18, DISPLAY_BLACK);          // tail
+            drawFastHLine(playerMouseX - 6, playerMouseY + 8, 18, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 12, playerMouseY + 10, 8, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 12, playerMouseY + 9, 8, DISPLAY_BLACK);
+            fillRoundRect(playerMouseX + 15, playerMouseY + 17, 8, 4, 3, DISPLAY_BLACK);   // front foot
+            fillRoundRect(playerMouseX + 8, playerMouseY + 15, 8, 6, 3, DISPLAY_BLACK);    // back foot
+        }
+        
+        // CPU mouse (right side) - facing left (mirrored)
+        int cpuMouseX = SCREEN_WIDTH - 2;
+        int cpuMouseY = cpuPaddleY;
+        
+        // Draw CPU mouse (mirrored)
+        fillRoundRect(cpuMouseX - 40, cpuMouseY, 15, 10, 7, DISPLAY_BLACK);    // head
+        fillRoundRect(cpuMouseX - 30, cpuMouseY - 2, 8, 5, 3, DISPLAY_BLACK);  // ear
+        fillRoundRect(cpuMouseX - 31, cpuMouseY + 2, 1, 1, 1, DISPLAY_WHITE);  // eye
+        
+        if (mouseFrame == 0) {
+            fillRoundRect(cpuMouseX - 32, cpuMouseY + 2, 32, 17, 10, DISPLAY_BLACK);       // body
+            drawFastHLine(cpuMouseX - 10, cpuMouseY + 3, 18, DISPLAY_BLACK);               // tail
+            drawFastHLine(cpuMouseX - 10, cpuMouseY + 4, 18, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 6, cpuMouseY + 2, 8, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 6, cpuMouseY + 3, 8, DISPLAY_BLACK);
+            fillRoundRect(cpuMouseX - 30, cpuMouseY + 17, 8, 4, 3, DISPLAY_BLACK);         // front foot
+            fillRoundRect(cpuMouseX - 8, cpuMouseY + 15, 8, 6, 3, DISPLAY_BLACK);          // back foot
+        } else {
+            fillRoundRect(cpuMouseX - 32, cpuMouseY, 30, 17, 10, DISPLAY_BLACK);           // body
+            drawFastHLine(cpuMouseX - 12, cpuMouseY + 9, 18, DISPLAY_BLACK);               // tail
+            drawFastHLine(cpuMouseX - 12, cpuMouseY + 8, 18, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 6, cpuMouseY + 10, 8, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 6, cpuMouseY + 9, 8, DISPLAY_BLACK);
+            fillRoundRect(cpuMouseX - 23, cpuMouseY + 17, 8, 4, 3, DISPLAY_BLACK);         // front foot
+            fillRoundRect(cpuMouseX - 16, cpuMouseY + 15, 8, 6, 3, DISPLAY_BLACK);         // back foot
+        }
         
         // Draw ball
         fillRect((int)ballX, (int)ballY, BALL_SIZE, BALL_SIZE, DISPLAY_BLACK);
