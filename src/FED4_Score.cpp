@@ -18,7 +18,7 @@ void FED4::pong() {
     // Game constants
     const int PADDLE_WIDTH = 4;
     const int PADDLE_HEIGHT = 40;  // Doubled from 20 to 40 (kept for reference)
-    const int MOUSE_HEIGHT = 20;   // Actual mouse graphic height for collision
+    const int MOUSE_HEIGHT = 14;   // Actual mouse graphic height for collision (scaled down)
     const int BALL_SIZE = 4;
     const int SCREEN_WIDTH = 144;
     const int SCREEN_HEIGHT = 168;
@@ -148,9 +148,9 @@ void FED4::pong() {
             }
             
             // Ball collision with player mouse head (left side)
-            // Player mouse head is at x=27 to x=42, height is about 20 pixels
-            int playerMouseHeadX = 2 + 25; // Head position
-            int playerMouseHeadWidth = 15;
+            // Player mouse head is at x=18 to x=28 (scaled down)
+            int playerMouseHeadX = 2 + 16; // Head position (scaled down)
+            int playerMouseHeadWidth = 10;  // Width (scaled down from 15)
             
             if (ballX <= playerMouseHeadX + playerMouseHeadWidth && 
                 ballY + BALL_SIZE >= paddleY && 
@@ -174,8 +174,8 @@ void FED4::pong() {
             }
             
             // Ball collision with CPU mouse head (right side)
-            // CPU mouse head is at x=102 to x=117 (from cpuMouseX - 40)
-            int cpuMouseHeadX = SCREEN_WIDTH - 2 - 40; // Head position (left edge)
+            // CPU mouse head is at x=116 to x=126 (scaled down, from cpuMouseX - 26)
+            int cpuMouseHeadX = SCREEN_WIDTH - 2 - 26; // Head position (left edge, scaled down)
             
             if (ballX + BALL_SIZE >= cpuMouseHeadX && 
                 ballY + BALL_SIZE >= cpuPaddleY && 
@@ -279,60 +279,60 @@ void FED4::pong() {
             fillRect(SCREEN_WIDTH/2 - 1, y, 2, 4, DISPLAY_BLACK);
         }
         
-        // Draw paddles as mice
+        // Draw paddles as mice (scaled down to 65%)
         // Player mouse (left side) - facing right
         int mouseFrame = (currentTime / 200) % 2; // Animate every 200ms
         int playerMouseX = 2;
         int playerMouseY = paddleY;
         
-        // Draw player mouse
-        fillRoundRect(playerMouseX + 25, playerMouseY, 15, 10, 7, DISPLAY_BLACK);    // head
-        fillRoundRect(playerMouseX + 22, playerMouseY - 2, 8, 5, 3, DISPLAY_BLACK);  // ear
-        fillRoundRect(playerMouseX + 30, playerMouseY + 2, 1, 1, 1, DISPLAY_WHITE);  // eye
+        // Draw player mouse (scaled down)
+        fillRoundRect(playerMouseX + 16, playerMouseY, 10, 7, 5, DISPLAY_BLACK);    // head
+        fillRoundRect(playerMouseX + 14, playerMouseY - 1, 5, 3, 2, DISPLAY_BLACK); // ear
+        fillRoundRect(playerMouseX + 20, playerMouseY + 1, 1, 1, 1, DISPLAY_WHITE); // eye
         
         if (mouseFrame == 0) {
-            fillRoundRect(playerMouseX, playerMouseY + 2, 32, 17, 10, DISPLAY_BLACK);      // body
-            drawFastHLine(playerMouseX - 8, playerMouseY + 3, 18, DISPLAY_BLACK);          // tail
-            drawFastHLine(playerMouseX - 8, playerMouseY + 4, 18, DISPLAY_BLACK);
-            drawFastHLine(playerMouseX - 14, playerMouseY + 2, 8, DISPLAY_BLACK);
-            drawFastHLine(playerMouseX - 14, playerMouseY + 3, 8, DISPLAY_BLACK);
-            fillRoundRect(playerMouseX + 22, playerMouseY + 17, 8, 4, 3, DISPLAY_BLACK);   // front foot
-            fillRoundRect(playerMouseX, playerMouseY + 15, 8, 6, 3, DISPLAY_BLACK);        // back foot
+            fillRoundRect(playerMouseX, playerMouseY + 1, 20, 11, 6, DISPLAY_BLACK);       // body
+            drawFastHLine(playerMouseX - 5, playerMouseY + 2, 12, DISPLAY_BLACK);          // tail
+            drawFastHLine(playerMouseX - 5, playerMouseY + 3, 12, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 9, playerMouseY + 1, 5, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 9, playerMouseY + 2, 5, DISPLAY_BLACK);
+            fillRoundRect(playerMouseX + 14, playerMouseY + 11, 5, 3, 2, DISPLAY_BLACK);   // front foot
+            fillRoundRect(playerMouseX, playerMouseY + 10, 5, 4, 2, DISPLAY_BLACK);        // back foot
         } else {
-            fillRoundRect(playerMouseX + 2, playerMouseY, 30, 17, 10, DISPLAY_BLACK);      // body
-            drawFastHLine(playerMouseX - 6, playerMouseY + 9, 18, DISPLAY_BLACK);          // tail
-            drawFastHLine(playerMouseX - 6, playerMouseY + 8, 18, DISPLAY_BLACK);
-            drawFastHLine(playerMouseX - 12, playerMouseY + 10, 8, DISPLAY_BLACK);
-            drawFastHLine(playerMouseX - 12, playerMouseY + 9, 8, DISPLAY_BLACK);
-            fillRoundRect(playerMouseX + 15, playerMouseY + 17, 8, 4, 3, DISPLAY_BLACK);   // front foot
-            fillRoundRect(playerMouseX + 8, playerMouseY + 15, 8, 6, 3, DISPLAY_BLACK);    // back foot
+            fillRoundRect(playerMouseX + 1, playerMouseY, 19, 11, 6, DISPLAY_BLACK);       // body
+            drawFastHLine(playerMouseX - 4, playerMouseY + 6, 12, DISPLAY_BLACK);          // tail
+            drawFastHLine(playerMouseX - 4, playerMouseY + 5, 12, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 8, playerMouseY + 7, 5, DISPLAY_BLACK);
+            drawFastHLine(playerMouseX - 8, playerMouseY + 6, 5, DISPLAY_BLACK);
+            fillRoundRect(playerMouseX + 10, playerMouseY + 11, 5, 3, 2, DISPLAY_BLACK);   // front foot
+            fillRoundRect(playerMouseX + 5, playerMouseY + 10, 5, 4, 2, DISPLAY_BLACK);    // back foot
         }
         
-        // CPU mouse (right side) - facing left (mirrored)
+        // CPU mouse (right side) - facing left (mirrored, scaled down)
         int cpuMouseX = SCREEN_WIDTH - 2;
         int cpuMouseY = cpuPaddleY;
         
-        // Draw CPU mouse (mirrored)
-        fillRoundRect(cpuMouseX - 40, cpuMouseY, 15, 10, 7, DISPLAY_BLACK);    // head
-        fillRoundRect(cpuMouseX - 30, cpuMouseY - 2, 8, 5, 3, DISPLAY_BLACK);  // ear
-        fillRoundRect(cpuMouseX - 31, cpuMouseY + 2, 1, 1, 1, DISPLAY_WHITE);  // eye
+        // Draw CPU mouse (mirrored and scaled down)
+        fillRoundRect(cpuMouseX - 26, cpuMouseY, 10, 7, 5, DISPLAY_BLACK);    // head
+        fillRoundRect(cpuMouseX - 19, cpuMouseY - 1, 5, 3, 2, DISPLAY_BLACK); // ear
+        fillRoundRect(cpuMouseX - 20, cpuMouseY + 1, 1, 1, 1, DISPLAY_WHITE); // eye
         
         if (mouseFrame == 0) {
-            fillRoundRect(cpuMouseX - 32, cpuMouseY + 2, 32, 17, 10, DISPLAY_BLACK);       // body
-            drawFastHLine(cpuMouseX - 10, cpuMouseY + 3, 18, DISPLAY_BLACK);               // tail
-            drawFastHLine(cpuMouseX - 10, cpuMouseY + 4, 18, DISPLAY_BLACK);
-            drawFastHLine(cpuMouseX - 6, cpuMouseY + 2, 8, DISPLAY_BLACK);
-            drawFastHLine(cpuMouseX - 6, cpuMouseY + 3, 8, DISPLAY_BLACK);
-            fillRoundRect(cpuMouseX - 30, cpuMouseY + 17, 8, 4, 3, DISPLAY_BLACK);         // front foot
-            fillRoundRect(cpuMouseX - 8, cpuMouseY + 15, 8, 6, 3, DISPLAY_BLACK);          // back foot
+            fillRoundRect(cpuMouseX - 20, cpuMouseY + 1, 20, 11, 6, DISPLAY_BLACK);        // body
+            drawFastHLine(cpuMouseX - 7, cpuMouseY + 2, 12, DISPLAY_BLACK);                // tail
+            drawFastHLine(cpuMouseX - 7, cpuMouseY + 3, 12, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 4, cpuMouseY + 1, 5, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 4, cpuMouseY + 2, 5, DISPLAY_BLACK);
+            fillRoundRect(cpuMouseX - 19, cpuMouseY + 11, 5, 3, 2, DISPLAY_BLACK);         // front foot
+            fillRoundRect(cpuMouseX - 5, cpuMouseY + 10, 5, 4, 2, DISPLAY_BLACK);          // back foot
         } else {
-            fillRoundRect(cpuMouseX - 32, cpuMouseY, 30, 17, 10, DISPLAY_BLACK);           // body
-            drawFastHLine(cpuMouseX - 12, cpuMouseY + 9, 18, DISPLAY_BLACK);               // tail
-            drawFastHLine(cpuMouseX - 12, cpuMouseY + 8, 18, DISPLAY_BLACK);
-            drawFastHLine(cpuMouseX - 6, cpuMouseY + 10, 8, DISPLAY_BLACK);
-            drawFastHLine(cpuMouseX - 6, cpuMouseY + 9, 8, DISPLAY_BLACK);
-            fillRoundRect(cpuMouseX - 23, cpuMouseY + 17, 8, 4, 3, DISPLAY_BLACK);         // front foot
-            fillRoundRect(cpuMouseX - 16, cpuMouseY + 15, 8, 6, 3, DISPLAY_BLACK);         // back foot
+            fillRoundRect(cpuMouseX - 20, cpuMouseY, 19, 11, 6, DISPLAY_BLACK);            // body
+            drawFastHLine(cpuMouseX - 8, cpuMouseY + 6, 12, DISPLAY_BLACK);                // tail
+            drawFastHLine(cpuMouseX - 8, cpuMouseY + 5, 12, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 4, cpuMouseY + 7, 5, DISPLAY_BLACK);
+            drawFastHLine(cpuMouseX - 4, cpuMouseY + 6, 5, DISPLAY_BLACK);
+            fillRoundRect(cpuMouseX - 15, cpuMouseY + 11, 5, 3, 2, DISPLAY_BLACK);         // front foot
+            fillRoundRect(cpuMouseX - 10, cpuMouseY + 10, 5, 4, 2, DISPLAY_BLACK);         // back foot
         }
         
         // Draw ball

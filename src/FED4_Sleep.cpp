@@ -50,7 +50,9 @@ void FED4::startSleep() {
 
   if (sleepSeconds > 0) {  //only sleep if sleepSeconds is greater than 0
     esp_light_sleep_start();
-  } 
+  } else {
+    wakeUp();
+  }
 }
 
 // Wakes up device by re-enabling components and initializing I2C/I2S
@@ -77,7 +79,13 @@ void FED4::wakeUp() {
     checkButton1();
     checkButton2(); 
     checkButton3();
-    pollSensors(1);  //default is 1 minute between polls, change this here
+
+    if (program == "ActivityMonitor") {
+      pollSensors(1);  //default for activity monitoring is 1 minutes between sensor polling, change this here
+    } else {
+      pollSensors(10);  //default for all other programs is 10 minutes between sensor polling, change this here
+    }
+    
   }
 
   // Only check touch sensors if woken up by touch

@@ -21,6 +21,7 @@
 FED4 fed;
 
 // Activity monitoring variables
+const int samplingInterval = 6;
 unsigned long lastActivityTime = 0;
 unsigned long lastLEDUpdate = 0;
 bool ledState = false;
@@ -30,7 +31,6 @@ void setup() {
   fed.begin("ActivityMonitor");
 
   Serial.println("FED4 Activity Monitor Started");
-  Serial.println("LED: Red = No Activity, Blue = Activity Detected");
   Serial.println("Time,Activity,Count,Percentage");
 
   // Turn off sleepyLEDs so the LEDs on the front stay on to show activity
@@ -38,21 +38,19 @@ void setup() {
 
   // Initialize display with activity monitor content
   fed.displayActivityMonitor();
+
+  fed.sleepSeconds = samplingInterval;  
 }
 
 void loop() {
-  // Update center port LED based on activity
-  updateActivityLED();
-
-  // Serial output
-  printActivityStatus();
-  
   // Call FED4 system functions
   fed.updateDisplay();
   fed.syncHublink();
 
-  // Put the device to sleep for N seconds and wake up automatically
-  fed.sleepSeconds = 6;  //Setting this to 0 disables sleep
+  // Update center port LED and serial output based on activity
+  updateActivityLED();
+  printActivityStatus();
+ 
   fed.sleep();  // This calls the FED4 sleep function, which handles timer-based sleep
 }
 
