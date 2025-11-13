@@ -201,18 +201,17 @@ void FED4::pollSensors(int minToUpdateSensors) {
     return;
   }
   
-  // a quirk of the ESP32-S3 is that the I2C bus must
-  // be exercised before I2C_2 works properly - this distnace sensor stuff does that
-  // TODO: See if there is a simpler way to do this.
-  SFEVL53L1X distanceSensor(Wire, 1); // Changed from EXP_XSHUT_1 (pin 2) to pin 1
-  distanceSensor.begin(); 
+  // A quirk of the ESP32-S3 is that the the primary I2C bus must
+  // be exercised before I2C_2 works properly - calling prox() here does that
+  // TODO: See if there is a simpler way to do this - this is a hack.
+  prox();
 
   if (motion()) {  // check if motion is detected, keep this reading for motion percentage calculation
     motionCount++;
+    motionDetected = true;  // Set flag for immediate motion detection in user programs
   }
 
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
-    clearDisplay();
     lastPollTime = millis();
 
     // Calculate motion percentage over the last period using poll count

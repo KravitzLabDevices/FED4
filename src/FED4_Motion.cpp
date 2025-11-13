@@ -5,7 +5,7 @@ bool FED4::initializeMotion()
     // Ensure LDO2 is enabled (should already be done in begin())
     if (digitalRead(LDO2_ENABLE) != HIGH) {
         digitalWrite(LDO2_ENABLE, HIGH);
-        delay(100); // Give sensor time to power up
+        delay(10); // Give sensor time to power up
     }
     
     // Test I2C connectivity
@@ -41,14 +41,14 @@ bool FED4::initializeMotion()
         return false;
     }
     
-    // Set motion threshold (higher value for less sensitivity during daytime)
+    // Set motion threshold (higher value for less sensitivity)
     if (motionSensor.setMotionThreshold(50) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
     
     // Set motion hysteresis (higher value for more stability)
-    if (motionSensor.setMotionHysteresis(35) != 0) {
+    if (motionSensor.setMotionHysteresis(50) != 0) {
         Serial.println("Motion sensor configuration failed");
         return false;
     }
