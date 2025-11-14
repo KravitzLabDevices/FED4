@@ -221,7 +221,7 @@ void FED4::pollSensors(int minToUpdateSensors) {
       motionPercentage = 0.0;
     }
 
-    updateDisplay();
+    //updateDisplay();
 
     // Reset counters for next sampling period
     motionCount = 0;

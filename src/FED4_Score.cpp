@@ -199,17 +199,25 @@ void FED4::pong() {
             }
             
             // CPU AI - tracks ball with some delay and imperfection
+            // Gets more responsive as total score increases
             cpuReactionDelay -= deltaTime;
             if (cpuReactionDelay <= 0) {
+                int totalScore = playerScore + cpuScore;
+                float difficultyMultiplier = 1.0 - (totalScore * 0.05); // Reduce delay by 5% per point
+                if (difficultyMultiplier < 0.3) difficultyMultiplier = 0.3; // Cap at 30% (very fast)
+                
+                int baseDelay = 8 * difficultyMultiplier;
+                int randomDelay = 5 * difficultyMultiplier;
+                
                 cpuTargetY = ballY - MOUSE_HEIGHT / 2 + random(-10, 10); // Add some randomness
-                cpuReactionDelay = 8 + random(0, 5); // Reaction delay
+                cpuReactionDelay = baseDelay + random(0, randomDelay); // Progressive reaction delay
             }
             
             // Move CPU paddle towards target
             if (cpuPaddleY < cpuTargetY - 2) {
-                cpuPaddleY += 2;
+                cpuPaddleY += 3;
             } else if (cpuPaddleY > cpuTargetY + 2) {
-                cpuPaddleY -= 2;
+                cpuPaddleY -= 3;
             }
             
             // Keep CPU mouse in bounds

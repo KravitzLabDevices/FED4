@@ -2,98 +2,49 @@
 
 bool FED4::initializeMotion()
 {
-    // Ensure LDO2 is enabled (should already be done in begin())
-    if (digitalRead(LDO2_ENABLE) != HIGH) {
-        digitalWrite(LDO2_ENABLE, HIGH);
-        delay(10); // Give sensor time to power up
-    }
-    
-    // Test I2C connectivity
+    // Test I2C connectivity 
     I2C_2.beginTransmission(0x5A); // STHS34PF80 default address
     byte error = I2C_2.endTransmission();
-    if (error != 0) {
-        Serial.println("Motion sensor not found");
-        return false;
-    }
-    
-    // Initialize the sensor
-    if (!motionSensor.begin(0x5A, I2C_2)) {
-        Serial.println("Motion sensor failed to initialize");
-        return false;
-    }
-    
-    // Configure sensor settings
-    // Set data rate for motion sensing (30Hz - maximum available)
-    if (motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz) != 0) {
-        Serial.println("Motion sensor configuration failed");
-        return false;
-    }
-    
-    // Set gain mode to default
-    if (motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE) != 0) {
-        Serial.println("Motion sensor configuration failed");
-        return false;
-    }
-    
-    // Set low-pass filter bandwidth (more filtering for stability)
-    if (motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20) != 0) {
-        Serial.println("Motion sensor configuration failed");
-        return false;
-    }
-    
-    // Set motion threshold (higher value for less sensitivity)
-    if (motionSensor.setMotionThreshold(50) != 0) {
-        Serial.println("Motion sensor configuration failed");
-        return false;
-    }
-    
-    // Set motion hysteresis (higher value for more stability)
-    if (motionSensor.setMotionHysteresis(50) != 0) {
-        Serial.println("Motion sensor configuration failed");
-        return false;
-    }
-    
-    // Test basic functionality
     
     sths34pf80_tmos_drdy_status_t dataReady;
-    if (motionSensor.getDataReady(&dataReady) == 0) {
-        return true;
-    } else {
-        Serial.println("Motion sensor not responding");
+    
+    if (error != 0 ||
+        !motionSensor.begin(0x5A, I2C_2) ||
+        motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz) != 0 ||
+        motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE) != 0 ||
+        motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20) != 0 ||
+        motionSensor.setMotionThreshold(50) != 0 ||
+        motionSensor.setMotionHysteresis(50) != 0 ||
+        motionSensor.getDataReady(&dataReady) != 0) {
+        Serial.println("Motion sensor initialization failed");
         return false;
     }
+    
+    return true;
 }
 
 bool FED4::motion()
 {
-    // Check if sensor has new data with 100ms timeout
-    sths34pf80_tmos_drdy_status_t dataReady;
-    unsigned long startTime = millis();
+    sths34pf80_tmos_func_status_t status;
     
-    // Try to get data ready status with timeout
-    while (motionSensor.getDataReady(&dataReady) != 0) {
-        if (millis() - startTime > 100) { // 100ms timeout
-            return false; // Timeout error
-        }
-        delay(1);
-    }
-    
-    // If no new data, return false
-    if (dataReady.drdy != 1) {
+    // First check
+    if (motionSensor.getStatus(&status) != 0) {
+        Serial.println("Motion sensor communication error");
         return false;
     }
     
-    // Get motion status with timeout
-    sths34pf80_tmos_func_status_t status;
-    startTime = millis(); // Reset timeout for status check
-    
-    while (motionSensor.getStatus(&status) != 0) {
-        if (millis() - startTime > 100) { // 100ms timeout
-            return false; // Timeout error
-        }
-        delay(1);
+    // If no motion on first check, return false
+    if (status.mot_flag != 1) {
+        return false;
     }
     
-    // Return true if motion is detected
+    // Motion detected, verify with second check
+    delay(40); // Wait for new data at 30Hz (~33ms per sample)
+    if (motionSensor.getStatus(&status) != 0) {
+        Serial.println("Motion sensor communication error (check 2)");
+        return false;
+    }
+    
+    // Return true only if both checks detected motion
     return (status.mot_flag == 1);
 } 

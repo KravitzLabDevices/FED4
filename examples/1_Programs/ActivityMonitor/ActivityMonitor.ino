@@ -30,8 +30,8 @@ void setup() {
   // Initialize FED4 with program name
   fed.begin("ActivityMonitor");
 
-  Serial.println("FED4 Activity Monitor Started");
-  Serial.println("Time,Activity,Count,Percentage");
+  Serial.println("FED4 Activity Monitor!");
+  Serial.println("Time,ActivityCount,Percentage");
 
   // Turn off sleepyLEDs so the LEDs on the front stay on to show activity
   fed.sleepyLEDs = false;
