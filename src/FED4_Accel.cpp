@@ -9,6 +9,13 @@
  * - Data Rate: 50 Hz
  * - Mode: High Resolution (12-bit)
  *
+ * AXIS ORIENTATION:
+ * The accelerometer chip is mounted with its axes oriented as follows
+ * relative to the FED4 device when viewed with screen facing you:
+ * - Device X (left/right across screen) = Chip -Y (inverted)
+ * - Device Y (forward/back depth) = Chip X
+ * - Device Z (up/down perpendicular to screen) = Chip Z
+ *
  * Usage Examples:
  *
  * 1. Initialize:
@@ -35,17 +42,18 @@
  *    fed.setAccelDataRate(LIS3DH_DATARATE_400_HZ);  // 400 Hz
  *
  * 5. Read acceleration data (two methods):
- *    // Method 1: Using sensor event
+ *    // Method 1: Using sensor event (returns RAW chip axes)
  *    sensors_event_t event;
  *    if (fed.getAccelEvent(&event)) {
- *        float x = event.acceleration.x;  // m/s^2
- *        float y = event.acceleration.y;  // m/s^2
- *        float z = event.acceleration.z;  // m/s^2
+ *        float x = event.acceleration.x;  // RAW chip X (m/s^2)
+ *        float y = event.acceleration.y;  // RAW chip Y (m/s^2)
+ *        float z = event.acceleration.z;  // RAW chip Z (m/s^2)
  *    }
  *
- *    // Method 2: Direct reading
+ *    // Method 2: Direct reading (returns DEVICE-ORIENTED axes)
  *    float x, y, z;
- *    fed.readAccel(x, y, z);  // values in m/s^2
+ *    fed.readAccel(x, y, z);  // Remapped to device orientation (m/s^2)
+ *    // x = left/right, y = forward/back, z = up/down
  *
  * 6. Check for new data:
  *    if (fed.accelDataReady()) {
@@ -99,8 +107,12 @@ void FED4::readAccel(float &x, float &y, float &z)
     sensors_event_t event;
     accel.getEvent(&event);
 
-    x = event.acceleration.x;
-    y = event.acceleration.y;
+    // Remap chip axes to device orientation
+    // Device X (left/right) = -Chip Y (inverted)
+    // Device Y (forward/back) = Chip X
+    // Device Z (up/down) = Chip Z
+    x = -event.acceleration.y;
+    y = event.acceleration.x;
     z = event.acceleration.z;
 }
 
