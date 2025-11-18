@@ -12,9 +12,9 @@ bool FED4::initializeMotion()
         !motionSensor.begin(0x5A, I2C_2) ||
         motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz) != 0 ||
         motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE) != 0 ||
-        motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20) != 0 ||
-        motionSensor.setMotionThreshold(50) != 0 ||
-        motionSensor.setMotionHysteresis(50) != 0 ||
+        motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_50) != 0 ||
+        motionSensor.setMotionThreshold(60) != 0 ||
+        motionSensor.setMotionHysteresis(20) != 0 ||
         motionSensor.getDataReady(&dataReady) != 0) {
         Serial.println("Motion sensor initialization failed");
         return false;

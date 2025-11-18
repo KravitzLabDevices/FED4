@@ -30,8 +30,8 @@ void loop()
   }
   hublink.setBatteryLevel(batteryLevel); // set before sync; consider 1s timer if loop delay ~= 0
   hublink.sync();                        // only blocks when ready
-  // fed.Feed();
-  // fed.sleep();
+  // fed4.Feed();
+  // fed4.sleep();
   delay(1000);
   Serial.println("I'm alive");
 }

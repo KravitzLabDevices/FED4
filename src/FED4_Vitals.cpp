@@ -325,9 +325,11 @@ void FED4::pollSensors(int minToUpdateSensors) {
 
     if (whiteReading >= 0) white = whiteReading;  // Only update if we got a valid reading >= 0
 
-    //log Status to capture sensor data for each period
-    logData("Status");
-    
+    //If it's not an ActivityMonitor program, log Status to capture sensor data for each period
+    if (program != "ActivityMonitor")  {
+      logData("Status");
+    }
+        
     // Reset pollSensorsTimer so seconds display resets when data is written
     pollSensorsTimer = millis();
   }

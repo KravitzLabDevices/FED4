@@ -147,8 +147,21 @@ bool FED4::createLogFile()
                 
         if (lineCount <= 5) {
             // File has 5 or fewer lines, delete and reuse this filename
-            SD.remove(baseFilename);
-            break;
+            if (SD.remove(baseFilename)) {
+                Serial.print("Removed incomplete file: ");
+                Serial.println(baseFilename);
+                // Verify it's actually gone
+                if (!SD.exists(baseFilename)) {
+                    break;
+                }
+                Serial.println("Warning: File still exists after remove");
+            } else {
+                Serial.print("Failed to remove file: ");
+                Serial.println(baseFilename);
+            }
+            // If removal failed, try next file number
+            fileNumber++;
+            continue;
         }
         
         fileNumber++;
@@ -163,6 +176,19 @@ bool FED4::createLogFile()
     // Just change bit order for SD operations
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW);
+
+    // If file somehow still exists, try to remove it one more time
+    if (SD.exists(filename)) {
+        Serial.print("File already exists, attempting to remove: ");
+        Serial.println(filename);
+        if (!SD.remove(filename)) {
+            digitalWrite(SD_CS, HIGH);
+            Serial.println("Failed to remove existing file");
+            filename[0] = '\0';
+            return false;
+        }
+        delay(10); // Give SD card time to complete deletion
+    }
 
     // Create new file and write headers
     File dataFile = SD.open(filename, FILE_WRITE);
@@ -358,9 +384,9 @@ bool FED4::logData(const String &newEvent)
     }
 
     // Write counters and status
-    if (event == "Status" || event == "Startup") {
-        // Write Activity% (motionPercentage) with 2 decimal places
-        dataFile.printf("%.2f,", motionPercentage);
+    if (event == "Status" || event == "Startup" || event == "Activity") {
+        // Write Activity% (motionPercentage) with 1 decimal place
+        dataFile.printf("%.1f,", motionPercentage);
 
         // Write environmental data
         dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
@@ -387,16 +413,13 @@ bool FED4::logData(const String &newEvent)
     SPI.endTransaction();
     noPix();
     
-    // update screen counters when logging except at startup
-    if (leftCount > 0 || rightCount > 0 || centerCount > 0) {
+    // update screen counters when logging except at startup and not in ActivityMonitor
+    if (program != "ActivityMonitor" && (leftCount > 0 || rightCount > 0 || centerCount > 0)) {
       displayIndicators();
       displayCounters();
     }
 
     refresh();
-
-    // Reset pollSensorsTimer so seconds display resets when data is written
-    pollSensorsTimer = millis();
 
     return true;
 }

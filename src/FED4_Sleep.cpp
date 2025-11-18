@@ -1,12 +1,17 @@
 #include "FED4.h"
 
 // High-level sleep function that handles device sleep and wake cycle
-void FED4::sleep() {
-  // Enable timer-based wake-up every N seconds
+void FED4::sleep(int seconds) {
+  sleepSeconds = seconds;
   esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000); // Convert sleepSeconds to microseconds
   noPix(); 
   startSleep();
   wakeUp();
+}
+
+// For backward compatibility, keep the parameterless version
+void FED4::sleep() {
+  sleep(sleepSeconds);
 }
 
 // Prepares device for sleep mode by disabling components and entering light sleep
@@ -23,8 +28,8 @@ void FED4::startSleep() {
     delay(1);
   }
 
-  // Calibrate touch sensors before sleep on every N wake-ups
-  if (wakeCount % 20 == 0 )  {
+  // Calibrate touch sensors before sleep on every N wake-ups, unless program is ActivityMonitor
+  if (program != "ActivityMonitor" && wakeCount % 20 == 0)  {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
     

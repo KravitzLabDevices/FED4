@@ -1,17 +1,17 @@
 #include <FED4.h>
 
-FED4 fed;
+FED4 fed4;
 
 void setup() {
   Serial.begin(115200);
-  fed.begin();
-  // fed.playStartup();
+  fed4.begin();
+  // fed4.playStartup();
 }
 
 void loop() {
-  if (fed.leftTouch) {
-    fed.feed();
+  if (fed4.leftTouch) {
+    fed4.feed();
   }
 
-  fed.sleep();
+  fed4.sleep();
 }

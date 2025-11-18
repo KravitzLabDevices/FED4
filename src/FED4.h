@@ -241,6 +241,7 @@ public:
     void serialStatusReport();
 
     // Sleep management (defined in FED4_Sleep.cpp)
+    void sleep(int seconds);
     void sleep();
     void startSleep();
     void wakeUp();
@@ -299,6 +300,7 @@ public:
     void updateRTC();
     DateTime now();
     void adjustRTC(uint32_t timestamp);
+    void updateTime();
 
     // Vitals functions (defined in FED4_Vitals.cpp)
     float getBatteryVoltage();
@@ -453,7 +455,6 @@ private:
     String getCompileDateTime();
     bool isNewCompilation();
     void updateCompilationID();
-    void updateTime();
 
     uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 
