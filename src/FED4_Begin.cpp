@@ -68,6 +68,7 @@ bool FED4::begin(const char *programName)
         Serial.println("I2C_2 Error - check I2C Address");
         return false;
     }
+    I2C_2.setClock(400000);  // Set I2C_2 to 400kHz (fast mode) for motion sensor
 
     // Initialize MCP expander
     statuses["MCP23017"].initialized = mcp.begin_I2C();

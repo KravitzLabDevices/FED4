@@ -69,6 +69,14 @@ void FED4::wakeUp() {
   LDO2_ON();
   Wire.begin();  // Reinitialize primary I2C
   I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C 
+  //I2C_2.setClock(400000);  // Restore I2C_2 clock speed to 400kHz
+  delay(1);  // Brief delay after I2C init
+  
+  // Reinitialize motion sensor after power is restored
+  // Don't wait full 2 seconds here to keep wake-up fast
+  if (!initializeMotion()) {
+    Serial.println("Motion sensor reinit failed after wake");
+  }
   
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);

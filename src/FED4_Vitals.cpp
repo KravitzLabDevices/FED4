@@ -194,18 +194,12 @@ void FED4::pollSensors(int minToUpdateSensors) {
   // Increment poll counter
   pollCount++;
 
-  // initialize motion sensor
-  bool motionSensorInitialized = initializeMotion();
-  if (!motionSensorInitialized) {
-    Serial.println("Motion sensor initialization failed");
-    return;
-  }
-  
   // A quirk of the ESP32-S3 is that the the primary I2C bus must
   // be exercised before I2C_2 works properly - calling prox() here does that
   // TODO: See if there is a simpler way to do this - this is a hack.
   prox();
 
+  // Check for motion (sensor should already be initialized in begin())
   if (motion()) {  // check if motion is detected, keep this reading for motion percentage calculation
     motionCount++;
     motionDetected = true;  // Set flag for immediate motion detection in user programs

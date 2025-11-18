@@ -36,7 +36,7 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_MLX90393.h"
 #include "SparkFun_VL53L1X.h"
-#include "SparkFun_STHS34PF80_Arduino_Library.h"
+#include "Adafruit_STHS34PF80.h"
 #include "Adafruit_VEML7700.h"
 #include <ESP32Time.h>
 
@@ -433,7 +433,7 @@ private:
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
-    STHS34PF80_I2C motionSensor;
+    Adafruit_STHS34PF80 motionSensor;
     Adafruit_VEML7700 lightSensor;
 
 // Hublink integration

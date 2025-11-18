@@ -6,7 +6,7 @@
 #include "Adafruit_STHS34PF80.h"
 #include <Wire.h>
 
-// Define I2C_2 bus with FED4 pins
+// Define I2C_2 bus with FED4 pins 
 #define SDA_2 20
 #define SCL_2 19
 
