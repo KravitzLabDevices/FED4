@@ -11,6 +11,9 @@
 bool FED4::begin(const char *programName)
 {
     Serial.begin(115200);
+    
+    // Initialize state flags
+    motionSensorInitialized = false;
 
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);

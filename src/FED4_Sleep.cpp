@@ -50,7 +50,11 @@ void FED4::startSleep() {
     LDO3_OFF();  // Turn off LDO3 to power down NeoPixel
   }
 
-  LDO2_OFF(); // turn off LDO2 every sleep
+  if (program != "ActivityMonitor"){  // Don't turn off LDO2 for ActivityMonitor, it doesn't like it
+    Serial.println("Turning off LDO2");
+    LDO2_OFF(); // turn off LDO2 every sleep
+  }
+
   enableAmp(false);
 
   if (sleepSeconds > 0) {  //only sleep if sleepSeconds is greater than 0
@@ -72,12 +76,13 @@ void FED4::wakeUp() {
   //I2C_2.setClock(400000);  // Restore I2C_2 clock speed to 400kHz
   delay(1);  // Brief delay after I2C init
   
-  // Reinitialize motion sensor after power is restored
-  // Don't wait full 2 seconds here to keep wake-up fast
-  if (!initializeMotion()) {
-    Serial.println("Motion sensor reinit failed after wake");
+  // Re-Initialize motion sensor if not already initialized
+  if (!motionSensorInitialized) {
+    if (!initializeMotion()) {
+      Serial.println("Motion sensor init failed after wake");
+    }
   }
-  
+
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
   mcp.pinMode(EXP_HAPTIC, OUTPUT);

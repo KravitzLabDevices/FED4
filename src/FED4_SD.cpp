@@ -195,7 +195,9 @@ bool FED4::createLogFile()
     if (!dataFile)
     {
         digitalWrite(SD_CS, HIGH);
-        Serial.println("Failed to create log file");
+        Serial.println("WARNING: Failed to create log file - could not open file for writing");
+        Serial.print("  Attempted filename: ");
+        Serial.println(filename);
         filename[0] = '\0'; // Set filename to empty string on failure
         return false;
     }
@@ -206,7 +208,44 @@ bool FED4::createLogFile()
     dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
     dataFile.flush();  // Force write to SD card
+    
+    // Check if there were any write errors
+    if (dataFile.getWriteError()) {
+        Serial.println("WARNING: Failed to write headers to log file");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        dataFile.close();
+        SD.remove(filename);  // Remove the incomplete file
+        digitalWrite(SD_CS, HIGH);
+        filename[0] = '\0';
+        return false;
+    }
+    
     dataFile.close();
+    
+    // Verify the file was created and has content
+    dataFile = SD.open(filename, FILE_READ);
+    if (!dataFile) {
+        Serial.println("WARNING: Log file creation verification failed - file not readable");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        digitalWrite(SD_CS, HIGH);
+        filename[0] = '\0';
+        return false;
+    }
+    
+    size_t fileSize = dataFile.size();
+    dataFile.close();
+    
+    if (fileSize == 0) {
+        Serial.println("WARNING: Log file created but appears empty");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        SD.remove(filename);
+        digitalWrite(SD_CS, HIGH);
+        filename[0] = '\0';
+        return false;
+    }
     
     // Give SD card time to complete write operations
     delay(100);
@@ -227,6 +266,13 @@ bool FED4::logData(const String &newEvent)
 {
     // Check if SD card available flag is set
     if (!sdCardAvailable) {
+        Serial.println("WARNING: Cannot log data - SD card not available");
+        return false;
+    }
+    
+    // Check if log file was created successfully
+    if (filename[0] == '\0') {
+        Serial.println("WARNING: Cannot log data - no log file created");
         return false;
     }
     
@@ -408,6 +454,22 @@ bool FED4::logData(const String &newEvent)
 
     // Clean up
     dataFile.flush();  // Force write to SD card
+    
+    // Check if there were any write errors
+    if (dataFile.getWriteError()) {
+        Serial.println("WARNING: Failed to write data to log file");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        Serial.print("  Event: ");
+        Serial.println(event);
+        dataFile.clearWriteError();
+        dataFile.close();
+        digitalWrite(SD_CS, HIGH);
+        SPI.endTransaction();
+        noPix();
+        return false;
+    }
+    
     dataFile.close();
     digitalWrite(SD_CS, HIGH);
     SPI.endTransaction();

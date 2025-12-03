@@ -17,11 +17,11 @@
 FED4 fed4;
 
 //User-configurable variables
-const int samplingInterval = 3;  //in seconds
-const int logInterval = 60;  //in seconds
+const int samplingInterval = 1;  //in seconds
+const int logInterval = 2;  //in seconds
 
 //Activity monitoring variables
-unsigned long lastActivityTime = 0;
+unsigned long lastActivityTime = 0; 
 unsigned long lastLEDUpdate = 0;
 bool ledState = false;
 unsigned long lastLogTime = 0;
@@ -32,7 +32,6 @@ void setup() {
   fed4.begin("ActivityMonitor");
 
   Serial.println("FED4 Activity Monitor!");
-  Serial.println("Time,ActivityCount,Percentage");
 
   // Turn off sleepyLEDs so the LEDs on the front stay on to show activity
   fed4.sleepyLEDs = false;
@@ -40,7 +39,10 @@ void setup() {
   // Initialize display with activity monitor content
   fed4.displayActivityMonitor();
 
-  fed4.sleepSeconds = samplingInterval;  
+  fed4.sleepSeconds = samplingInterval;
+  
+  // Initialize log timer to prevent immediate logging on first loop
+  lastLogTime = millis();
 }
 
 
@@ -50,7 +52,6 @@ void loop() {
   fed4.updateDisplay();
   fed4.syncHublink();
   updateActivityLED();
-  printActivityStatus();
 
   // Check if it's time to log, if so log data and print status report
   timeSinceLastLog = millis() - lastLogTime;
@@ -58,6 +59,7 @@ void loop() {
     lastLogTime = millis(); // Capture time BEFORE slow operations
     fed4.serialStatusReport();
     fed4.logData("Activity");
+    fed4.resetMotionCounters(); // Reset motion counters after logging
   }
   
   // Calculate time to next log, sleeping between samples if far from log time, otherwise use small delay and recheck on the next loop
@@ -70,8 +72,6 @@ void loop() {
     delay(10);
   }
 } 
-
-
 
 void updateActivityLED() {
   // Update activity tracking using FED4 variables
@@ -97,34 +97,5 @@ void updateActivityLED() {
       // Red LED for no activity - keep it lit solid
       fed4.centerLight("red", 50);
     }
-  }
-}
-
-void printActivityStatus() {
-  static unsigned long lastSerialOutput = 0;
-  unsigned long currentTime = millis();
-
-  // Print status every second
-  if (currentTime - lastSerialOutput >= 1000) {
-    lastSerialOutput = currentTime;
-
-    // Format time
-    unsigned long seconds = currentTime / 1000;
-    unsigned long minutes = seconds / 60;
-    seconds = seconds % 60;
-
-    // Check if there was recent activity (within last 1 second)
-    bool recentActivity = (currentTime - lastActivityTime) < 1000;
-
-    // Calculate real-time percentage using FED4 variables
-    float currentPercentage = 0.0;
-    if (fed4.pollCount > 0) {
-      currentPercentage = (float)fed4.motionCount / fed4.pollCount * 100.0;
-    }
-
-    Serial.printf("%02lu:%02lu,%d,%.1f\n",
-                  minutes, seconds,
-                  fed4.motionCount,
-                  currentPercentage);
   }
 }

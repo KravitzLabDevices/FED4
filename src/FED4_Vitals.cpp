@@ -198,12 +198,7 @@ void FED4::pollSensors(int minToUpdateSensors) {
   // be exercised before I2C_2 works properly - calling prox() here does that
   // TODO: See if there is a simpler way to do this - this is a hack.
   prox();
-
-  // Check for motion (sensor should already be initialized in begin())
-  if (motion()) {  // check if motion is detected, keep this reading for motion percentage calculation
-    motionCount++;
-    motionDetected = true;  // Set flag for immediate motion detection in user programs
-  }
+  motion();
 
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
     lastPollTime = millis();
@@ -218,8 +213,11 @@ void FED4::pollSensors(int minToUpdateSensors) {
     //updateDisplay();
 
     // Reset counters for next sampling period
-    motionCount = 0;
-    pollCount = 0;
+    // Note: ActivityMonitor resets counters manually after logging, so skip reset for that program
+    if (program != "ActivityMonitor") {
+      motionCount = 0;
+      pollCount = 0;
+    }
 
     // get temp and humidity with timeouts
     unsigned long startTime = millis();

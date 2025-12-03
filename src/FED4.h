@@ -403,6 +403,7 @@ public:
     // Motion sensor functions (defined in FED4_Motion.cpp)
     bool initializeMotion();
     bool motion();
+    void resetMotionCounters();
 
     // Drop sensor functions
     bool initializeDropSensor();
@@ -449,6 +450,7 @@ private:
     String strain;
     String age;
     bool dropSensorAvailable; // Flag to store drop sensor availability status
+    bool motionSensorInitialized; // Flag to track if motion sensor baseline is established
 
     // RTC functions
     Preferences preferences;

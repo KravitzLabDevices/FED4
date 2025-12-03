@@ -82,12 +82,9 @@ void FED4::displayActivityCounters() {
   setCursor(6, 100);
   print("Activity% ");
   setCursor(90, 100);
-  // Calculate real-time percentage
-  float currentPercentage = 0.0;
-  if (pollCount > 0) {
-    currentPercentage = (float)motionCount / pollCount * 100.0;
-  }
-  printf("%.1f", currentPercentage);
+  
+  // Display motion percentage (calculated in real-time by motion() and pollSensors())
+  printf("%.1f", motionPercentage);
   
   setCursor(6, 120);
   print("Seconds");
