@@ -5,7 +5,6 @@
 // note there is a known issue with FastLED 3.10.3 on ESP32-S3 devices
 // keep FastLED version 3.10.2 until this issue is fixed in the main FastLED repository
 // https://github.com/FastLED/FastLED/issues/5100
-// https://github.com/FastLED/FastLED/issues/5100
 
 #include <Arduino.h>
 #include <map>
@@ -142,8 +141,8 @@ public:
     bool dispenseError = false;
     void handleJams();
 
-    // TRSS input/output connector functions
-    bool initializeTRSS();
+    // TRRS input/output connector functions
+    bool initializeTRRS();
     void outputPulse(uint8_t trss, uint8_t duration);
 
     // Clock variables

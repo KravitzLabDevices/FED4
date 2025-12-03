@@ -92,8 +92,8 @@ bool FED4::motion()
         if (motionFlag2 || abs(motionValue2) > 50) {
             motionCount++;
             
-            // Update motion percentage after incrementing motionCount
-            motionPercentage = (float)motionCount / pollCount * 100.0;
+            // Update motion percentage after incrementing motionCount (guard against division by zero)
+            motionPercentage = (pollCount > 0) ? (float)motionCount / pollCount * 100.0 : 0.0;
             
             Serial.print(", MOTION DETECTED! - ");
             Serial.print(motionPercentage, 2);
@@ -107,8 +107,8 @@ bool FED4::motion()
         }
     }
     
-    // Update motion percentage even when no motion detected
-    motionPercentage = (float)motionCount / pollCount * 100.0;
+    // Update motion percentage even when no motion detected (guard against division by zero)
+    motionPercentage = (pollCount > 0) ? (float)motionCount / pollCount * 100.0 : 0.0;
     
     Serial.print(" - ");
     Serial.print(motionPercentage, 2);
