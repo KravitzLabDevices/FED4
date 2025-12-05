@@ -40,6 +40,24 @@ float FED4::getHumidity()
     return humidity.relative_humidity;
 }
 
+/**
+ * Reads both temperature and humidity in a single sensor read
+ * More efficient than calling getTemperature() and getHumidity() separately
+ * @param temp Reference to store temperature value
+ * @param hum Reference to store humidity value
+ * @return true if read successful, false otherwise
+ */
+bool FED4::getTempAndHumidity(float &temp, float &hum)
+{
+    sensors_event_t humEvent, tempEvent;
+    if (!aht.getEvent(&humEvent, &tempEvent)) {
+        return false;
+    }
+    temp = tempEvent.temperature;
+    hum = humEvent.relative_humidity;
+    return true;
+}
+
 float FED4::getLux()
 //this function now uses the persistent light sensor object instead of creating a temporary one
 {
@@ -104,21 +122,12 @@ void FED4::startupPollSensors(){
     float temp = -1;
     float hum = -1;
 
-     //get temp with timeout
+     // Get temp and humidity together with timeout (single sensor read)
      while (millis() - startTime < 1000) {  // 1 second timeout
-         temp = getTemperature();
-         if (temp > 5) break;  // Valid reading obtained
+         if (getTempAndHumidity(temp, hum) && temp > 5) break;  // Valid reading obtained
          delay(10);
      }
      if (temp > 5) temperature = temp;
-    
-     //get humidity with timeout
-     startTime = millis();  // Reset timer for humidity
-     while (millis() - startTime < 100) {  // 0.1 second timeout
-         hum = getHumidity();
-         if (hum > 5) break;  // Valid reading obtained
-         delay(10);
-     }
      if (hum > 5) humidity = hum;
 
      //get battery info with timeout
@@ -219,27 +228,16 @@ void FED4::pollSensors(int minToUpdateSensors) {
       pollCount = 0;
     }
 
-    // get temp and humidity with timeouts
+    // Get temp and humidity together with timeout (single sensor read)
     unsigned long startTime = millis();
     float temp = -1;
     float hum = -1;
 
-    //get temp with timeout
     while (millis() - startTime < 100) {  // 0.1 second timeout
-      temp = getTemperature();
-      if (temp > 1) break;  // Valid reading obtained
+      if (getTempAndHumidity(temp, hum) && temp > 1) break;  // Valid reading obtained
       delay(1);
     }
     if (temp > 1) temperature = temp;
-
-    //get humidity with timeout
-    startTime = millis();                 // Reset timer for humidity
-    while (millis() - startTime < 100) {  // 0.1 second timeout
-      hum = getHumidity();
-      if (hum > 1) break;  // Valid reading obtained
-      delay(1);
-    }
-
     if (hum > 1) humidity = hum;
 
     //get battery info with timeout

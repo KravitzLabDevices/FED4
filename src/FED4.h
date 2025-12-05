@@ -306,6 +306,7 @@ public:
     float getBatteryPercentage();
     float getTemperature();
     float getHumidity();
+    bool getTempAndHumidity(float &temp, float &hum); // Efficient combined read
     float getLux();
     float getWhite();
     bool initializeLightSensor();

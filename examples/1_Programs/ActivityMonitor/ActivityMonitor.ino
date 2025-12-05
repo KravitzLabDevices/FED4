@@ -3,13 +3,15 @@
  * Lex Kravitz, Nov 2025
  * 
  * Features:
- * - Polls sensors for motion detection (rate specified by samplingInterval)
+ * - Polls sensors for motion detection (rate specified by samplingInterval) using the ST STHS34PF80 
  * - Logs activity and environmental data to SD card (rate specified by logInterval)
  * - Displays real-time activity information with counts on screen and Serial monitor
  * - LED indicators: Red (no activity), Blue (activity detected) on center port
  *
- * NOTES: If sleep is disabled, FED4 will last ~2.5 days on a fully charged battery
- *        If you sleep for 6s between readings, FED4 will last ~____ days.
+ * NOTES: 1. If sleep is disabled so you can run the STHS34PF80 at full speed, 
+ *           FED4 will last ~2.5 days on a fully charged battery.
+ *        2. If FED4 sleeps for 10s between samples and logs every 5 minutes (defaults), 
+ *           FED4 will last ~___ days on a fully charged battery.
  */
 
 #include "FED4.h"
@@ -17,8 +19,8 @@
 FED4 fed4;
 
 //User-configurable variables
-const int samplingInterval = 1;  //in seconds
-const int logInterval = 2;  //in seconds
+const int samplingInterval = 10;  //in seconds
+const int logInterval = 300;      //in seconds
 
 //Activity monitoring variables
 unsigned long lastActivityTime = 0; 
@@ -30,19 +32,13 @@ unsigned long timeSinceLastLog;
 void setup() {
   // Initialize FED4 with program name
   fed4.begin("ActivityMonitor");
-
   Serial.println("FED4 Activity Monitor!");
-
   // Turn off sleepyLEDs so the LEDs on the front stay on to show activity
   fed4.sleepyLEDs = false;
-
   // Initialize display with activity monitor content
   fed4.displayActivityMonitor();
-
   fed4.sleepSeconds = samplingInterval;
-  
-  // Initialize log timer to prevent immediate logging on first loop
-  lastLogTime = millis();
+  lastLogTime = millis();  // Initialize log timer to prevent immediate logging on first loop
 }
 
 

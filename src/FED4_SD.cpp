@@ -111,8 +111,7 @@ bool FED4::createLogFile()
     if (mouseIdValue <= 0) {
         mouseIdValue = 0;
     }
-    sprintf(idStr, "%04d", mouseIdValue);
-    String id = String(idStr);
+    snprintf(idStr, sizeof(idStr), "%04d", mouseIdValue);
     char baseFilename[50];
     int fileNumber = 0;
 
@@ -123,7 +122,7 @@ bool FED4::createLogFile()
     do
     {
         snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
-                 id.c_str(), now.year(), now.month(), now.day(), fileNumber);
+                 idStr, now.year(), now.month(), now.day(), fileNumber);
         
         // Check if file exists
         if (!SD.exists(baseFilename)) {
@@ -403,27 +402,20 @@ bool FED4::logData(const String &newEvent)
     // Write motor turns for events where motor has been running
     if (event == "PelletTaken") {
         // Write retrievalTime as string to avoid conversion issues
-        if (event == "PelletTaken") {
-            if (retrievalTime > 19.9)
-            {
-                dataFile.print("TimedOut");
-            }
-            else
-            {
-                dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
-            }
-        } else {
-            dataFile.print(","); // Empty retrieval time for non-PelletTaken events
+        if (retrievalTime > 19.9)
+        {
+            dataFile.print("TimedOut");
+        }
+        else
+        {
+            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
         }
         dataFile.write(',');
         dataFile.write(dispenseError ? '1' : '0'); // Write single character
         dataFile.write(',');
         dataFile.print(int(motorTurns/25)); // MotorTurns
         dataFile.write(',');
-        // Only reset motorTurns after the final event (PelletTaken)
-        if (event == "PelletTaken") {
-            motorTurns = 0; // Reset after logging
-        }
+        motorTurns = 0; // Reset after logging
     }
     else {
         dataFile.print(",,,"); // RetrievalTime, DispenseError
