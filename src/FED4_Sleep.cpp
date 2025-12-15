@@ -51,8 +51,8 @@ void FED4::startSleep() {
   }
 
   if (program != "ActivityMonitor"){  // Don't turn off LDO2 for ActivityMonitor, it doesn't like it
-    Serial.println("Turning off LDO2");
-    LDO2_OFF(); // turn off LDO2 every sleep
+    // Serial.println("Turning off LDO2");
+    // LDO2_OFF(); // turn off LDO2 every sleep
   }
 
   enableAmp(false);

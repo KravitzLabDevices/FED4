@@ -76,7 +76,7 @@ void updateActivityLED() {
     fed4.motionDetected = false;  // Reset the flag after counting
   }
 
-  unsigned long currentTime = millis();
+  unsigned long currentTime = millis(); 
 
   // Update LED
   if (currentTime - lastLEDUpdate >= 500) {
