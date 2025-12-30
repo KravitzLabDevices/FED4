@@ -42,6 +42,8 @@ void FED4::dispense() {
         // delay for 1s roughly each pellet position
         if (motorTurns % 25 == 0)
         {
+            Serial.print("Dispensing... ");
+            Serial.println(motorTurns/25);
             releaseMotor();
             delay(1000);
         }

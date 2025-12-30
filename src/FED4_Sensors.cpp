@@ -79,7 +79,7 @@ void FED4::calibrateTouchSensors()
  * Interprets which touch sensor was activated after waking from sleep
  * Compares readings from left, center, and right touch sensors to their baselines
  * Sets the appropriate touch flag (leftTouch, centerTouch, rightTouch) 
- * Increments the corresponding counter, logs the event, updates display and LED
+ * Increments the corresponding counter
  */
 void FED4::interpretTouch()
 {
