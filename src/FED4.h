@@ -9,21 +9,21 @@
 #include <Arduino.h>
 #include <map>
 #include <string>
-#include <Adafruit_MCP23X17.h>
-#include "Adafruit_MAX1704X.h"
-#include <Stepper.h>
-#include <Adafruit_NeoPixel.h>
-#include <FastLED.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
+#include <Adafruit_MCP23X17.h>  // version 2.3.2 
+#include "Adafruit_MAX1704X.h"  // version 1.0.3
+#include <Stepper.h>  // version 1.1.3
+#include <Adafruit_NeoPixel.h> // version 1.15.2
+#include <FastLED.h> // version 3.10.2 
+#include <Wire.h> 
+#include <Adafruit_GFX.h>  // version 1.12.3
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/Org_01.h>
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
-#include "RTClib.h"
-#include <SD.h>
+#include "RTClib.h" //Adafruit version, 2.1.4
+#include <SD.h> //ESP32 version
 #include "FS.h"
-#include <Adafruit_AHTX0.h>
+#include <Adafruit_AHTX0.h> //version 2.0.5
 #include <SPI.h>
 #include <driver/adc.h>
 #include <driver/i2s.h>
@@ -31,13 +31,13 @@
 #include <driver/touch_pad.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
-#include <Adafruit_LIS3DH.h>
+#include <Adafruit_LIS3DH.h> //version 1.3.0
 #include <Adafruit_Sensor.h>
-#include "Adafruit_MLX90393.h"
-#include "SparkFun_VL53L1X.h"
-#include "Adafruit_STHS34PF80.h"
-#include "Adafruit_VEML7700.h"
-#include <ESP32Time.h>
+#include "Adafruit_MLX90393.h" //version 2.0.5
+#include "SparkFun_VL53L1X.h" //version 1.2.12
+#include "Adafruit_STHS34PF80.h"  //version 1.0.2
+#include "Adafruit_VEML7700.h" //version 2.1.6
+#include <ESP32Time.h> //version 2.0.6
 
 // Optional Hublink integration - can be excluded via compiler directive
 #ifndef FED4_EXCLUDE_HUBLINK
