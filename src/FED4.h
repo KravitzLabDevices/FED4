@@ -90,6 +90,9 @@ public:
     void syncHublink();
     static void onHublinkTimestampReceived(uint32_t timestamp);
 
+    // Motion sensor (STHS34PF80) control
+    bool useMotionSensor = true; // Default to true, can be set to false to disable STHS34PF80
+
     // Button functions
     bool initializeButtons();
     static void IRAM_ATTR onButton1WakeUp();

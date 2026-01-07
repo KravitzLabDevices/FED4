@@ -2,6 +2,13 @@
 
 bool FED4::initializeMotion()
 {
+    // Check if motion sensor should be used
+    if (!useMotionSensor) {
+        Serial.println("Motion sensor (STHS34PF80) disabled by flag");
+        motionSensorInitialized = false;
+        return true; // Return true to indicate "successful" initialization (skipped)
+    }
+    
     // Reset flag at start of initialization
     motionSensorInitialized = false;
     
@@ -56,6 +63,11 @@ bool FED4::initializeMotion()
 
 bool FED4::motion()
 {
+    // Check if motion sensor should be used
+    if (!useMotionSensor) {
+        return false; // Return false if sensor is disabled
+    }
+    
     // We use the STHS34PF80 sensor to check for motion in two ways:
     // 1. By checking the internal motion flag from the sensor's algorithm
     // 2. By checking the raw motion value and comparing it to a threshold
