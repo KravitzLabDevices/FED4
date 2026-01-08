@@ -72,6 +72,9 @@ bool FED4::begin(const char *programName)
         return false;
     }
     I2C_2.setClock(400000);  // Set I2C_2 to 400kHz (fast mode) for motion sensor
+    
+    // Allow I2C buses to stabilize before accessing devices
+    delay(50);
 
     // Initialize MCP expander
     statuses["MCP23017"].initialized = mcp.begin_I2C();
@@ -79,12 +82,15 @@ bool FED4::begin(const char *programName)
     {
         Serial.println("MCP error");
     }
+    
+    // Allow MCP to stabilize before accessing other I2C devices
+    delay(50);
 
     // Initialize battery monitor immediately after MCP (library requirement)
     // Retry logic like the working test script
     int maxRetries = 3;
     int retryCount = 0;
-    Serial.println("Initializing temperature/humidity sensor");
+    Serial.println("Initializing battery monitor");
     Serial.println("Note: it is safe to ignore the three I2C warnings below");
     while (!maxlipo.begin() && retryCount < maxRetries)
     {
@@ -114,6 +120,9 @@ bool FED4::begin(const char *programName)
     statuses["RTC"].initialized = initializeRTC();
 
     // Initialize temperature/humidity sensor directly
+    // Temporarily reduce I2C_2 speed for sensor initialization (some sensors are sensitive to high speeds)
+    I2C_2.setClock(100000);  // Set to 100kHz for sensor initialization
+    delay(10);  // Brief delay to allow clock change to take effect
     Serial.println("Initializing temperature/humidity sensor");
     statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
     if (!statuses["Temp/Humidity"].initialized)
@@ -128,6 +137,10 @@ bool FED4::begin(const char *programName)
     {
         Serial.println("Light sensor initialization failed");
     }
+    
+    // Restore I2C_2 to 400kHz for motion sensor (if it will be initialized later)
+    I2C_2.setClock(400000);
+    delay(10);  // Brief delay to allow clock change to take effect
 
     // startup front LEDs
     Serial.println("Initializing LED Strip");
@@ -187,11 +200,16 @@ bool FED4::begin(const char *programName)
         Serial.println("ToF sensor initialization failed");
     }
 
-    // Initialize Motion sensor
-    statuses["Motion"].initialized = initializeMotion();
-    if (!statuses["Motion"].initialized)
-    {
-        Serial.println("Motion sensor initialization failed");
+    // Initialize Motion sensor (if enabled)
+    if (useMotionSensor) {
+        statuses["Motion"].initialized = initializeMotion();
+        if (!statuses["Motion"].initialized)
+        {
+            Serial.println("Motion sensor initialization failed");
+        }
+    } else {
+        statuses["Motion"].initialized = true; // Mark as "initialized" (skipped)
+        Serial.println("Motion sensor (STHS34PF80) disabled by flag");
     }
 
     // Initialize Drop sensor
@@ -203,8 +221,25 @@ bool FED4::begin(const char *programName)
 
     statuses["Display"].initialized = initializeDisplay();
 
+    // Prepare I2C buses for sensor polling
+    // Reduce I2C speeds for reliable sensor reads (some sensors are sensitive to high speeds)
+    Wire.setClock(100000);  // Set primary I2C to 100kHz for battery monitor reads
+    I2C_2.setClock(100000);  // Set secondary I2C to 100kHz for temp/humidity and light sensor reads
+    delay(20);  // Allow clock changes to take effect
+    
+    // Clear I2C buses to reset any stuck states
+    Wire.beginTransmission(0x00);
+    Wire.endTransmission();
+    I2C_2.beginTransmission(0x00);
+    I2C_2.endTransmission();
+    delay(10);
+
     // check battery and environmental sensors
-    startupPollSensors();
+    //startupPollSensors();
+    
+    // Restore I2C_2 to 400kHz for motion sensor (if it will be used later)
+    I2C_2.setClock(400000);
+    delay(10);
 
     // Low battery check and warning
     float voltage = getBatteryVoltage();
