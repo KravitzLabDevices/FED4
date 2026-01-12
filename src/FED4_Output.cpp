@@ -1,6 +1,6 @@
 #include "FED4.h"
 
-bool FED4::initializeTRSS()
+bool FED4::initializeTRRS()
 {
     pinMode(AUDIO_TRRS_1, OUTPUT);
     pinMode(AUDIO_TRRS_2, OUTPUT);

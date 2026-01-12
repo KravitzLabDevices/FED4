@@ -57,17 +57,34 @@ void FED4::jammed(){
   refresh();
   releaseMotor();
   logData("DispenseError");
-  
+  //turn lEDS off
+  lightsOff();
+  noPix();
+
   while(1) {
     // Infinite loop to hang the program
-    LDO2_OFF();
+    //LDO2_OFF();  // For now leave this On until we get new boards
+
     enableAmp(false); 
-    // put FED4 to sleep
+
+    // put FED4 to sleep with timer wakeup for sensor polling
+    esp_sleep_enable_timer_wakeup(10 * 1000000); // Wake up every 10 seconds (in microseconds)
     esp_light_sleep_start();
     LDO3_ON();
-    LDO2_ON();
+//    LDO2_ON();
     enableAmp(true);
-    checkButton2();
+    // Reinitialize I2C buses for sensor polling
+    Wire.begin();
+    I2C_2.begin(SDA_2, SCL_2);
+    delay(1);
+
+    // Poll sensors every wakeup (pollSensors checks internally if enough time has passed)
+    if (program == "ActivityMonitor") {
+      pollSensors(1);  // 1 minute interval for ActivityMonitor
+    } else {
+      pollSensors(10);  // 10 minute interval for other programs
+    }
+    checkButton2(); //check this button for resetting the device
     delay(100);
   }
 }

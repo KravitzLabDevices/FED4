@@ -1,24 +1,29 @@
 #ifndef FED4_h
 #define FED4_h
 
+
+// note there is a known issue with FastLED 3.10.3 on ESP32-S3 devices
+// keep FastLED version 3.10.2 until this issue is fixed in the main FastLED repository
+// https://github.com/FastLED/FastLED/issues/5100
+
 #include <Arduino.h>
 #include <map>
 #include <string>
-#include <Adafruit_MCP23X17.h>
-#include "Adafruit_MAX1704X.h"
-#include <Stepper.h>
-#include <Adafruit_NeoPixel.h>
-#include <FastLED.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
+#include <Adafruit_MCP23X17.h>  // version 2.3.2 
+#include "Adafruit_MAX1704X.h"  // version 1.0.3
+#include <Stepper.h>  // version 1.1.3
+#include <Adafruit_NeoPixel.h> // version 1.15.2
+#include <FastLED.h> // version 3.10.2 
+#include <Wire.h> 
+#include <Adafruit_GFX.h>  // version 1.12.3
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/Org_01.h>
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
-#include "RTClib.h"
-#include <SD.h>
+#include "RTClib.h" //Adafruit version, 2.1.4
+#include <SD.h> //ESP32 version
 #include "FS.h"
-#include <Adafruit_AHTX0.h>
+#include <Adafruit_AHTX0.h> //version 2.0.5
 #include <SPI.h>
 #include <driver/adc.h>
 #include <driver/i2s.h>
@@ -26,13 +31,13 @@
 #include <driver/touch_pad.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
-#include <Adafruit_LIS3DH.h>
+#include <Adafruit_LIS3DH.h> //version 1.3.0
 #include <Adafruit_Sensor.h>
-#include "Adafruit_MLX90393.h"
-#include "SparkFun_VL53L1X.h"
-#include "SparkFun_STHS34PF80_Arduino_Library.h"
-#include "Adafruit_VEML7700.h"
-#include <ESP32Time.h>
+#include "Adafruit_MLX90393.h" //version 2.0.5
+#include "SparkFun_VL53L1X.h" //version 1.2.12
+#include "Adafruit_STHS34PF80.h"  //version 1.0.2
+#include "Adafruit_VEML7700.h" //version 2.1.6
+#include <ESP32Time.h> //version 2.0.6
 
 // Optional Hublink integration - can be excluded via compiler directive
 #ifndef FED4_EXCLUDE_HUBLINK
@@ -85,6 +90,9 @@ public:
     void syncHublink();
     static void onHublinkTimestampReceived(uint32_t timestamp);
 
+    // Motion sensor (STHS34PF80) control
+    bool useMotionSensor = true; // Default to true, can be set to false to disable STHS34PF80
+
     // Button functions
     bool initializeButtons();
     static void IRAM_ATTR onButton1WakeUp();
@@ -97,9 +105,12 @@ public:
     // Corefunctions
     void feed();
     void run();
+    
+    // Game functions
+    void pong();
 
     // Sleep configuration
-    int sleepSeconds = 6; // how many seconds to sleep between timer based wake-ups
+    int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups
     bool sleepyLEDs = true; // Flag to control whether LEDs stay on during sleep (true = LEDs sleep with sleep, false = LEDs stay on during sleep)
 
     // Menu functions
@@ -115,7 +126,7 @@ public:
     void menuEnd();
 
     // Sensor polling
-    void pollSensors();
+    void pollSensors(int minToUpdateSensors = 10);
     void startupPollSensors();
 
     // Pellet functions
@@ -133,8 +144,8 @@ public:
     bool dispenseError = false;
     void handleJams();
 
-    // TRSS input/output connector functions
-    bool initializeTRSS();
+    // TRRS input/output connector functions
+    bool initializeTRRS();
     void outputPulse(uint8_t trss, uint8_t duration);
 
     // Clock variables
@@ -180,12 +191,18 @@ public:
     void lightsOff();
     void setStripPixel(uint8_t pixel, uint32_t color);
     void leftLight(uint32_t color);
+    void leftLight(uint32_t color, uint8_t brightness);
     void centerLight(uint32_t color);
+    void centerLight(uint32_t color, uint8_t brightness);
     void rightLight(uint32_t color);
+    void rightLight(uint32_t color, uint8_t brightness);
     void setStripPixel(uint8_t pixel, const char *colorName);
     void leftLight(const char *colorName);
+    void leftLight(const char *colorName, uint8_t brightness);
     void centerLight(const char *colorName);
+    void centerLight(const char *colorName, uint8_t brightness);
     void rightLight(const char *colorName);
+    void rightLight(const char *colorName, uint8_t brightness);
     // (pixel)
     bool initializePixel();
     void setPixBrightness(uint8_t brightness);
@@ -220,14 +237,19 @@ public:
     void displayIndicators();
     void startupAnimation();
     void displayLowBatteryWarning();
+    void displayActivityMonitor();
+    void displayActivityCounters();
 
     void serialStatusReport();
 
     // Sleep management (defined in FED4_Sleep.cpp)
+    void sleep(int seconds);
     void sleep();
     void startSleep();
     void wakeUp();
     void handleTouch();
+    unsigned long pollSensorsTimer = 0;
+
     
     bool initializeLDOs();
     void LDO2_ON();
@@ -249,12 +271,21 @@ public:
     void setAge(String age);
     void handleSDCardError();
     bool isSDCardAvailable() const { return sdCardAvailable; }
+    
+    // Sequence display methods
+    void setSequenceDisplay(const String& sequence, int index, int level);
 
     // Public counters and timing
     int pelletCount;
     int centerCount;
     int leftCount;
     int rightCount;
+    int blockPokeCount;
+    int blockPelletCount;
+    int FR;
+    String currentSequence;  // For display purposes
+    int currentSequenceIndex; // Current position in sequence
+    int currentSequenceLevel; // Current level (FR)
     int wakeCount = 0;
     bool leftTouch;
     bool centerTouch;
@@ -264,22 +295,26 @@ public:
     float motionPercentage = 0.0; // Percentage of motion detections in the last 5-minute period
     int pollCount = 0;            // Track total number of polls in each 5-minute period
     unsigned long waketime;
+    bool lastMotionPositive = false; // Debounce: require two consecutive positives
 
     // RTC functions
     bool initializeRTC();
     void updateRTC();
     DateTime now();
     void adjustRTC(uint32_t timestamp);
+    void updateTime();
 
     // Vitals functions (defined in FED4_Vitals.cpp)
     float getBatteryVoltage();
     float getBatteryPercentage();
     float getTemperature();
     float getHumidity();
+    bool getTempAndHumidity(float &temp, float &hum); // Efficient combined read
     float getLux();
     float getWhite();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
+    
 
     // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
     float temperature = -1.0;
@@ -371,6 +406,7 @@ public:
     // Motion sensor functions (defined in FED4_Motion.cpp)
     bool initializeMotion();
     bool motion();
+    void resetMotionCounters();
 
     // Drop sensor functions
     bool initializeDropSensor();
@@ -401,7 +437,7 @@ private:
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_MLX90393 magnet;
-    STHS34PF80_I2C motionSensor;
+    Adafruit_STHS34PF80 motionSensor;
     Adafruit_VEML7700 lightSensor;
 
 // Hublink integration
@@ -417,13 +453,13 @@ private:
     String strain;
     String age;
     bool dropSensorAvailable; // Flag to store drop sensor availability status
+    bool motionSensorInitialized; // Flag to track if motion sensor baseline is established
 
     // RTC functions
     Preferences preferences;
     String getCompileDateTime();
     bool isNewCompilation();
     void updateCompilationID();
-    void updateTime();
 
     uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 

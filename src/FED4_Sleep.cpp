@@ -1,12 +1,17 @@
 #include "FED4.h"
 
 // High-level sleep function that handles device sleep and wake cycle
-void FED4::sleep() {
-  // Enable timer-based wake-up every N seconds
+void FED4::sleep(int seconds) {
+  sleepSeconds = seconds;
   esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000); // Convert sleepSeconds to microseconds
   noPix(); 
   startSleep();
   wakeUp();
+}
+
+// For backward compatibility, keep the parameterless version
+void FED4::sleep() {
+  sleep(sleepSeconds);
 }
 
 // Prepares device for sleep mode by disabling components and entering light sleep
@@ -23,8 +28,8 @@ void FED4::startSleep() {
     delay(1);
   }
 
-  // Calibrate touch sensors before sleep on every N wake-ups
-  if (wakeCount % 20 == 0 )  {
+  // Calibrate touch sensors before sleep on every N wake-ups, unless program is ActivityMonitor
+  if (program != "ActivityMonitor" && wakeCount % 20 == 0)  {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
     
@@ -45,9 +50,18 @@ void FED4::startSleep() {
     LDO3_OFF();  // Turn off LDO3 to power down NeoPixel
   }
 
-  LDO2_OFF(); // turn off LDO2 every sleep
+  if (program != "ActivityMonitor"){  // Don't turn off LDO2 for ActivityMonitor, it doesn't like it
+    // Serial.println("Turning off LDO2");
+    // LDO2_OFF(); // turn off LDO2 every sleep
+  }
+
   enableAmp(false);
-  esp_light_sleep_start();
+
+  if (sleepSeconds > 0) {  //only sleep if sleepSeconds is greater than 0
+    esp_light_sleep_start();
+  } else {
+    wakeUp();
+  }
 }
 
 // Wakes up device by re-enabling components and initializing I2C/I2S
@@ -59,7 +73,16 @@ void FED4::wakeUp() {
   LDO2_ON();
   Wire.begin();  // Reinitialize primary I2C
   I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C 
+  //I2C_2.setClock(400000);  // Restore I2C_2 clock speed to 400kHz
+  delay(1);  // Brief delay after I2C init
   
+  // Re-Initialize motion sensor if not already initialized
+  if (!motionSensorInitialized) {
+    if (!initializeMotion()) {
+      Serial.println("Motion sensor init failed after wake");
+    }
+  }
+
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
   mcp.pinMode(EXP_HAPTIC, OUTPUT);
@@ -74,7 +97,13 @@ void FED4::wakeUp() {
     checkButton1();
     checkButton2(); 
     checkButton3();
-    pollSensors();
+
+    if (program == "ActivityMonitor") {
+      pollSensors(1);  //default for activity monitoring is 1 minutes between sensor polling, change this here
+    } else {
+      pollSensors(10);  //default for all other programs is 10 minutes between sensor polling, change this here
+    }
+    
   }
 
   // Only check touch sensors if woken up by touch

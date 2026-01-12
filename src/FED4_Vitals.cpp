@@ -1,7 +1,5 @@
 #include "FED4.h"
 
-
-
 float FED4::getBatteryVoltage()
 {
     float voltage = maxlipo.cellVoltage();
@@ -40,6 +38,24 @@ float FED4::getHumidity()
     sensors_event_t humidity, temp;
     aht.getEvent(&humidity, &temp);
     return humidity.relative_humidity;
+}
+
+/**
+ * Reads both temperature and humidity in a single sensor read
+ * More efficient than calling getTemperature() and getHumidity() separately
+ * @param temp Reference to store temperature value
+ * @param hum Reference to store humidity value
+ * @return true if read successful, false otherwise
+ */
+bool FED4::getTempAndHumidity(float &temp, float &hum)
+{
+    sensors_event_t humEvent, tempEvent;
+    if (!aht.getEvent(&humEvent, &tempEvent)) {
+        return false;
+    }
+    temp = tempEvent.temperature;
+    hum = humEvent.relative_humidity;
+    return true;
 }
 
 float FED4::getLux()
@@ -106,21 +122,12 @@ void FED4::startupPollSensors(){
     float temp = -1;
     float hum = -1;
 
-     //get temp with timeout
+     // Get temp and humidity together with timeout (single sensor read)
      while (millis() - startTime < 1000) {  // 1 second timeout
-         temp = getTemperature();
-         if (temp > 5) break;  // Valid reading obtained
+         if (getTempAndHumidity(temp, hum) && temp > 5) break;  // Valid reading obtained
          delay(10);
      }
      if (temp > 5) temperature = temp;
-    
-     //get humidity with timeout
-     startTime = millis();  // Reset timer for humidity
-     while (millis() - startTime < 100) {  // 0.1 second timeout
-         hum = getHumidity();
-         if (hum > 5) break;  // Valid reading obtained
-         delay(10);
-     }
      if (hum > 5) humidity = hum;
 
      //get battery info with timeout
@@ -183,38 +190,26 @@ void FED4::startupPollSensors(){
      }
      
      if (whiteReading >= 0) white = whiteReading; // Only update if we got a valid reading >= 0
+    
 }
 
 /**
  * Polls temperature, humidity and battery sensors periodically to update their values.
- * Only updates every 10 minutes to avoid excessive polling.
+ * Only updates every N minutes to avoid excessive polling.
  * Uses timeouts to prevent hanging if sensors are unresponsive.
+ * @param minToUpdateSensors Number of minutes between sensor updates (default: 10)
  */
-void FED4::pollSensors() {
+void FED4::pollSensors(int minToUpdateSensors) {
   // Increment poll counter
   pollCount++;
 
-  // Reconfigure motion sensor after I2C bus reinitialization
-  if (motionSensor.begin(0x5A, I2C_2)) {
-    // Reconfigure motion sensor settings
-    motionSensor.setTmosODR(STHS34PF80_TMOS_ODR_AT_30Hz);
-    motionSensor.setGainMode(STHS34PF80_GAIN_DEFAULT_MODE);
-    motionSensor.setLpfMotionBandwidth(STHS34PF80_LPF_ODR_DIV_20);
-    motionSensor.setMotionThreshold(30);
-    motionSensor.setMotionHysteresis(5);
-  }
+  // A quirk of the ESP32-S3 is that the the primary I2C bus must
+  // be exercised before I2C_2 works properly - calling prox() here does that
+  // TODO: See if there is a simpler way to do this - this is a hack.
+  prox();
+  motion();
 
-  //update motion detection
-  prox();  // Why does this need to be here for motion to work?
-
-  motionDetected = motion();
-  if (motionDetected) {
-    motionCount++;  // Aggregate motion detections
-  }
-
-  int minToUpdateSensors = 10;  //update sensors every N minutes
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
-    clearDisplay();
     lastPollTime = millis();
 
     // Calculate motion percentage over the last period using poll count
@@ -224,31 +219,25 @@ void FED4::pollSensors() {
       motionPercentage = 0.0;
     }
 
-    // Reset counters for next sampling period
-    motionCount = 0;
-    pollCount = 0;
+    //updateDisplay();
 
-    // get temp and humidity with timeouts
+    // Reset counters for next sampling period
+    // Note: ActivityMonitor resets counters manually after logging, so skip reset for that program
+    if (program != "ActivityMonitor") {
+      motionCount = 0;
+      pollCount = 0;
+    }
+
+    // Get temp and humidity together with timeout (single sensor read)
     unsigned long startTime = millis();
     float temp = -1;
     float hum = -1;
 
-    //get temp with timeout
     while (millis() - startTime < 100) {  // 0.1 second timeout
-      temp = getTemperature();
-      if (temp > 1) break;  // Valid reading obtained
+      if (getTempAndHumidity(temp, hum) && temp > 1) break;  // Valid reading obtained
       delay(1);
     }
     if (temp > 1) temperature = temp;
-
-    //get humidity with timeout
-    startTime = millis();                 // Reset timer for humidity
-    while (millis() - startTime < 100) {  // 0.1 second timeout
-      hum = getHumidity();
-      if (hum > 1) break;  // Valid reading obtained
-      delay(1);
-    }
-
     if (hum > 1) humidity = hum;
 
     //get battery info with timeout
@@ -294,7 +283,7 @@ void FED4::pollSensors() {
     }
 
     // If lux sensor failed after multiple attempts, try reinitializing it
-    if (luxReading < 0 && luxAttempts > 10) {  // More than 50ms of failed attempts
+    if (luxReading < 0 && luxAttempts > 2) {  // More than 2 failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(1);  // Give sensor time to stabilize (reduced from 50ms)
@@ -316,7 +305,7 @@ void FED4::pollSensors() {
     }
 
     // If white sensor failed after multiple attempts, try reinitializing it
-    if (whiteReading < 0 && whiteAttempts > 50) {  // More than 50ms of failed attempts
+    if (whiteReading < 0 && whiteAttempts > 2) {  // More than 2 failed attempts
       if (reinitializeLightSensor()) {
         // Try one more reading after reinitialization
         delay(1);  // Give sensor time to stabilize
@@ -326,8 +315,13 @@ void FED4::pollSensors() {
 
     if (whiteReading >= 0) white = whiteReading;  // Only update if we got a valid reading >= 0
 
-    //log Status to capture sensor data for each period
-    logData("Status");
+    //If it's not an ActivityMonitor program, log Status to capture sensor data for each period
+    if (program != "ActivityMonitor")  {
+      logData("Status");
+    }
+        
+    // Reset pollSensorsTimer so seconds display resets when data is written
+    pollSensorsTimer = millis();
   }
 }
 

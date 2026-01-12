@@ -29,6 +29,11 @@ void FED4::dispense() {
         pelletDropped = didPelletDrop();
         pelletPresent = checkForPellet();
         pelletReady = true;
+        
+        // Increment block pellet count when pellet drops
+        if (pelletDropped) {
+            blockPelletCount++;
+        }
 
         // small motor movement
         stepper.step(-10);
@@ -37,6 +42,8 @@ void FED4::dispense() {
         // delay for 1s roughly each pellet position
         if (motorTurns % 25 == 0)
         {
+            Serial.print("Dispensing... ");
+            Serial.println(motorTurns/25);
             releaseMotor();
             delay(1000);
         }
@@ -178,7 +185,7 @@ void FED4::finishFeeding() {
             logData("PelletNotDetected");
         } else {
             logData("PelletTaken");
-            
+            blockPokeCount = 0;  // Reset block poke count when pellet is taken
         }
     }
 

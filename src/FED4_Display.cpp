@@ -20,12 +20,34 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                                       (uint8_t)~64, (uint8_t)~128};
 
 void FED4::updateDisplay() {
-  //TODO: Stop clearing display and just clear needed areas 
-  //clearDisplay();
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
 
+  // Check if this is ActivityMonitor program
+  if (program == "ActivityMonitor") {
+    displayActivityMonitor();
+  } else {
+    displayTask();
+    displayMouseId();
+
+    // draw line to split on screen text 
+    drawLine(0,59,168,59, DISPLAY_BLACK);  
+    drawLine(0,60,168,60, DISPLAY_BLACK);  
+
+    // draw screen elements
+    displayEnvironmental();
+    displayBattery();
+    displaySDCardStatus();
+    displayCounters();
+    displayIndicators();
+    displayDateTime();
+  }
+  refresh();
+}
+
+void FED4::displayActivityMonitor() {
+  // Use the same layout as normal FED4 display but replace counters and indicators
   displayTask();
   displayMouseId();
 
@@ -33,25 +55,103 @@ void FED4::updateDisplay() {
   drawLine(0,59,168,59, DISPLAY_BLACK);  
   drawLine(0,60,168,60, DISPLAY_BLACK);  
 
-  // draw screen elements
+  // draw screen elements (same as normal display)
   displayEnvironmental();
   displayBattery();
   displaySDCardStatus();
-  displayCounters();
-  displayIndicators();
+  
+  // Replace displayCounters() with activity information
+  displayActivityCounters();
+
   displayDateTime();
-  refresh();
+}
+
+void FED4::displayActivityCounters() {
+  setFont(&FreeSans9pt7b);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  
+  // Clear all counter value areas with one white rectangle (same as displayCounters)
+  fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
+  
+  setCursor(6, 80);
+  print("Activity ");
+  setCursor(90, 80);
+  print(motionCount);
+  
+  setCursor(6, 100);
+  print("Activity% ");
+  setCursor(90, 100);
+  
+  // Display motion percentage (calculated in real-time by motion() and pollSensors())
+  printf("%.1f", motionPercentage);
+  
+  setCursor(6, 120);
+  print("Seconds");
+  setCursor(90, 120);
+
+  // Initialize pollSensorsTimer if it hasn't been set yet
+  if (pollSensorsTimer == 0) {
+    pollSensorsTimer = millis();
+  }
+
+  //print elapsed seconds since pollSensorsTimer was reset
+  print((millis() - pollSensorsTimer) / 1000);
+  
+  setCursor(6, 140);
+  print("Uptime(h)");
+  setCursor(90, 140);
+  // Calculate total uptime in hours with 2 decimal places
+  float uptimeHours = millis() / 1000.0 / 3600.0;
+  printf("%.2f", uptimeHours);
 }
 
 void FED4::displayTask() {
   setFont(&FreeSans9pt7b);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  //display program name
-  setCursor(6, 35);
-  print("Task: ");
-  fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
-  print(program);
+  
+  if (program == "SequenceLearning") {
+    // Display sequence information
+    setCursor(6, 35);
+    print("Seq:");
+    
+    // Clear area for sequence display
+    fillRect(40, 35, 120, 30, DISPLAY_WHITE);
+    
+    if (currentSequence.length() > 0) {
+      setCursor(50, 35);
+      
+      // Display each character in the sequence (show entire required sequence)
+      for (int i = 0; i < currentSequence.length(); i++) {
+        char c = currentSequence[i];
+        
+        // Show the entire required sequence for the current level
+        if (i < currentSequenceLevel) {
+          // Required sequence items - all with black background, white text
+          fillRect(43 + (i * 12), 20, 19, 19, DISPLAY_BLACK);
+          setTextColor(DISPLAY_WHITE);
+        } else {
+          // Future level items - white background, black text
+          fillRect(43 + (i * 12), 20, 19, 19, DISPLAY_WHITE);
+          setTextColor(DISPLAY_BLACK);
+        }
+        
+        setCursor(45 + (i * 12), 35);
+        print(c);
+      }
+    }
+  } else {
+    // Display regular program name (limited to first 8 characters)
+    setCursor(6, 35);
+    print("Task: ");
+    fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
+    String shortProgram = program;
+    if (shortProgram.length() > 8) {
+      shortProgram = shortProgram.substring(0, 8);
+    }
+    print(shortProgram);
+  }
 }
 
 void FED4::displayMouseId() {
@@ -164,7 +264,7 @@ void FED4::displayCounters()
   setTextColor(DISPLAY_BLACK);
   
   // Clear all counter value areas with one white rectangle
-  fillRect(90, 70, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
+  fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
   
   setCursor(30, 80);
   print("Left: ");
@@ -244,7 +344,7 @@ void FED4::displayDateTime() {
   setCursor(5, 160);
   print(dateStr);
   
-  setCursor(97, 160);
+  setCursor(94, 160);
   print(timeStr);
 }
 

@@ -18,18 +18,11 @@ bool FED4::initializeSD()
     digitalWrite(SD_CS, HIGH); // SD inactive = HIGH
     SPI.setBitOrder(MSBFIRST);
 
-    // Try different SD card initialization speeds
-    for (uint8_t i = 0; i < 3; i++)
+    // Initialize SD card
+    if (SD.begin(SD_CS, SPI, 4000000))
     {
-        digitalWrite(SD_CS, LOW); // Select SD card (active LOW)
-        if (SD.begin(SD_CS, SPI, 4000000))
-        {
-            digitalWrite(SD_CS, HIGH); // Deselect SD card
-            createMetaJson(); // Ensure meta.json exists
-            return true;
-        }
-        digitalWrite(SD_CS, HIGH); // Ensure SD is deselected on failure
-        delay(100);
+        createMetaJson(); // Ensure meta.json exists
+        return true;
     }
     Serial.println("SD card initialization failed");
     return false;
@@ -118,8 +111,7 @@ bool FED4::createLogFile()
     if (mouseIdValue <= 0) {
         mouseIdValue = 0;
     }
-    sprintf(idStr, "%04d", mouseIdValue);
-    String id = String(idStr);
+    snprintf(idStr, sizeof(idStr), "%04d", mouseIdValue);
     char baseFilename[50];
     int fileNumber = 0;
 
@@ -130,9 +122,7 @@ bool FED4::createLogFile()
     do
     {
         snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
-                 id.c_str(), now.year(), now.month(), now.day(), fileNumber);
-        Serial.print("Trying filename: ");
-        Serial.println(baseFilename);
+                 idStr, now.year(), now.month(), now.day(), fileNumber);
         
         // Check if file exists
         if (!SD.exists(baseFilename)) {
@@ -142,7 +132,6 @@ bool FED4::createLogFile()
         // File exists, count the lines
         File dataFile = SD.open(baseFilename, FILE_READ);
         if (!dataFile) {
-            Serial.println("Couldn't open existing file");
             fileNumber++;
             continue;
         }
@@ -157,9 +146,21 @@ bool FED4::createLogFile()
                 
         if (lineCount <= 5) {
             // File has 5 or fewer lines, delete and reuse this filename
-            Serial.println("Over-writing existing file");
-            SD.remove(baseFilename);
-            break;
+            if (SD.remove(baseFilename)) {
+                Serial.print("Removed incomplete file: ");
+                Serial.println(baseFilename);
+                // Verify it's actually gone
+                if (!SD.exists(baseFilename)) {
+                    break;
+                }
+                Serial.println("Warning: File still exists after remove");
+            } else {
+                Serial.print("Failed to remove file: ");
+                Serial.println(baseFilename);
+            }
+            // If removal failed, try next file number
+            fileNumber++;
+            continue;
         }
         
         fileNumber++;
@@ -175,21 +176,78 @@ bool FED4::createLogFile()
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW);
 
+    // If file somehow still exists, try to remove it one more time
+    if (SD.exists(filename)) {
+        Serial.print("File already exists, attempting to remove: ");
+        Serial.println(filename);
+        if (!SD.remove(filename)) {
+            digitalWrite(SD_CS, HIGH);
+            Serial.println("Failed to remove existing file");
+            filename[0] = '\0';
+            return false;
+        }
+        delay(10); // Give SD card time to complete deletion
+    }
+
     // Create new file and write headers
     File dataFile = SD.open(filename, FILE_WRITE);
     if (!dataFile)
     {
         digitalWrite(SD_CS, HIGH);
-        Serial.println("Failed to create log file");
+        Serial.println("WARNING: Failed to create log file - could not open file for writing");
+        Serial.print("  Attempted filename: ");
+        Serial.println(filename);
         filename[0] = '\0'; // Set filename to empty string on failure
         return false;
     }
 
-    dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,");
-    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,RetrievalTime,DispenseError,MotorTurns,Motion,");
+    // Write CSV headers
+    dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,FR,");
+    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,DispenseError,MotorTurns,Motion,");
     dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
+    dataFile.flush();  // Force write to SD card
+    
+    // Check if there were any write errors
+    if (dataFile.getWriteError()) {
+        Serial.println("WARNING: Failed to write headers to log file");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        dataFile.close();
+        SD.remove(filename);  // Remove the incomplete file
+        digitalWrite(SD_CS, HIGH);
+        filename[0] = '\0';
+        return false;
+    }
+    
     dataFile.close();
+    
+    // Verify the file was created and has content
+    dataFile = SD.open(filename, FILE_READ);
+    if (!dataFile) {
+        Serial.println("WARNING: Log file creation verification failed - file not readable");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        digitalWrite(SD_CS, HIGH);
+        filename[0] = '\0';
+        return false;
+    }
+    
+    size_t fileSize = dataFile.size();
+    dataFile.close();
+    
+    if (fileSize == 0) {
+        Serial.println("WARNING: Log file created but appears empty");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        SD.remove(filename);
+        digitalWrite(SD_CS, HIGH);
+        filename[0] = '\0';
+        return false;
+    }
+    
+    // Give SD card time to complete write operations
+    delay(100);
 
     Serial.print("New file created: ");
     Serial.println(filename);
@@ -205,8 +263,15 @@ bool FED4::createLogFile()
  */
 bool FED4::logData(const String &newEvent)
 {
-    // Check if SD card is available
+    // Check if SD card available flag is set
     if (!sdCardAvailable) {
+        Serial.println("WARNING: Cannot log data - SD card not available");
+        return false;
+    }
+    
+    // Check if log file was created successfully
+    if (filename[0] == '\0') {
+        Serial.println("WARNING: Cannot log data - no log file created");
         return false;
     }
     
@@ -225,14 +290,84 @@ bool FED4::logData(const String &newEvent)
 
     // Open file for writing
     digitalWrite(SD_CS, LOW); // Select SD card for operation
-    dataFile = SD.open(filename, FILE_APPEND);
+
+    //SD.open() with a timeout
+    unsigned long timeout = millis() + 500;
+    do {
+        dataFile = SD.open(filename, FILE_APPEND);
+        if (!dataFile) delay(10);
+    } while (!dataFile && millis() < timeout);
+
+    // If the file is not found, try to reinitialize the SD card - this allows for hot swapping of the SD card
     if (!dataFile)
     {
+        Serial.println("Failed to open log file for writing");
+        Serial.print("Attempting to reinitialize SD card...");
+        
+        // Properly restart SPI interface
+        SPI.end();
+        delay(10); // Allow SPI to fully shut down
+        
+        // Reset the CS pin to ensure clean state
+        pinMode(SD_CS, OUTPUT);
         digitalWrite(SD_CS, HIGH);
-        Serial.print("Failed to open file: ");
-        Serial.println(filename);
-        noPix();
-        return false;
+        delay(1);
+        
+        // Restart SPI with proper initialization
+        SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
+        SPI.setBitOrder(MSBFIRST);
+        SPI.setDataMode(SPI_MODE0);
+        delay(10); // Allow SD card to stabilize
+                       
+        // Test file system access
+        if (!SD.exists("/")) {
+            SD.end();
+            delay(10);
+            
+            if (!SD.begin(SD_CS, SPI, 4000000)) { 
+                Serial.println("Failed");
+                digitalWrite(SD_CS, HIGH);
+                return false;
+            }
+        }
+        
+        delay(10); // Allow SD card to stabilize
+         
+        // Check if our specific file exists
+        if (!SD.exists(filename)) {
+            Serial.println("File not found after reinit");
+            digitalWrite(SD_CS, HIGH);
+            return false;
+        }
+
+        //SD.open() with a timeout
+        unsigned long timeout = millis() + 500;
+        do {
+            dataFile = SD.open(filename, FILE_APPEND);
+            if (!dataFile) delay(10);
+        } while (!dataFile && millis() < timeout);
+
+        if (!dataFile) {
+            Serial.println("Failed to open file even though it exists");
+            Serial.print("SD card type: ");
+            uint8_t cardType = SD.cardType();
+            if (cardType == CARD_NONE) {
+                Serial.println("No SD card");
+            } else if (cardType == CARD_MMC) {
+                Serial.println("MMC");
+            } else if (cardType == CARD_SD) {
+                Serial.println("SDSC");
+            } else if (cardType == CARD_SDHC) {
+                Serial.println("SDHC");
+            } else {
+                Serial.println("UNKNOWN");
+            }
+            digitalWrite(SD_CS, HIGH);
+            noPix();
+            return false;
+        }
+        Serial.println("Success!");
+        sdCardAvailable = true;
     }
 
     // Write timestamp
@@ -252,49 +387,44 @@ bool FED4::logData(const String &newEvent)
         snprintf(formattedMouseId, sizeof(formattedMouseId), "%04d", mouseIdValue);
     }
     
-    dataFile.printf("%s,%s,%s,%s,%s,%s,",
+    dataFile.printf("%s,%s,%s,%s,%s,%d,%s,",
                     formattedMouseId,
                     sex.c_str(),
                     strain.c_str(),
                     libraryVer,
                     program.c_str(),
+                    FR,
                     event.c_str());
 
     dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
+    dataFile.printf("%d,%d,", blockPelletCount, blockPokeCount);
 
     // Write motor turns for events where motor has been running
     if (event == "PelletTaken") {
         // Write retrievalTime as string to avoid conversion issues
-        if (event == "PelletTaken") {
-            if (retrievalTime > 19.9)
-            {
-                dataFile.print("TimedOut");
-            }
-            else
-            {
-                dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
-            }
-        } else {
-            dataFile.print(","); // Empty retrieval time for non-PelletTaken events
+        if (retrievalTime > 19.9)
+        {
+            dataFile.print("TimedOut");
+        }
+        else
+        {
+            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
         }
         dataFile.write(',');
         dataFile.write(dispenseError ? '1' : '0'); // Write single character
         dataFile.write(',');
         dataFile.print(int(motorTurns/25)); // MotorTurns
         dataFile.write(',');
-        // Only reset motorTurns after the final event (PelletTaken)
-        if (event == "PelletTaken") {
-            motorTurns = 0; // Reset after logging
-        }
+        motorTurns = 0; // Reset after logging
     }
     else {
         dataFile.print(",,,"); // RetrievalTime, DispenseError
     }
 
     // Write counters and status
-    if (event == "Status" || event == "Startup") {
-        // Write motion percentage with 2 decimal places
-        dataFile.printf("%.2f,", motionPercentage); // Write motion percentage with 2 decimal places
+    if (event == "Status" || event == "Startup" || event == "Activity") {
+        // Write Activity% (motionPercentage) with 1 decimal place
+        dataFile.printf("%.1f,", motionPercentage);
 
         // Write environmental data
         dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
@@ -315,13 +445,30 @@ bool FED4::logData(const String &newEvent)
     }
 
     // Clean up
+    dataFile.flush();  // Force write to SD card
+    
+    // Check if there were any write errors
+    if (dataFile.getWriteError()) {
+        Serial.println("WARNING: Failed to write data to log file");
+        Serial.print("  Filename: ");
+        Serial.println(filename);
+        Serial.print("  Event: ");
+        Serial.println(event);
+        dataFile.clearWriteError();
+        dataFile.close();
+        digitalWrite(SD_CS, HIGH);
+        SPI.endTransaction();
+        noPix();
+        return false;
+    }
+    
     dataFile.close();
     digitalWrite(SD_CS, HIGH);
     SPI.endTransaction();
     noPix();
     
-    // update screen counters when logging except at startup
-    if (leftCount > 0 || rightCount > 0 || centerCount > 0) {
+    // update screen counters when logging except at startup and not in ActivityMonitor
+    if (program != "ActivityMonitor" && (leftCount > 0 || rightCount > 0 || centerCount > 0)) {
       displayIndicators();
       displayCounters();
     }
@@ -478,6 +625,13 @@ bool FED4::setMetaValue(const char *rootKey, const char *subKey, const char *val
 void FED4::setProgram(String program)
 {
     setMetaValue("fed", "program", program.c_str());
+}
+
+void FED4::setSequenceDisplay(const String& sequence, int index, int level)
+{
+    currentSequence = sequence;
+    currentSequenceIndex = index;
+    currentSequenceLevel = level;
 }
 
 void FED4::setMouseId(String mouseId)

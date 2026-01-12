@@ -268,7 +268,7 @@ void FED4::menuJingle(){
     playTone(800, 80, 0.3);   // Root note
     playTone(1000, 60, 0.3);  // Major third
     playTone(1200, 40, 0.3);  // Fifth
-    delay(50);                 // Brief pause
+    delay(50);                // Brief pause
     
     // Quick descending cascade
     playTone(2000, 30, 0.25);
