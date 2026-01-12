@@ -23,10 +23,10 @@
 #include "RTClib.h" //Adafruit version, 2.1.4
 #include <SD.h> //ESP32 version
 #include "FS.h"
-#include <Adafruit_AHTX0.h> //version 2.0.5
+#include <Adafruit_BME680.h> //version 2.0.5
 #include <SPI.h>
 #include <driver/adc.h>
-#include <driver/i2s.h>
+#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
 #include <driver/rtc_io.h>
 #include <driver/touch_pad.h>
 #include <Preferences.h>
@@ -309,16 +309,21 @@ public:
     float getBatteryPercentage();
     float getTemperature();
     float getHumidity();
+    float getPressure();
+    float getGasResistance();
     bool getTempAndHumidity(float &temp, float &hum); // Efficient combined read
+    bool getAllBME680Data(float &temp, float &hum, float &pres, float &gas); // Get all BME680 values
     float getLux();
     float getWhite();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
     
 
-    // variables to store temp/humidity and battery info so we don't have to keep pinging the chips every time
+    // variables to store temp/humidity/pressure/gas and battery info so we don't have to keep pinging the chips every time
     float temperature = -1.0;
     float humidity = -1.0;
+    float pressure = -1.0;
+    float gasResistance = -1.0;
     float lux = -1.0;
     float white = -1.0;
     float cellVoltage = 0.0;
@@ -430,7 +435,7 @@ private:
     Adafruit_MAX17048 maxlipo;
     RTC_DS3231 rtc;
     ESP32Time Inrtc;
-    Adafruit_AHTX0 aht;
+    Adafruit_BME680 bme;
     Adafruit_NeoPixel pixels;
     Stepper stepper;
     TwoWire I2C_2;
@@ -439,6 +444,7 @@ private:
     Adafruit_MLX90393 magnet;
     Adafruit_STHS34PF80 motionSensor;
     Adafruit_VEML7700 lightSensor;
+    I2SClass i2s;  // New I2S driver object for ESP32 core 3.x
 
 // Hublink integration
 #ifndef FED4_EXCLUDE_HUBLINK

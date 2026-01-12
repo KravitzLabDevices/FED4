@@ -1,50 +1,41 @@
 #include "FED4.h"
-#include "driver/touch_pad.h"
 
 // Initialize the static member
 uint8_t FED4::wakePad = 0;  // 0=none, 1=left, 2=center, 3=right
 
+// Separate ISR callbacks for each touch pad (avoids legacy driver API calls)
 void IRAM_ATTR FED4::onTouchWakeUp()
 {
-    // Get the touch pad that triggered the wake-up
-    uint32_t touch_status = touch_pad_get_status();
-    
-    // Store which pad triggered the wake-up
-    if (touch_status & (1 << TOUCH_PAD_LEFT)) {
-        wakePad = 1;
-    } else if (touch_status & (1 << TOUCH_PAD_CENTER)) {
-        wakePad = 2;
-    } else if (touch_status & (1 << TOUCH_PAD_RIGHT)) {
-        wakePad = 3;
-    }
-    
-    // Clear the touch pad status only once here
-    touch_pad_clear_status();
+    // Generic wake-up handler - wakePad is set by specific handlers below
+}
+
+void IRAM_ATTR onLeftTouch() {
+    FED4::wakePad = 1;
+}
+
+void IRAM_ATTR onCenterTouch() {
+    FED4::wakePad = 2;
+}
+
+void IRAM_ATTR onRightTouch() {
+    FED4::wakePad = 3;
 }
 
 bool FED4::initializeTouch()
 {
-    esp_err_t err = touch_pad_init();
-    if (err != ESP_OK)
-    {
+    // Use Arduino's touch API which handles all low-level initialization
+    // The first touchRead() call will initialize the touch subsystem automatically
+    // Just verify that the touch pads are responsive by doing a test read
+    uint16_t testLeft = touchRead(TOUCH_PAD_LEFT);
+    uint16_t testCenter = touchRead(TOUCH_PAD_CENTER);
+    uint16_t testRight = touchRead(TOUCH_PAD_RIGHT);
+    
+    // Verify we got valid readings (non-zero values)
+    if (testLeft == 0 || testCenter == 0 || testRight == 0) {
         return false;
     }
-
-    // Configure touch pads
-    err = touch_pad_config(TOUCH_PAD_LEFT);
-    if (err != ESP_OK)
-        return false;
-
-    err = touch_pad_config(TOUCH_PAD_CENTER);
-    if (err != ESP_OK)
-        return false;
-
-    err = touch_pad_config(TOUCH_PAD_RIGHT);
-    if (err != ESP_OK)
-        return false;
-
-    touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
-    delay(25);  // Reduced from 50ms to 25ms - optimized for faster response
+    
+    delay(25);  // Allow touch subsystem to stabilize
     return true;
 }
 
@@ -69,10 +60,10 @@ void FED4::calibrateTouchSensors()
     // Enable wake-up on touch pads
     esp_sleep_enable_touchpad_wakeup();
 
-    // Set individual thresholds for each pad
-    touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchWakeUp, left_threshold);
-    touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchWakeUp, center_threshold);
-    touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchWakeUp, right_threshold);
+    // Set individual thresholds for each pad with separate callbacks
+    touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftTouch, left_threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterTouch, center_threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightTouch, right_threshold);
 }
 
 /**

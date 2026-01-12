@@ -119,16 +119,20 @@ bool FED4::begin(const char *programName)
     Serial.println("Initializing RTC");
     statuses["RTC"].initialized = initializeRTC();
 
-    // Initialize temperature/humidity sensor directly
-    // Temporarily reduce I2C_2 speed for sensor initialization (some sensors are sensitive to high speeds)
-    I2C_2.setClock(100000);  // Set to 100kHz for sensor initialization
+    // Initialize temperature/humidity/pressure/gas sensor BME680
+    // Temporarily reduce primary I2C speed for sensor initialization (some sensors are sensitive to high speeds)
+    Wire.setClock(100000);  // Set to 100kHz for sensor initialization
     delay(10);  // Brief delay to allow clock change to take effect
-    Serial.println("Initializing temperature/humidity sensor");
-    statuses["Temp/Humidity"].initialized = aht.begin(&I2C_2);
+    Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
+    statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
     if (!statuses["Temp/Humidity"].initialized)
     {
-        Serial.println("Temperature/humidity sensor initialization failed");
+        Serial.println("BME680 sensor initialization failed - check wiring on pins 8 & 9!");
     }
+    
+    // Restore primary I2C to 400kHz
+    Wire.setClock(400000);
+    delay(10);  // Brief delay to allow clock change to take effect
 
     // Initialize light sensor
     Serial.println("Initializing light sensor");
@@ -223,8 +227,8 @@ bool FED4::begin(const char *programName)
 
     // Prepare I2C buses for sensor polling
     // Reduce I2C speeds for reliable sensor reads (some sensors are sensitive to high speeds)
-    Wire.setClock(100000);  // Set primary I2C to 100kHz for battery monitor reads
-    I2C_2.setClock(100000);  // Set secondary I2C to 100kHz for temp/humidity and light sensor reads
+    Wire.setClock(100000);  // Set primary I2C to 100kHz for BME680 and battery monitor reads
+    I2C_2.setClock(100000);  // Set secondary I2C to 100kHz for light sensor reads
     delay(20);  // Allow clock changes to take effect
     
     // Clear I2C buses to reset any stuck states

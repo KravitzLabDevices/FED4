@@ -6,7 +6,7 @@
 #include "FS.h"
 #include "SD.h"
 #include <SPI.h>
-#include <driver/i2s.h>
+#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
 #include <Adafruit_MCP23X17.h>
 Adafruit_MCP23X17 mcp;
 
@@ -31,6 +31,7 @@ const unsigned long debounceDelay = 50;
 
 // Audio object
 Audio audio;
+I2SClass i2s;  // New I2S object for tone generation
 
 // Function to generate beep sound
 void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
@@ -48,47 +49,26 @@ void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
     sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
 
     if (samplesInBuffer >= 256) {
-      size_t bytes_written;
-      i2s_write(I2S_NUM_0, sampleBuffer, sizeof(sampleBuffer), &bytes_written, portMAX_DELAY);
+      i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
       samplesInBuffer = 0;
     }
   }
 
   // Write any remaining samples
   if (samplesInBuffer > 0) {
-    size_t bytes_written;
-    i2s_write(I2S_NUM_0, sampleBuffer, samplesInBuffer * sizeof(int16_t), &bytes_written, portMAX_DELAY);
+    i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
   }
-
-  // Clear the I2S buffer after generating the tone
-  i2s_zero_dma_buffer(I2S_NUM_0);
 }
 
 // I2S setup for audio
 void setupI2S() {
-  i2s_config_t i2sConfig = {
-      .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
-      .sample_rate = 44100,
-      .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
-      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
-      .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
-      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-      .dma_buf_count = 8,
-      .dma_buf_len = 1024,
-      .use_apll = false,
-      .tx_desc_auto_clear = true,
-      .fixed_mclk = 0
-  };
-
-  i2s_pin_config_t pinConfig = {
-      .bck_io_num = I2S_BIT_CLOCK_PIN,
-      .ws_io_num = I2S_LEFT_RIGHT_CLOCK_PIN,
-      .data_out_num = I2S_DATA_IN_PIN,
-      .data_in_num = I2S_PIN_NO_CHANGE
-  };
-
-  i2s_driver_install(I2S_NUM_0, &i2sConfig, 0, NULL);
-  i2s_set_pin(I2S_NUM_0, &pinConfig);
+  // Configure I2S pins
+  i2s.setPins(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN);
+  
+  // Initialize I2S with new API
+  if (!i2s.begin(I2S_MODE_STD, 44100, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
+    Serial.println("Failed to initialize I2S");
+  }
 }
 
 void setup() {

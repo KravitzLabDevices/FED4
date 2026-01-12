@@ -102,8 +102,8 @@ void loop() {
     // Play the MP3 file
     audio.connecttoFS(SD, "/Audio/Beep.mp3");
    
-    // Serial.println(audio.inBufferFilled());
-    // Serial.println(audio.inBufferFree());
+    Serial.println(audio.inBufferFilled());
+    Serial.println(audio.inBufferFree());
     // Serial.println(audio.inBufferSize());
     lastDebounceTime = millis();
   }

@@ -28,16 +28,34 @@ float FED4::getBatteryPercentage()
 
 float FED4::getTemperature()
 {
-    sensors_event_t humidity, temp;
-    aht.getEvent(&humidity, &temp);
-    return temp.temperature;
+    if (!bme.performReading()) {
+        return -1.0;
+    }
+    return bme.temperature;
 }
 
 float FED4::getHumidity()
 {
-    sensors_event_t humidity, temp;
-    aht.getEvent(&humidity, &temp);
-    return humidity.relative_humidity;
+    if (!bme.performReading()) {
+        return -1.0;
+    }
+    return bme.humidity;
+}
+
+float FED4::getPressure()
+{
+    if (!bme.performReading()) {
+        return -1.0;
+    }
+    return bme.pressure / 100.0; // Convert Pa to hPa
+}
+
+float FED4::getGasResistance()
+{
+    if (!bme.performReading()) {
+        return -1.0;
+    }
+    return bme.gas_resistance / 1000.0; // Convert ohms to KOhms
 }
 
 /**
@@ -49,12 +67,32 @@ float FED4::getHumidity()
  */
 bool FED4::getTempAndHumidity(float &temp, float &hum)
 {
-    sensors_event_t humEvent, tempEvent;
-    if (!aht.getEvent(&humEvent, &tempEvent)) {
+    if (!bme.performReading()) {
         return false;
     }
-    temp = tempEvent.temperature;
-    hum = humEvent.relative_humidity;
+    temp = bme.temperature;
+    hum = bme.humidity;
+    return true;
+}
+
+/**
+ * Reads all BME680 sensor data in a single read
+ * Most efficient way to get all environmental data
+ * @param temp Reference to store temperature value (°C)
+ * @param hum Reference to store humidity value (%)
+ * @param pres Reference to store pressure value (hPa)
+ * @param gas Reference to store gas resistance value (KOhms)
+ * @return true if read successful, false otherwise
+ */
+bool FED4::getAllBME680Data(float &temp, float &hum, float &pres, float &gas)
+{
+    if (!bme.performReading()) {
+        return false;
+    }
+    temp = bme.temperature;
+    hum = bme.humidity;
+    pres = bme.pressure / 100.0; // Convert Pa to hPa
+    gas = bme.gas_resistance / 1000.0; // Convert ohms to KOhms
     return true;
 }
 
@@ -92,8 +130,8 @@ float FED4::getWhite()
 
 bool FED4::initializeLightSensor()
 {
-    // Initialize the light sensor on the secondary I2C bus
-    if (!lightSensor.begin(&I2C_2)) {
+    // Initialize the light sensor on the primary I2C bus
+    if (!lightSensor.begin(&Wire)) {
         Serial.println("Light sensor initialization failed");
         return false;
     }
@@ -121,14 +159,18 @@ void FED4::startupPollSensors(){
     unsigned long startTime = millis();
     float temp = -1;
     float hum = -1;
+    float pres = -1;
+    float gas = -1;
 
-     // Get temp and humidity together with timeout (single sensor read)
+     // Get all BME680 data together with timeout (single sensor read)
      while (millis() - startTime < 1000) {  // 1 second timeout
-         if (getTempAndHumidity(temp, hum) && temp > 5) break;  // Valid reading obtained
+         if (getAllBME680Data(temp, hum, pres, gas) && temp > 5) break;  // Valid reading obtained
          delay(10);
      }
      if (temp > 5) temperature = temp;
      if (hum > 5) humidity = hum;
+     if (pres > 0) pressure = pres;
+     if (gas > 0) gasResistance = gas;
 
      //get battery info with timeout
      startTime = millis();
@@ -228,17 +270,21 @@ void FED4::pollSensors(int minToUpdateSensors) {
       pollCount = 0;
     }
 
-    // Get temp and humidity together with timeout (single sensor read)
+    // Get all BME680 data together with timeout (single sensor read)
     unsigned long startTime = millis();
     float temp = -1;
     float hum = -1;
+    float pres = -1;
+    float gas = -1;
 
     while (millis() - startTime < 100) {  // 0.1 second timeout
-      if (getTempAndHumidity(temp, hum) && temp > 1) break;  // Valid reading obtained
+      if (getAllBME680Data(temp, hum, pres, gas) && temp > 1) break;  // Valid reading obtained
       delay(1);
     }
     if (temp > 1) temperature = temp;
     if (hum > 1) humidity = hum;
+    if (pres > 0) pressure = pres;
+    if (gas > 0) gasResistance = gas;
 
     //get battery info with timeout
     startTime = millis();
@@ -347,9 +393,9 @@ void FED4::printMemoryStatus() {
  */
 bool FED4::reinitializeLightSensor() {
     // First, try to reset the I2C bus
-    I2C_2.end();
+    Wire.end();
     delay(1);  // Give bus time to reset (reduced from 50ms)
-    I2C_2.begin(SDA_2, SCL_2);
+    Wire.begin(SDA, SCL);
     delay(1);  // Give bus time to stabilize (reduced from 50ms)
     
     // Try to initialize the sensor
