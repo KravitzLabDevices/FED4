@@ -239,7 +239,7 @@ bool FED4::begin(const char *programName)
     delay(10);
 
     // check battery and environmental sensors
-    //startupPollSensors();
+    startupPollSensors();
     
     // Restore I2C_2 to 400kHz for motion sensor (if it will be used later)
     I2C_2.setClock(400000);
