@@ -204,7 +204,7 @@ bool FED4::createLogFile()
     // Write CSV headers
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,FR,");
     dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,DispenseError,MotorTurns,Motion,");
-    dataFile.println("Temperature,Humidity,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
+    dataFile.println("Temperature,Humidity,Pressure,GasResistance,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
     dataFile.flush();  // Force write to SD card
     
@@ -427,8 +427,8 @@ bool FED4::logData(const String &newEvent)
         dataFile.printf("%.1f,", motionPercentage);
 
         // Write environmental data
-        dataFile.printf("%.1f,%.1f,%.3f,%.3f,",
-                        temperature, humidity, lux, white);
+        dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
+                        temperature, humidity, pressure, gasResistance, lux, white);
 
         // Write system stats
         dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
@@ -440,7 +440,8 @@ bool FED4::logData(const String &newEvent)
                         cellPercent);
     } else {
         // Fill empty cells for all data fields when Event is not "Status"
-        dataFile.print(",,,,,,,,,,,,,");
+        // Added 2 more commas for pressure and gas resistance
+        dataFile.print(",,,,,,,,,,,,,,,");
         dataFile.println();
     }
 

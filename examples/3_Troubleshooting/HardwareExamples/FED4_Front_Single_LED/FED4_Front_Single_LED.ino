@@ -2,7 +2,7 @@
 #include <Adafruit_MCP23X17.h>
 Adafruit_MCP23X17 mcp;
 
-#define PIN 35
+#define PIN 36
 #define btn1 14
 #define btn2 39
 #define btn3 40

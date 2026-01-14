@@ -1,17 +1,15 @@
 #include "Adafruit_VEML7700.h"
 #include <Wire.h>
-#define SDA_2 20
-#define SCL_2 19
+#define SDA 8
+#define SCL 9
 TwoWire I2C_2 = TwoWire(1);
 Adafruit_VEML7700 veml = Adafruit_VEML7700();
 
 void setup() {
   Serial.begin(115200);
-  pinMode(47, OUTPUT);
-	digitalWrite(47, HIGH);
   Serial.println("Adafruit VEML7700 Test");
   Wire.begin(); 
-	I2C_2.begin(SDA_2, SCL_2);
+	I2C_2.begin(SDA, SCL);
   if (!veml.begin(&I2C_2)) {
     Serial.println("Sensor not found");
     while (1);

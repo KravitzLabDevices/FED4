@@ -12,8 +12,7 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 void setup()
 {
 	Serial.begin(115200);
-	while (!Serial)
-		; // Wait for Serial to be ready
+	while (!Serial); // Wait for Serial to be ready
 	pinMode(47, OUTPUT);
 	digitalWrite(47, HIGH);
 
@@ -94,5 +93,4 @@ void loop()
 	Serial.println(" C");
 
 	Serial.println();
-	delay(3000);
 }
