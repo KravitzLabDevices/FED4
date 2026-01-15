@@ -166,9 +166,12 @@ public:
     void timeout(uint16_t min, uint16_t max);
 
     // Haptic motor vibration stimuli
-    void hapticBuzz(uint8_t duration = 200);
-    void hapticDoubleBuzz(uint8_t duration = 200);
-    void hapticTripleBuzz(uint8_t duration = 200);
+    void hapticBuzz(uint8_t duration = 100);
+    void hapticDoubleBuzz(uint8_t duration = 25);
+    void hapticTripleBuzz(uint8_t duration = 10);
+    void hapticSineWave(uint16_t duration_ms = 500, uint8_t frequency_hz = 20);
+    void hapticRamp(uint16_t duration_ms = 500, bool rampUp = true);
+    void hapticThrob(uint16_t duration_ms = 800, uint8_t pulses = 1);
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
     bool initializeTouch();

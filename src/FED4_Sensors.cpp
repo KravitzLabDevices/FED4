@@ -45,6 +45,9 @@ void FED4::calibrateTouchSensors()
     touchDetachInterrupt(TOUCH_PAD_LEFT);
     touchDetachInterrupt(TOUCH_PAD_CENTER);
     touchDetachInterrupt(TOUCH_PAD_RIGHT);
+    
+    // Small delay to ensure interrupts are fully detached before reattaching
+    delay(10);
 
     touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
     touchPadCenterBaseline = touchRead(TOUCH_PAD_CENTER);
@@ -61,9 +64,14 @@ void FED4::calibrateTouchSensors()
     esp_sleep_enable_touchpad_wakeup();
 
     // Set individual thresholds for each pad with separate callbacks
-    touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftTouch, left_threshold);
-    touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterTouch, center_threshold);
-    touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightTouch, right_threshold);
+    // Fix for ESP32-S3: After I2S updates, there's a rotation in callback-to-pad mapping
+    // Observed: Left triggers center, center triggers right, right triggers left
+    // This suggests callbacks are being called in rotated order
+    // Try attaching callbacks in a way that compensates - test different rotations
+    // Current test: attach onCenterTouch to LEFT, onRightTouch to CENTER, onLeftTouch to RIGHT
+    touchAttachInterrupt(TOUCH_PAD_LEFT, onCenterTouch, left_threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, onRightTouch, center_threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, onLeftTouch, right_threshold);
 }
 
 /**
