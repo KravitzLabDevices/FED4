@@ -168,8 +168,8 @@ public:
     // Haptic motor vibration stimuli
     void hapticBuzz(uint8_t duration = 100);
     void hapticDoubleBuzz(uint8_t duration = 25);
-    void hapticTripleBuzz(uint8_t duration = 10);
-    void hapticRumble(uint16_t duration_ms = 100);
+    void hapticTripleBuzz(uint8_t duration = 5);
+    void hapticRumble(uint16_t duration_ms = 300);
 
     // Touch sensor management (defined in FED4_Sensors.cpp)
     bool initializeTouch();

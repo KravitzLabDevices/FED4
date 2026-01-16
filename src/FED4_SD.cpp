@@ -423,8 +423,12 @@ bool FED4::logData(const String &newEvent)
 
     // Write counters and status
     if (event == "Status" || event == "Startup" || event == "Activity") {
-        // Write Activity% (motionPercentage) with 1 decimal place
-        dataFile.printf("%.1f,", motionPercentage);
+        // Write Activity% (motionPercentage) with 1 decimal place, or "DISABLED" if motion sensor is disabled
+        if (!useMotionSensor || isnan(motionPercentage)) {
+            dataFile.print("Disabled,");
+        } else {
+            dataFile.printf("%.1f,", motionPercentage);
+        }
 
         // Write environmental data
         dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
