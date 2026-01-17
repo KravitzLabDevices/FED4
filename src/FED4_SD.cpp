@@ -113,26 +113,70 @@ bool FED4::createLogFile()
     }
     snprintf(idStr, sizeof(idStr), "%04d", mouseIdValue);
     char baseFilename[50];
-    int fileNumber = 0;
+    int fileNumber = -1; // Use -1 to indicate "not found yet"
+    int incompleteFileNumber = -1; // Track any incomplete file we find
+    
+    // Helper to display filename - we'll call this as soon as we know the file number
+    // This shows the filename during file creation, making it visible longer
 
     // Just change bit order for SD operations before file operations
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW);
 
-    do
-    {
+    // First, scan backwards from 99 to find the highest existing file number
+    // This is much faster when there are many files - we find the end quickly
+    int highestExisting = -1;
+    for (int i = 99; i >= 0; i--) {
         snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
-                 idStr, now.year(), now.month(), now.day(), fileNumber);
+                 idStr, now.year(), now.month(), now.day(), i);
+        
+        if (SD.exists(baseFilename)) {
+            highestExisting = i;
+            break; // Found the highest existing file
+        }
+    }
+
+    // Now search forward from highestExisting+1 (or 0 if none found) for a free slot
+    // Also check files for incomplete ones we can reuse
+    int searchStart = (highestExisting >= 0) ? highestExisting + 1 : 0;
+    int searchEnd = 100;
+    
+    // Check for incomplete files while searching
+    for (int i = searchStart; i < searchEnd; i++) {
+        snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
+                 idStr, now.year(), now.month(), now.day(), i);
         
         // Check if file exists
         if (!SD.exists(baseFilename)) {
-            break;
+            fileNumber = i; // Found a free slot
+            // Display filename immediately so it shows during file creation
+            char displayBuffer[15];
+            int yearLast2 = now.year() % 100;
+            snprintf(displayBuffer, sizeof(displayBuffer), "%02d%02d%02d_%02d.csv",
+                     now.month(), now.day(), yearLast2, fileNumber);
+            displayInitStatus(displayBuffer);
+            break; // Prefer free slot, stop searching
         }
         
-        // File exists, count the lines
+        // File exists, check if it's small enough to be incomplete
         File dataFile = SD.open(baseFilename, FILE_READ);
         if (!dataFile) {
-            fileNumber++;
+            continue;
+        }
+        
+        // Get file size first - much faster than reading entire file
+        size_t fileSize = dataFile.size();
+        dataFile.close();
+        
+        // If file is larger than ~1000 bytes, it definitely has more than 5 lines, skip it
+        // (CSV header + 5 data lines would be ~400-600 bytes typically)
+        if (fileSize > 1000) {
+            continue;
+        }
+        
+        // File is small, check line count to see if it's incomplete
+        dataFile = SD.open(baseFilename, FILE_READ);
+        if (!dataFile) {
             continue;
         }
         
@@ -145,26 +189,56 @@ bool FED4::createLogFile()
         dataFile.close();
                 
         if (lineCount <= 5) {
-            // File has 5 or fewer lines, delete and reuse this filename
-            if (SD.remove(baseFilename)) {
-                Serial.print("Removed incomplete file: ");
-                Serial.println(baseFilename);
-                // Verify it's actually gone
-                if (!SD.exists(baseFilename)) {
-                    break;
-                }
-                Serial.println("Warning: File still exists after remove");
-            } else {
-                Serial.print("Failed to remove file: ");
-                Serial.println(baseFilename);
+            // Found an incomplete file - remember it but keep searching for a free slot
+            if (incompleteFileNumber < 0) {
+                incompleteFileNumber = i;
             }
-            // If removal failed, try next file number
-            fileNumber++;
-            continue;
         }
+    }
+    
+    // Use incomplete file if we didn't find a free slot
+    if (fileNumber < 0 && incompleteFileNumber >= 0) {
+        fileNumber = incompleteFileNumber;
+        snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
+                 idStr, now.year(), now.month(), now.day(), fileNumber);
         
-        fileNumber++;
-    } while (fileNumber < 100);
+        // Display filename immediately so it shows during file operations
+        char displayBuffer[15];
+        int yearLast2 = now.year() % 100;
+        snprintf(displayBuffer, sizeof(displayBuffer), "%02d%02d%02d_%02d.csv",
+                 now.month(), now.day(), yearLast2, fileNumber);
+        displayInitStatus(displayBuffer);
+        
+        // Delete the incomplete file
+        if (SD.remove(baseFilename)) {
+            Serial.print("Removed incomplete file: ");
+            Serial.println(baseFilename);
+            // Verify it's actually gone
+            if (!SD.exists(baseFilename)) {
+                // File removed successfully, will create new one below
+            } else {
+                Serial.println("Warning: File still exists after remove");
+                // Still try to use it
+            }
+        } else {
+            Serial.print("Failed to remove incomplete file: ");
+            Serial.println(baseFilename);
+            // Still try to use it
+        }
+    }
+    
+    // Fallback: if no file found and no incomplete file, start from 0
+    if (fileNumber < 0) {
+        fileNumber = 0;
+        snprintf(baseFilename, sizeof(baseFilename), "/FED4_%s_%04d%02d%02d_%02d.CSV",
+                 idStr, now.year(), now.month(), now.day(), fileNumber);
+        // Display filename for fallback case too
+        char displayBuffer[15];
+        int yearLast2 = now.year() % 100;
+        snprintf(displayBuffer, sizeof(displayBuffer), "%02d%02d%02d_%02d.csv",
+                 now.month(), now.day(), yearLast2, fileNumber);
+        displayInitStatus(displayBuffer);
+    }
 
     digitalWrite(SD_CS, HIGH); // Deselect after file checks
 
@@ -172,18 +246,8 @@ bool FED4::createLogFile()
     strncpy(filename, baseFilename, sizeof(filename) - 1);
     filename[sizeof(filename) - 1] = '\0';
 
-    // Display the generated filename (skip leading "/" if present)
-    const char* displayName = (filename[0] == '/') ? filename + 1 : filename;
-    char displayBuffer[35]; // Buffer for truncated filename if needed
-    if (strlen(displayName) > 30) {
-        // Truncate long filenames for display
-        strncpy(displayBuffer, displayName, 27);
-        displayBuffer[27] = '\0';
-        strcat(displayBuffer, "...");
-        displayInitStatus(displayBuffer);
-    } else {
-        displayInitStatus(displayName);
-    }
+    // Filename is already displayed above (during file search), so it shows longer
+    // Only print to serial for debugging
     Serial.print("Generated filename: ");
     Serial.println(filename);
 
@@ -262,7 +326,7 @@ bool FED4::createLogFile()
     }
     
     // Give SD card time to complete write operations
-    delay(100);
+    delay(10);
 
     Serial.print("New file created: ");
     Serial.println(filename);

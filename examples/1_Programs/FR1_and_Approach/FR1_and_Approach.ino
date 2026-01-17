@@ -26,15 +26,15 @@ void loop() {
   fed4.run();  // run this once per loop
 
   if (fed4.leftTouch) {  // if left poke is touched
-    fed4.hapticTripleBuzz();
     fed4.lowBeep();      // 500hz 200ms beep
+    fed4.hapticTripleBuzz();
     fed4.leftLight("blue");
     fed4.centerLight("red");  // light LEDs around center poke red
     fed4.logData("Left");
 
     // Check proximity sensor, log "Approach" if <20mm, "No_approach" otherwise
     unsigned long startTime = millis();
-    int approachTime = 2; //how many seconds does the mouse have to approach?
+    int approachTime = 2; //how many seconds does the mouse have to approach the pellet?
     while (millis() < (startTime + (approachTime * 1000))) {
       int proximity = fed4.prox();
       if (proximity > 0 && proximity < 20) {
@@ -50,15 +50,15 @@ void loop() {
   }
 
   if (fed4.centerTouch) {  // if center poke is touched
+    fed4.highBeep();          // audio 
     fed4.hapticRumble();
-    fed4.highBeep();          // audio click stimulus
     fed4.centerLight("blue");
     fed4.logData("Center");
   }
 
   if (fed4.rightTouch) {  // if right poke is touched
-    //fed4.hapticBuzz();
     fed4.click();         // audio click stimulus
+    fed4.hapticBuzz();
     fed4.rightLight("blue");
     fed4.logData("Right");
   }

@@ -32,7 +32,7 @@ void FED4::updateDisplay() {
     displayMouseId();
 
     // draw line to split on screen text 
-    drawLine(0,59,168,59, DISPLAY_BLACK);  
+    //drawLine(0,59,168,59, DISPLAY_BLACK);  
     drawLine(0,60,168,60, DISPLAY_BLACK);  
 
     // draw screen elements
@@ -161,12 +161,12 @@ void FED4::displayMouseId() {
   
   if (!sdCardAvailable) {
     // Show SD card error instead of MouseID
-    setCursor(6, 53);
-    fillRect(6, 40, 120, 16, DISPLAY_WHITE); // Clear area for mouse ID and label
+    setCursor(6, 54);
+    fillRect(6, 41, 120, 16, DISPLAY_WHITE); // Clear area for mouse ID and label
     print("SD Card error!");
   } else {
     // Show normal MouseID
-    setCursor(6, 53);
+    setCursor(6, 54);
     print("MouseID: ");
     char idStr[6];  
     int mouseIdNum = mouseId.toInt();
@@ -176,7 +176,7 @@ void FED4::displayMouseId() {
     } else {
       snprintf(idStr, sizeof(idStr), "%04d", mouseIdNum % 10000);
     }
-    fillRect(82, 40, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
+    fillRect(82, 41, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
     print(idStr);
   }
 }
@@ -619,9 +619,6 @@ void FED4::displayInitStatus(const char* message) {
   setTextColor(DISPLAY_BLACK);
   
   // Clear area for status message (below FED4 logo, around y=100-130)
-  // This line clears a rectangulanlar area on the display by filling it with white color.
-  // The rectangle starts at (x=0, y=125), has a width of 144 pixels, and a height of 80 pixels.
-  // This ensures that any old initialization status messages are removed before drawing a new one.
   fillRect(0, 125, 144, 100, DISPLAY_WHITE);
   
   // Display the initialization message

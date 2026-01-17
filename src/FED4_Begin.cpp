@@ -301,7 +301,6 @@ bool FED4::begin(const char *programName)
         // Try to create log file and check for filename creation errors
         Serial.println();
         Serial.println("Creating log file");
-        displayInitStatus("Creating log file");
         bool logFileCreated = createLogFile();
 
         if (!logFileCreated)
