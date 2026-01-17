@@ -172,6 +172,21 @@ bool FED4::createLogFile()
     strncpy(filename, baseFilename, sizeof(filename) - 1);
     filename[sizeof(filename) - 1] = '\0';
 
+    // Display the generated filename (skip leading "/" if present)
+    const char* displayName = (filename[0] == '/') ? filename + 1 : filename;
+    char displayBuffer[35]; // Buffer for truncated filename if needed
+    if (strlen(displayName) > 30) {
+        // Truncate long filenames for display
+        strncpy(displayBuffer, displayName, 27);
+        displayBuffer[27] = '\0';
+        strcat(displayBuffer, "...");
+        displayInitStatus(displayBuffer);
+    } else {
+        displayInitStatus(displayName);
+    }
+    Serial.print("Generated filename: ");
+    Serial.println(filename);
+
     // Just change bit order for SD operations
     SPI.setBitOrder(MSBFIRST);
     digitalWrite(SD_CS, LOW);

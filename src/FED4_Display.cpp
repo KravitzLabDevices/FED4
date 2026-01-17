@@ -552,7 +552,9 @@ void FED4::startupAnimation(){
   int textY = 60;        // Vertical height of the text
 
   while (textX > centerX) {
-    clearDisplay();
+    // Clear only the buffer (not hardware) to prevent flickering
+    // Avoid clearDisplay() which sends hardware commands - just clear buffer directly
+    memset(displayBuffer, 0xff, (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8);
 
     //draw FED4
     fillRect(100, 92, 32, 20, DISPLAY_BLACK);    //FED4
@@ -602,7 +604,6 @@ void FED4::startupAnimation(){
   print(text);
   refresh();
   setTextSize(1);
-  delay(1500); // Pause to keep "FED4" displayed for 1.5s
 }
 
 void FED4::displayAudio() {

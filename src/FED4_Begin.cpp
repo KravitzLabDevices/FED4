@@ -82,13 +82,14 @@ bool FED4::begin(const char *programName)
         Serial.println("I2C_2 Error - check I2C Address");
         return false;
     }
-    I2C_2.setClock(400000);  // Set I2C_2 to 400kHz (fast mode) for motion sensor
+    // Both I2C buses run at 100kHz (ESP32 default) throughout initialization and operation
+    // This provides reliable operation for all sensors (BME680, battery monitor, ToF, light, motion)
     
     // Allow I2C buses to stabilize before accessing devices
-    delay(10);
+    delay(2);
 
     // Initialize MCP expander
-    displayInitStatus("MCP23017");
+    displayInitStatus("GPIO expander");
     statuses["MCP23017"].initialized = mcp.begin_I2C();
     if (!statuses["MCP23017"].initialized)
     {
@@ -104,7 +105,7 @@ bool FED4::begin(const char *programName)
     int maxRetries = 3;
     int retryCount = 0;
     Serial.println("Initializing battery monitor");
-    Serial.println("Note: it is safe to ignore the three I2C warnings below");
+    //Serial.println("Note: it is safe to ignore the three I2C warnings below");
     while (!maxlipo.begin() && retryCount < maxRetries)
     {
         retryCount++;
@@ -120,25 +121,21 @@ bool FED4::begin(const char *programName)
     
 
     Serial.println("Initializing LDOs");
-    displayInitStatus("LDOs");
+    displayInitStatus("Power management");
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
 
     Serial.println("Initializing Front NeoPixels");
-    displayInitStatus("NeoPixel");
+    displayInitStatus("NeoPixels");
     // Initialize LEDs
     statuses["NeoPixel"].initialized = initializePixel();
     redPix(1); // very dim red pix to indicate when FED4 is awake
 
     // Initialize RTC
     Serial.println("Initializing RTC");
-    displayInitStatus("RTC");
     statuses["RTC"].initialized = initializeRTC();
 
     // Initialize temperature/humidity/pressure/gas sensor BME680
-    // Temporarily reduce primary I2C speed for sensor initialization (some sensors are sensitive to high speeds)
-    Wire.setClock(100000);  // Set to 100kHz for sensor initialization
-    delay(5);  // Brief delay to allow clock change to take effect
     displayInitStatus("Temp/Humidity");
     Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
     statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
@@ -146,10 +143,6 @@ bool FED4::begin(const char *programName)
     {
         Serial.println("BME680 sensor initialization failed - check wiring on pins 8 & 9!");
     }
-    
-    // Restore primary I2C to 400kHz
-    Wire.setClock(400000);
-    delay(5);  // Brief delay to allow clock change to take effect
 
     // Initialize light sensor
     Serial.println("Initializing light sensor");
@@ -159,14 +152,9 @@ bool FED4::begin(const char *programName)
     {
         Serial.println("Light sensor initialization failed");
     }
-    
-    // Restore I2C_2 to 400kHz for motion sensor (if it will be initialized later)
-    I2C_2.setClock(400000);
-    delay(5);  // Brief delay to allow clock change to take effect
 
     // startup front LEDs
     Serial.println("Initializing Side LED");
-    displayInitStatus("LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
     stripRainbow(3, 1);
 
@@ -193,7 +181,6 @@ bool FED4::begin(const char *programName)
 
     // Initialize Buttons
     Serial.println("Initializing Buttons");
-    displayInitStatus("Buttons");
     statuses["Buttons"].initialized = initializeButtons();
     if (!statuses["Buttons"].initialized)
     {
@@ -201,13 +188,13 @@ bool FED4::begin(const char *programName)
     }
 
     Serial.println("Initializing Motor");
-    displayInitStatus("Motor");
+    displayInitStatus("Motor drive");
     statuses["Motor"].initialized = initializeMotor();
 
     displayInitStatus("Accelerometer");
     statuses["Accelerometer"].initialized = initializeAccel();
 
-    displayInitStatus("Magnet");
+    displayInitStatus("Magnet sensor");
     statuses["Magnet"].initialized = initializeMagnet();
     if (!statuses["Magnet"].initialized)
     {
@@ -217,7 +204,7 @@ bool FED4::begin(const char *programName)
     stripRainbow(3, 1);
 
     // Initialize ToF sensor
-    displayInitStatus("ToF Sensor");
+    displayInitStatus("Proximity Sensor");
     statuses["ToF Sensor"].initialized = initializeToF();
     if (!statuses["ToF Sensor"].initialized)
     {
@@ -226,7 +213,7 @@ bool FED4::begin(const char *programName)
 
     // Initialize Motion sensor (if enabled)
     if (useMotionSensor) {
-        displayInitStatus("Motion");
+        displayInitStatus("Motion sensor");
         statuses["Motion"].initialized = initializeMotion();
         if (!statuses["Motion"].initialized)
         {
@@ -246,13 +233,7 @@ bool FED4::begin(const char *programName)
     }
 
 
-    // Prepare I2C buses for sensor polling
-    // Reduce I2C speeds for reliable sensor reads (some sensors are sensitive to high speeds)
-    Wire.setClock(100000);  // Set primary I2C to 100kHz for BME680 and battery monitor reads
-    I2C_2.setClock(100000);  // Set secondary I2C to 100kHz for light sensor reads
-    delay(10);  // Allow clock changes to take effect
-    
-    // Clear I2C buses to reset any stuck states
+    // Clear I2C buses to reset any stuck states before sensor polling
     Wire.beginTransmission(0x00);
     Wire.endTransmission();
     I2C_2.beginTransmission(0x00);
@@ -261,10 +242,6 @@ bool FED4::begin(const char *programName)
 
     // check battery and environmental sensors
     startupPollSensors();
-    
-    // Restore I2C_2 to 400kHz for motion sensor (if it will be used later)
-    I2C_2.setClock(400000);
-    delay(5);
 
     // Low battery check and warning
     float voltage = getBatteryVoltage();
@@ -277,7 +254,7 @@ bool FED4::begin(const char *programName)
 
     // Initialize Speaker
     Serial.println("Initializing Speaker");
-    displayInitStatus("Speaker");
+    displayInitStatus("Audio output");
     statuses["Speaker"].initialized = initializeSpeaker();
     playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going?
 
@@ -324,6 +301,7 @@ bool FED4::begin(const char *programName)
         // Try to create log file and check for filename creation errors
         Serial.println();
         Serial.println("Creating log file");
+        displayInitStatus("Creating log file");
         bool logFileCreated = createLogFile();
 
         if (!logFileCreated)
