@@ -241,7 +241,7 @@ void FED4::displayBattery(){
   
   fillRect (99, 3, 2, 6, DISPLAY_WHITE);   //terminal
 
-  fillRect (82, 2, (int)((cellPercent)/7), 8, DISPLAY_WHITE);  //fill
+  fillRect (82, 2, (int)((cellVoltage)/7), 8, DISPLAY_WHITE);  //fill
 
   //battery text
   setFont(&Org_01);
@@ -249,8 +249,8 @@ void FED4::displayBattery(){
   setTextColor(DISPLAY_WHITE);
   
   setCursor(105, 9);
-  print((int)cellPercent);
-  print("%");
+  print(cellVoltage, 1);
+  print("V");
 }
 
 void FED4::displaySDCardStatus() {

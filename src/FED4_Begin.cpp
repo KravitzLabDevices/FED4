@@ -18,7 +18,7 @@ bool FED4::begin(const char *programName)
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
-    delay(100); // Stabilization time
+    delay(10); // Stabilization time
     Serial.println();
 
     // Structure to track component status
@@ -74,7 +74,7 @@ bool FED4::begin(const char *programName)
     I2C_2.setClock(400000);  // Set I2C_2 to 400kHz (fast mode) for motion sensor
     
     // Allow I2C buses to stabilize before accessing devices
-    delay(50);
+    delay(10);
 
     // Initialize MCP expander
     statuses["MCP23017"].initialized = mcp.begin_I2C();
@@ -84,7 +84,7 @@ bool FED4::begin(const char *programName)
     }
     
     // Allow MCP to stabilize before accessing other I2C devices
-    delay(50);
+    delay(10);
 
     // Initialize battery monitor immediately after MCP (library requirement)
     // Retry logic like the working test script
@@ -96,7 +96,7 @@ bool FED4::begin(const char *programName)
     {
         retryCount++;
         Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
-        delay(100); // Wait before retry
+        delay(10); // Wait before retry
     }
 
     statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
@@ -122,7 +122,7 @@ bool FED4::begin(const char *programName)
     // Initialize temperature/humidity/pressure/gas sensor BME680
     // Temporarily reduce primary I2C speed for sensor initialization (some sensors are sensitive to high speeds)
     Wire.setClock(100000);  // Set to 100kHz for sensor initialization
-    delay(10);  // Brief delay to allow clock change to take effect
+    delay(5);  // Brief delay to allow clock change to take effect
     Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
     statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
     if (!statuses["Temp/Humidity"].initialized)
@@ -132,7 +132,7 @@ bool FED4::begin(const char *programName)
     
     // Restore primary I2C to 400kHz
     Wire.setClock(400000);
-    delay(10);  // Brief delay to allow clock change to take effect
+    delay(5);  // Brief delay to allow clock change to take effect
 
     // Initialize light sensor
     Serial.println("Initializing light sensor");
@@ -144,7 +144,7 @@ bool FED4::begin(const char *programName)
     
     // Restore I2C_2 to 400kHz for motion sensor (if it will be initialized later)
     I2C_2.setClock(400000);
-    delay(10);  // Brief delay to allow clock change to take effect
+    delay(5);  // Brief delay to allow clock change to take effect
 
     // startup front LEDs
     Serial.println("Initializing LED Strip");
@@ -229,28 +229,28 @@ bool FED4::begin(const char *programName)
     // Reduce I2C speeds for reliable sensor reads (some sensors are sensitive to high speeds)
     Wire.setClock(100000);  // Set primary I2C to 100kHz for BME680 and battery monitor reads
     I2C_2.setClock(100000);  // Set secondary I2C to 100kHz for light sensor reads
-    delay(20);  // Allow clock changes to take effect
+    delay(10);  // Allow clock changes to take effect
     
     // Clear I2C buses to reset any stuck states
     Wire.beginTransmission(0x00);
     Wire.endTransmission();
     I2C_2.beginTransmission(0x00);
     I2C_2.endTransmission();
-    delay(10);
+    delay(5);
 
     // check battery and environmental sensors
     startupPollSensors();
     
     // Restore I2C_2 to 400kHz for motion sensor (if it will be used later)
     I2C_2.setClock(400000);
-    delay(10);
+    delay(5);
 
     // Low battery check and warning
     float voltage = getBatteryVoltage();
     if (voltage > 0 && voltage < 3.55)
     {
         displayLowBatteryWarning();
-        delay(100);
+        delay(50);
         startSleep(); // Enter light sleep
     }
 
@@ -380,16 +380,14 @@ bool FED4::begin(const char *programName)
     
     // temporarily unmute audio even if it is silenced
     digitalWrite(AUDIO_SD, HIGH);
+    click();
     delay (100);
-    playTone(1000, 8, 0.5);
 
-    digitalWrite(AUDIO_SD, HIGH);
-    delay(100);
-    playTone(1000, 8, 0.5);
+    click();
+    delay (100);
 
-    digitalWrite(AUDIO_SD, HIGH);
-    delay(100);
-    playTone(1000, 8, 0.5);
+    click();
+    delay (100);
 
     clearDisplay();
 
@@ -400,13 +398,12 @@ bool FED4::begin(const char *programName)
     if (mouseId == "99" || mouseId == "0099") {
         Serial.println("MouseID 99 detected - launching Pong game!");
         greenPix(5);
-        delay(500);
+        delay(200);
         
-        // Launch Pong game (runs indefinitely)
+        // Launch Pong game 
         while (true) {
             pong();
         }
     }
-    
     return true;
 }

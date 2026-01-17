@@ -16,7 +16,9 @@ bool FED4::initializeSpeaker()
     
     // Initialize I2S with new API
     // Parameters: mode, sample_rate, bits_per_sample, channel_format
-    if (!i2s.begin(I2S_MODE_STD, 11025, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
+    // Using MONO mode with 48000 Hz - good balance for both tones and clicks
+    // Higher rates (96000 Hz) work for clicks but cause crunchy longer tones
+    if (!i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
         Serial.println("Failed to initialize I2S");
         return false;
     }
@@ -97,21 +99,35 @@ void FED4::unsilence()
  */
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
-    enableAmp(true);
-    delay(1);
+    // Bypass audioSilenced check for immediate playback (needed for click feedback)
+    digitalWrite(AUDIO_SD, HIGH);
+    delay(1);  // Stabilize amp
     
     // Generate and play tone
-    const uint32_t sampleRate = 11025;
-    const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
+    const uint32_t sampleRate = 48000;
+    const uint32_t originalSampleCount = (sampleRate * duration_ms) / 1000;
     const float twoPiF = 2.0 * M_PI * frequency;
+
+    // Ensure minimum 256 samples (one full buffer) for reliable I2S transmission
+    // I2S write is asynchronous - we need at least one full buffer queued
+    // to ensure data is available when transmission starts
+    const uint32_t sampleCount = (originalSampleCount < 256) ? 256 : originalSampleCount;
 
     int16_t sampleBuffer[256];  
     size_t samplesInBuffer = 0;
 
     for (uint32_t i = 0; i < sampleCount; i++)
     {
-        float sample = amplitude * sin((twoPiF * i) / sampleRate);
-        sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
+        // Generate tone sample if within original duration, otherwise pad with silence
+        if (i < originalSampleCount)
+        {
+            float sample = amplitude * sin((twoPiF * i) / sampleRate);
+            sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
+        }
+        else
+        {
+            sampleBuffer[samplesInBuffer++] = 0;  // Silence padding for short sounds
+        }
 
         if (samplesInBuffer >= 256)
         {
@@ -120,13 +136,18 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
         }
     }
 
-    // Write remaining samples
+    // Write remaining samples - ensure all data is written before disabling amp
     if (samplesInBuffer > 0)
     {
         i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
     }
     
-    enableAmp(false);
+    // Keep amp enabled long enough for transmission to start
+    // At 48000 Hz: 256 samples = ~5.3ms transmission time
+    // Small delay ensures I2S DMA has started transmitting before disabling
+    delayMicroseconds(500);
+    
+    digitalWrite(AUDIO_SD, LOW);  // Disable amp
 }
 
 /**
@@ -232,7 +253,7 @@ void FED4::menuJingle(){
  * Plays a single low-pitched beep at 300 Hz
  */
 void FED4::lowBeep(){
-    playTone(300, 200, 0.2);  // Play 300 Hz for 200ms at 40% amplitude
+    playTone(500, 200, 0.4);  // Play 500 Hz for 200ms at 40% amplitude
 
 }
 
@@ -241,7 +262,6 @@ void FED4::lowBeep(){
  */
 void FED4::highBeep(){
     playTone(1000, 200, 0.4); // Play 1000 Hz for 200ms at 40% amplitude
-
 }
 
 /**
@@ -255,9 +275,12 @@ void FED4::higherBeep(){
 /**
  * Plays a very short click sound
  * Used for immediate feedback on button presses or quick events
+ * Uses playTone() with minimum duration needed for reliability at 48000 Hz
  */
 void FED4::click(){
-    playTone(1000, 8, 0.5);   
+    // Use playTone() which handles all the buffer management properly
+    // 15ms is short enough to sound like a click at 48000 Hz
+    playTone(500, 30, 1);
 }
 
 /**
