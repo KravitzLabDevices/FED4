@@ -18,7 +18,7 @@ bool FED4::begin(const char *programName)
     // Initialize LDO2 to provide power to I2C peripherals
     pinMode(LDO2_ENABLE, OUTPUT);
     digitalWrite(LDO2_ENABLE, HIGH);
-    delay(10); // Stabilization time
+    delay(1); // Stabilization time
     Serial.println();
 
     // Structure to track component status
@@ -57,7 +57,17 @@ bool FED4::begin(const char *programName)
 #endif
     };
 
+    // Initialize SPI systems
+    Serial.println("Initializing SPI");
+    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+    SPI.setFrequency(1000000); // Set SPI clock to 1MHz
+    
+    statuses["Display"].initialized = initializeDisplay();
+    startupAnimation();
+
+    
     // Initialize I2C buses
+    displayInitStatus("I2C Primary");
     statuses["I2C Primary"].initialized = Wire.begin(SDA, SCL);
     if (!statuses["I2C Primary"].initialized)
     {
@@ -65,6 +75,7 @@ bool FED4::begin(const char *programName)
         return false;
     }
 
+    displayInitStatus("I2C Secondary");
     statuses["I2C Secondary"].initialized = I2C_2.begin(SDA_2, SCL_2);
     if (!statuses["I2C Secondary"].initialized)
     {
@@ -77,6 +88,7 @@ bool FED4::begin(const char *programName)
     delay(10);
 
     // Initialize MCP expander
+    displayInitStatus("MCP23017");
     statuses["MCP23017"].initialized = mcp.begin_I2C();
     if (!statuses["MCP23017"].initialized)
     {
@@ -84,10 +96,11 @@ bool FED4::begin(const char *programName)
     }
     
     // Allow MCP to stabilize before accessing other I2C devices
-    delay(10);
+    delay(1);
 
     // Initialize battery monitor immediately after MCP (library requirement)
     // Retry logic like the working test script
+    displayInitStatus("Battery Monitor");
     int maxRetries = 3;
     int retryCount = 0;
     Serial.println("Initializing battery monitor");
@@ -107,22 +120,26 @@ bool FED4::begin(const char *programName)
     
 
     Serial.println("Initializing LDOs");
+    displayInitStatus("LDOs");
     // Initialize LDOs first
     statuses["LDOs"].initialized = initializeLDOs();
 
-    Serial.println("Initializing NeoPixel");
+    Serial.println("Initializing Front NeoPixels");
+    displayInitStatus("NeoPixel");
     // Initialize LEDs
     statuses["NeoPixel"].initialized = initializePixel();
     redPix(1); // very dim red pix to indicate when FED4 is awake
 
     // Initialize RTC
     Serial.println("Initializing RTC");
+    displayInitStatus("RTC");
     statuses["RTC"].initialized = initializeRTC();
 
     // Initialize temperature/humidity/pressure/gas sensor BME680
     // Temporarily reduce primary I2C speed for sensor initialization (some sensors are sensitive to high speeds)
     Wire.setClock(100000);  // Set to 100kHz for sensor initialization
     delay(5);  // Brief delay to allow clock change to take effect
+    displayInitStatus("Temp/Humidity");
     Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
     statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
     if (!statuses["Temp/Humidity"].initialized)
@@ -136,6 +153,7 @@ bool FED4::begin(const char *programName)
 
     // Initialize light sensor
     Serial.println("Initializing light sensor");
+    displayInitStatus("Light Sensor");
     statuses["Light Sensor"].initialized = initializeLightSensor();
     if (!statuses["Light Sensor"].initialized)
     {
@@ -147,7 +165,8 @@ bool FED4::begin(const char *programName)
     delay(5);  // Brief delay to allow clock change to take effect
 
     // startup front LEDs
-    Serial.println("Initializing LED Strip");
+    Serial.println("Initializing Side LED");
+    displayInitStatus("LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
     stripRainbow(3, 1);
 
@@ -168,11 +187,13 @@ bool FED4::begin(const char *programName)
 
     // Initialize Touch
     Serial.println("Initializing Touch Sensors");
+    displayInitStatus("Touch Sensors");
     statuses["Touch Sensors"].initialized = initializeTouch();
     calibrateTouchSensors();
 
     // Initialize Buttons
     Serial.println("Initializing Buttons");
+    displayInitStatus("Buttons");
     statuses["Buttons"].initialized = initializeButtons();
     if (!statuses["Buttons"].initialized)
     {
@@ -180,15 +201,13 @@ bool FED4::begin(const char *programName)
     }
 
     Serial.println("Initializing Motor");
+    displayInitStatus("Motor");
     statuses["Motor"].initialized = initializeMotor();
 
-    // Initialize SPI systems
-    Serial.println("Initializing SPI");
-    SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-    SPI.setFrequency(1000000); // Set SPI clock to 1MHz
-
+    displayInitStatus("Accelerometer");
     statuses["Accelerometer"].initialized = initializeAccel();
 
+    displayInitStatus("Magnet");
     statuses["Magnet"].initialized = initializeMagnet();
     if (!statuses["Magnet"].initialized)
     {
@@ -198,6 +217,7 @@ bool FED4::begin(const char *programName)
     stripRainbow(3, 1);
 
     // Initialize ToF sensor
+    displayInitStatus("ToF Sensor");
     statuses["ToF Sensor"].initialized = initializeToF();
     if (!statuses["ToF Sensor"].initialized)
     {
@@ -206,6 +226,7 @@ bool FED4::begin(const char *programName)
 
     // Initialize Motion sensor (if enabled)
     if (useMotionSensor) {
+        displayInitStatus("Motion");
         statuses["Motion"].initialized = initializeMotion();
         if (!statuses["Motion"].initialized)
         {
@@ -217,13 +238,13 @@ bool FED4::begin(const char *programName)
     }
 
     // Initialize Drop sensor
+    displayInitStatus("Drop Sensor");
     statuses["Drop Sensor"].initialized = initializeDropSensor();
     if (!statuses["Drop Sensor"].initialized)
     {
         Serial.println("Drop sensor not detected or not working");
     }
 
-    statuses["Display"].initialized = initializeDisplay();
 
     // Prepare I2C buses for sensor polling
     // Reduce I2C speeds for reliable sensor reads (some sensors are sensitive to high speeds)
@@ -256,11 +277,13 @@ bool FED4::begin(const char *programName)
 
     // Initialize Speaker
     Serial.println("Initializing Speaker");
+    displayInitStatus("Speaker");
     statuses["Speaker"].initialized = initializeSpeaker();
     playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going?
 
     // Initialize SD
     Serial.println("Initializing SD Card");
+    displayInitStatus("SD Card");
     statuses["SD Card"].initialized = initializeSD();
 
     // Initialize Hublink if enabled
@@ -268,6 +291,7 @@ bool FED4::begin(const char *programName)
         if (useHublink)
         {
             Serial.println("Initializing Hublink");
+            displayInitStatus("Hublink");
             statuses["Hublink"].initialized = initializeHublink();
             if (!statuses["Hublink"].initialized)
             {
@@ -375,7 +399,6 @@ bool FED4::begin(const char *programName)
                   statuses.size());
     Serial.println("================================\n");
 
-    startupAnimation();
     lightsOff();
     
     // temporarily unmute audio even if it is silenced

@@ -65,7 +65,7 @@
 bool FED4::initializeAccel()
 {
     // Initialize with default I2C bus
-    Serial.println("Initializing accelerometer");
+    Serial.println("Initializing Accelerometer");
     accel = Adafruit_LIS3DH();
 
     // Then begin with the default address

@@ -174,11 +174,10 @@ void FED4::startupPollSensors(){
 
      //get battery info with timeout
      startTime = millis();
-     Serial.println("Attempting to read battery voltage and percentage...");
      while (millis() - startTime < 100) {  // 0.1 second timeout
          cellVoltage = getBatteryVoltage();
          cellPercent = getBatteryPercentage();
-         Serial.printf("Battery read attempt - Voltage: %.3fV, Percent: %.1f%%\n", cellVoltage, cellPercent);
+         Serial.printf("Battery read - Voltage: %.3fV, Percent: %.1f%%\n", cellVoltage, cellPercent);
          if (cellVoltage > 0) break;  // Valid reading obtained
          delay(10);
      }

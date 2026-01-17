@@ -2,7 +2,7 @@
 
 bool FED4::initializeMagnet()
 {
-    Serial.println("Initializing magnet sensor");
+    Serial.println("Initializing Magnet Sensor");
     if (!magnet.begin_I2C(MLX90393_I2C_ADDRESS, &I2C_2))
     {
         Serial.println("No magnet sensor found... check wiring?");

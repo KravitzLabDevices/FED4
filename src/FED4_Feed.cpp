@@ -107,6 +107,10 @@ void FED4::handlePelletSettling() {
 void FED4::handlePelletInWell() {
     pelletPresent = checkForPellet();
     updateDisplay();
+    
+    // Reset wakePad at start to clear any stale interrupt flags
+    wakePad = 0;
+    
     while (pelletPresent)
     { // while pellet is in well, monitor for pokes and retrieval time
         bluePix(); 
@@ -116,62 +120,71 @@ void FED4::handlePelletInWell() {
         if (retrievalTime > 20)
             break;
 
-        //log pokes while pellet is in well
-        // Read current touch values
-        uint16_t leftVal = touchRead(TOUCH_PAD_LEFT);
-        uint16_t centerVal = touchRead(TOUCH_PAD_CENTER);
-        uint16_t rightVal = touchRead(TOUCH_PAD_RIGHT);
-
-        // Check for significant deviations from baseline
-        float leftDev = abs((float)leftVal / touchPadLeftBaseline - 1.0);
-        float centerDev = abs((float)centerVal / touchPadCenterBaseline - 1.0);
-        float rightDev = abs((float)rightVal / touchPadRightBaseline - 1.0);
-
-        // Only log pokes if there's a significant deviation
-        if (leftDev >= TOUCH_THRESHOLD) {
-            leftCount++;
-            retrievalTime = 0.0;
-            dispenseError = false;
-            // Serial.println("LeftWithPellet");
-            logData("LeftWithPellet");
-            click();
-            updateDisplay();
-            outputPulse(1, 100);
-            //wait for touch to return to baseline
-            while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+        // wakePad mapping (compensating for interrupt rotation):
+        // Physical LEFT pad → wakePad=2 (onCenterTouch) → treat as LEFT
+        // Physical CENTER pad → wakePad=3 (onRightTouch) → treat as CENTER
+        // Physical RIGHT pad → wakePad=1 (onLeftTouch) → treat as RIGHT
+        if (wakePad == 2) {  // Left pad interrupt → Left touch
+            // Verify touch is actually above threshold (rising edge, not falling edge)
+            float leftDev = abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0);
+            if (leftDev >= TOUCH_THRESHOLD) {
+                leftCount++;
+                retrievalTime = 0.0;
+                dispenseError = false;
+                // Serial.println("LeftWithPellet");
+                logData("LeftWithPellet");
+                click();
+                updateDisplay();
+                outputPulse(1, 100);
+                // Wait for touch to return to baseline before allowing next detection
+                while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
+                    delay(10);
+                }
             }
+            wakePad = 0; // Reset after handling (whether processed or not)
         }
-        else if (centerDev >= TOUCH_THRESHOLD) {
-            centerCount++;
-            retrievalTime = 0.0;
-            dispenseError = false;
-            // Serial.println("CenterWithPellet");
-            logData("CenterWithPellet"); 
-            click();
-            updateDisplay();
-            bluePix();
-            outputPulse(2, 100);
-            //wait for touch to return to baseline
-            while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+        else if (wakePad == 3) {  // Center pad interrupt → Center touch
+            // Verify touch is actually above threshold (rising edge, not falling edge)
+            float centerDev = abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0);
+            if (centerDev >= TOUCH_THRESHOLD) {
+                centerCount++;
+                retrievalTime = 0.0;
+                dispenseError = false;
+                // Serial.println("CenterWithPellet");
+                logData("CenterWithPellet"); 
+                click();
+                updateDisplay();
+                bluePix();
+                outputPulse(2, 100);
+                // Wait for touch to return to baseline before allowing next detection
+                while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
+                    delay(10);
+                }
             }
+            wakePad = 0; // Reset after handling (whether processed or not)
         }
-        else if (rightDev >= TOUCH_THRESHOLD) {
-            rightCount++;
-            retrievalTime = 0.0;
-            dispenseError = false;
-            // Serial.println("RightWithPellet");
-            logData("RightWithPellet");
-            click();
-            updateDisplay();
-            redPix();
-            outputPulse(3, 100);
-            //wait for touch to return to baseline
-            while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                delay(10);
+        else if (wakePad == 1) {  // Right pad interrupt → Right touch
+            // Verify touch is actually above threshold (rising edge, not falling edge)
+            float rightDev = abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0);
+            if (rightDev >= TOUCH_THRESHOLD) {
+                rightCount++;
+                retrievalTime = 0.0;
+                dispenseError = false;
+                // Serial.println("RightWithPellet");
+                logData("RightWithPellet");
+                click();
+                updateDisplay();
+                redPix();
+                outputPulse(3, 100);
+                // Wait for touch to return to baseline before allowing next detection
+                while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
+                    delay(10);
+                }
             }
+            wakePad = 0; // Reset after handling (whether processed or not)
         }
+        
+        delay(10); // Small delay to prevent excessive CPU usage
     }
 }
 

@@ -202,8 +202,8 @@ void FED4::resetSpeaker()
  * Plays a two-tone beep sequence - a lower tone (500 Hz) followed by a higher tone (800 Hz)
  */
 void FED4::bopBeep(){
-    playTone(500, 300, 0.25);  // Play 500 Hz for 300ms at 25% amplitude
-    playTone(800, 100, 0.5);     // Play 800 Hz for 200ms at full amplitude
+    playTone(1000, 300, 0.25);  
+    playTone(1600, 100, 0.5);     
 }
 
 void FED4::resetJingle() { // 🎵 Power cycle jingle
@@ -278,9 +278,8 @@ void FED4::higherBeep(){
  * Uses playTone() with minimum duration needed for reliability at 48000 Hz
  */
 void FED4::click(){
-    // Use playTone() which handles all the buffer management properly
-    // 15ms is short enough to sound like a click at 48000 Hz
-    playTone(500, 30, 1);
+    // Use playTone() to make a very short tone/click
+    playTone(400, 30, 1);
 }
 
 /**

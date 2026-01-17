@@ -17,7 +17,6 @@ bool FED4::initializeMotion()
     byte error = I2C_2.endTransmission();
     
     if (error != 0) {
-        Serial.println("Motion Sensor I2C FAILED");
         return false;
     }
     

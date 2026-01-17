@@ -26,6 +26,7 @@ void loop() {
   fed4.run();  // run this once per loop
 
   if (fed4.leftTouch) {  // if left poke is touched
+    fed4.hapticTripleBuzz();
     fed4.lowBeep();      // 500hz 200ms beep
     fed4.leftLight("blue");
     fed4.centerLight("red");  // light LEDs around center poke red
@@ -49,14 +50,15 @@ void loop() {
   }
 
   if (fed4.centerTouch) {  // if center poke is touched
+    fed4.hapticRumble();
     fed4.highBeep();          // audio click stimulus
     fed4.centerLight("blue");
     fed4.logData("Center");
   }
 
   if (fed4.rightTouch) {  // if right poke is touched
+    //fed4.hapticBuzz();
     fed4.click();         // audio click stimulus
-    fed4.hapticBuzz();
     fed4.rightLight("blue");
     fed4.logData("Right");
   }
