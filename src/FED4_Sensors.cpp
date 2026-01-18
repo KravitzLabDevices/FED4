@@ -9,16 +9,17 @@ void IRAM_ATTR FED4::onTouchWakeUp()
     // Generic wake-up handler - wakePad is set by specific handlers below
 }
 
-void IRAM_ATTR onLeftTouch() {
-    FED4::wakePad = 1;
+// ISR callbacks for touch pad interrupts - names match the physical pad they're attached to
+void IRAM_ATTR onLeftPadTouch() {
+    FED4::wakePad = 1;  // LEFT pad
 }
 
-void IRAM_ATTR onCenterTouch() {
-    FED4::wakePad = 2;
+void IRAM_ATTR onCenterPadTouch() {
+    FED4::wakePad = 2;  // CENTER pad
 }
 
-void IRAM_ATTR onRightTouch() {
-    FED4::wakePad = 3;
+void IRAM_ATTR onRightPadTouch() {
+    FED4::wakePad = 3;  // RIGHT pad
 }
 
 bool FED4::initializeTouch()
@@ -63,29 +64,39 @@ void FED4::calibrateTouchSensors()
     // Enable wake-up on touch pads
     esp_sleep_enable_touchpad_wakeup();
 
-    // Set individual thresholds for each pad with separate callbacks
-    touchAttachInterrupt(TOUCH_PAD_LEFT, onCenterTouch, left_threshold);
-    touchAttachInterrupt(TOUCH_PAD_CENTER, onRightTouch, center_threshold);
-    touchAttachInterrupt(TOUCH_PAD_RIGHT, onLeftTouch, right_threshold);
+    // Attach interrupt callbacks - each callback is now correctly named for its physical pad
+    touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftPadTouch, left_threshold);
+    touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterPadTouch, center_threshold);
+    touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightPadTouch, right_threshold);
 }
 
 /**
  * Interprets which touch sensor was activated after waking from sleep
- * Compares readings from left, center, and right touch sensors to their baselines
  * Sets the appropriate touch flag (leftTouch, centerTouch, rightTouch) 
  * Increments the corresponding counter
+ * 
+ * Note: Physical pad to touch mapping is rotated:
+ * - LEFT pad (wakePad=1) → centerTouch
+ * - CENTER pad (wakePad=2) → rightTouch
+ * - RIGHT pad (wakePad=3) → leftTouch
+ * 
+ * The hardware interrupt has already verified the touch is above threshold,
+ * so we trust the wakePad value without re-checking (which could fail if
+ * the touch value has decayed by interpretation time).
  */
 void FED4::interpretTouch()
 {
-    if (wakePad == 1) {
-        leftCount++;
-        leftTouch = true; 
-    } else if (wakePad == 2) {
+    // Map wakePad values to touch flags (compensating for rotated mapping)
+    // Hardware interrupt already validated threshold, so we trust wakePad value
+    if (wakePad == 1) {  // LEFT pad → triggers centerTouch
         centerCount++;
-        centerTouch = true; 
-    } else if (wakePad == 3) {
+        centerTouch = true;
+    } else if (wakePad == 2) {  // CENTER pad → triggers rightTouch
         rightCount++;
-        rightTouch = true; 
+        rightTouch = true;
+    } else if (wakePad == 3) {  // RIGHT pad → triggers leftTouch
+        leftCount++;
+        leftTouch = true;
     }
     wakePad = 0;  // Reset the wake pad flag
 }

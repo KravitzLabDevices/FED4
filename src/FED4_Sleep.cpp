@@ -40,6 +40,11 @@ void FED4::startSleep() {
 
   // Reset all touch flags before going to sleep
   resetTouchFlags();
+  
+  // Clear wakePad to prevent stale interrupt flags from persisting across sleep cycles
+  // This is especially important for timer wake-ups where touch interrupts might fire
+  // during power transitions or wake-up sequences
+  wakePad = 0;
 
   Serial.flush();
   
@@ -67,6 +72,16 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   wakeCount++;
+  
+  // Check wake-up cause first to determine if we should preserve wakePad for touch interpretation
+  esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
+  
+  // Clear wakePad for timer/button wake-ups to prevent false triggers from stale interrupt flags
+  // For touch wake-ups, we preserve wakePad so interpretTouch() can read it
+  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    wakePad = 0;
+  }
+  
   redPix(1); //very dim red pix to indicate when FED4 is awake
 
   // Reinitialize I2C buses FIRST before any sensor operations
@@ -93,7 +108,7 @@ void FED4::wakeUp() {
   enableAmp(true);
 
   // Only check button and sensor polling if not woken up by touch
-  if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {
     checkButton1();
     checkButton2(); 
     checkButton3();
@@ -107,8 +122,8 @@ void FED4::wakeUp() {
   }
 
   // Only check touch sensors if woken up by touch
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TOUCHPAD) {
-    interpretTouch();
+  if (wakeCause == ESP_SLEEP_WAKEUP_TOUCHPAD) {
+    interpretTouch();  // interpretTouch() will clear wakePad after reading it
   }
 }
 

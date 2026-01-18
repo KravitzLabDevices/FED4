@@ -104,7 +104,7 @@ bool FED4::begin(const char *programName)
     displayInitStatus("Battery Monitor");
     int maxRetries = 3;
     int retryCount = 0;
-    Serial.println("Initializing battery monitor");
+    Serial.println("Initializing Battery Monitor");
     //Serial.println("Note: it is safe to ignore the three I2C warnings below");
     while (!maxlipo.begin() && retryCount < maxRetries)
     {
