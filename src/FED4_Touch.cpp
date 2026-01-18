@@ -50,6 +50,12 @@ void FED4::calibrateTouchSensors()
     // Small delay to ensure interrupts are fully detached before reattaching
     delay(10);
 
+    // Clear any pending wakePad flags to prevent stale interrupt triggers
+    wakePad = 0;
+
+    // Disable interrupts during calibration to prevent false triggers
+    noInterrupts();
+
     touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
     touchPadCenterBaseline = touchRead(TOUCH_PAD_CENTER);
     touchPadRightBaseline = touchRead(TOUCH_PAD_RIGHT);
@@ -68,6 +74,9 @@ void FED4::calibrateTouchSensors()
     touchAttachInterrupt(TOUCH_PAD_LEFT, onLeftPadTouch, left_threshold);
     touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterPadTouch, center_threshold);
     touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightPadTouch, right_threshold);
+
+    // Re-enable interrupts after calibration is complete
+    interrupts();
 }
 
 /**

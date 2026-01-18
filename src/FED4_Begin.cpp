@@ -145,7 +145,7 @@ bool FED4::begin(const char *programName)
     }
 
     // Initialize light sensor
-    Serial.println("Initializing light sensor");
+    Serial.println("Initializing Light Sensor");
     displayInitStatus("Light Sensor");
     statuses["Light Sensor"].initialized = initializeLightSensor();
     if (!statuses["Light Sensor"].initialized)
