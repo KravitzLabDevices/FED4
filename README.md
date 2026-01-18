@@ -1,9 +1,13 @@
-<img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4_minilogo.png?raw=true" alt="FED4 Logo" width="100"/>
+<p align="center">
+  <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4_minilogo.png?raw=true" alt="FED4 Logo" width="120"/>
+</p>
 
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](https://github.com/YourUsername/FED4)
+# FED4
+
+[![Version](https://img.shields.io/badge/Version-1.0.0-blue.svg)](https://github.com/KravitzLabDevices/FED4)
 
 <p align="center">
-  <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4.gif?raw=true?raw=true" alt="FED4 Logo" width="400"/>
+  <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4.gif?raw=true" alt="FED4 Demo" width="400"/>
 </p>
 
 ## Overview
@@ -251,7 +255,7 @@ void loop() {
 
 ### Excluding Hublink
 
-To exclude Hublink functionality and reduce code size:
+To exclude Hublink functionality if it's not being used:
 
 ```cpp
 #define FED4_EXCLUDE_HUBLINK
@@ -319,7 +323,7 @@ These meta data will be parsed in Arduino and other languages as well for post-a
 - [JSON to Graph Converter](https://jsonviewer.tools/editor)
 
 Here are some common uses with FED4:
-``` cpp
+```cpp
 String subjectId = getMetaValue("subject", "id"); // within library
 String subjectId = fed.getMetaValue("subject", "id"); // within sketch
 ```
@@ -330,6 +334,11 @@ You can create a meta.json file in most terminals using:
 ```bash
 cd /path/to/your/SD
 echo '{"subject":{"id":"mouse001","strain":"C57BL/6","sex":"male"},"fed":{"program":"Classic"}}' > meta.json
+```
+
+On Windows PowerShell:
+```powershell
+Set-Content -Path meta.json -Value '{"subject":{"id":"mouse001","strain":"C57BL/6","sex":"male"},"fed":{"program":"Classic"}}'
 ```
 
 ## Dependencies
