@@ -216,18 +216,18 @@ void FED4::resetJingle() { // 🎵 Power cycle jingle
     playTone(500, 100, 0.15);  // Lower still
     playTone(300, 120, 0.15);  // Almost there
     playTone(200, 400, 0.15);  // Final deep note
-    delay(300);                 // Longer dramatic pause
+    delay(200);                 // Longer dramatic pause
     
     // Ascending sequence to signify "powering up" 
-    playTone(300, 50, 0.15);     // Quick low start
-    playTone(600, 50, 0.2);     // Building up
-    playTone(900, 50, 0.2);     // Getting stronger
-    playTone(1200, 100, 0.2);   // Peak
-    playTone(1500, 200, 0.2);   // Triumphant final note
+    playTone(300, 30, 0.15);     // Quick low start
+    playTone(600, 30, 0.2);     // Building up
+    playTone(900, 30, 0.2);     // Getting stronger
+    playTone(1200, 50, 0.2);   // Peak
+    playTone(1500, 100, 0.2);   // Triumphant final note
     
     // Final flourish
-    delay(500);
-    playTone(1600, 500, 0.15);    // Quick high note
+    delay(350);
+    playTone(1600, 300, 0.15);    // Quick high note
 }
 
 void FED4::menuJingle(){

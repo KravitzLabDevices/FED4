@@ -58,13 +58,12 @@ bool FED4::begin(const char *programName)
     };
 
     // Initialize SPI systems
-    Serial.println("Initializing SPI");
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     SPI.setFrequency(1000000); // Set SPI clock to 1MHz
     
     statuses["Display"].initialized = initializeDisplay();
+    Serial.println("Starting up...");
     startupAnimation();
-
     
     // Initialize I2C buses
     displayInitStatus("I2C Primary");
@@ -177,7 +176,7 @@ bool FED4::begin(const char *programName)
     Serial.println("Initializing Touch Sensors");
     displayInitStatus("Touch Sensors");
     statuses["Touch Sensors"].initialized = initializeTouch();
-    calibrateTouchSensors();
+    calibrateTouchSensors(true);  // Check stability at startup
 
     // Initialize Buttons
     Serial.println("Initializing Buttons");

@@ -173,7 +173,7 @@ public:
 
     // Touch sensor management (defined in FED4_Touch.cpp)
     bool initializeTouch();
-    void calibrateTouchSensors();
+    void calibrateTouchSensors(bool checkStability = false);
     void interpretTouch();
     static void IRAM_ATTR onTouchWakeUp();
     void resetTouchFlags(); // Reset all touch flags to false

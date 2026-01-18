@@ -40,7 +40,7 @@ bool FED4::initializeTouch()
     return true;
 }
 
-void FED4::calibrateTouchSensors()
+void FED4::calibrateTouchSensors(bool checkStability)
 {
     // Detach existing interrupts to prevent memory leaks
     touchDetachInterrupt(TOUCH_PAD_LEFT);
@@ -53,7 +53,7 @@ void FED4::calibrateTouchSensors()
     // Clear any pending wakePad flags to prevent stale interrupt triggers
     wakePad = 0;
 
-    // Disable interrupts during calibration to prevent false triggers
+    // Disable interrupts during critical calibration section to prevent false triggers
     noInterrupts();
 
     touchPadLeftBaseline = touchRead(TOUCH_PAD_LEFT);
@@ -64,8 +64,50 @@ void FED4::calibrateTouchSensors()
     uint16_t center_threshold = touchPadCenterBaseline * TOUCH_THRESHOLD;
     uint16_t right_threshold = touchPadRightBaseline * TOUCH_THRESHOLD;
 
+    // Re-enable interrupts before delay() calls (delay() requires interrupts on ESP32)
+    interrupts();
+
     // Serial.printf("Touch sensor thresholds - Left: %d, Center: %d, Right: %d\n",
     //               left_threshold, center_threshold, right_threshold);
+
+    // Wait for touch readings to stabilize (only at startup)
+    // Use the same percentage-based deviation check as used elsewhere in the codebase
+    // Note: This happens with interrupts enabled but touch interrupts are detached, so safe
+    if (checkStability) {
+        uint16_t currentLeft, currentCenter, currentRight;
+        int stabilityCount = 0;
+        const int requiredStableReadings = 3;
+        const int maxStabilityAttempts = 50;  // Prevent infinite loop
+        int attempts = 0;
+        
+        while (stabilityCount < requiredStableReadings && attempts < maxStabilityAttempts) {
+            currentLeft = touchRead(TOUCH_PAD_LEFT);
+            currentCenter = touchRead(TOUCH_PAD_CENTER);
+            currentRight = touchRead(TOUCH_PAD_RIGHT);
+            
+            // Check all pads have deviation below threshold (not being touched)
+            // Using same logic as startSleep(): abs(current / baseline - 1.0) < TOUCH_THRESHOLD
+            float leftDev = abs((float)currentLeft / touchPadLeftBaseline - 1.0);
+            float centerDev = abs((float)currentCenter / touchPadCenterBaseline - 1.0);
+            float rightDev = abs((float)currentRight / touchPadRightBaseline - 1.0);
+            
+            if (leftDev < TOUCH_THRESHOLD && 
+                centerDev < TOUCH_THRESHOLD && 
+                rightDev < TOUCH_THRESHOLD) {
+                stabilityCount++;
+            } else {
+                stabilityCount = 0;  // Reset counter if any pad shows touch deviation
+            }
+            attempts++;
+            delay(5);
+        }
+
+        // Clear wakePad again after ensuring stable readings
+        wakePad = 0;
+    }
+
+    // Disable interrupts during interrupt attachment to prevent race conditions
+    noInterrupts();
 
     // Enable wake-up on touch pads
     esp_sleep_enable_touchpad_wakeup();
@@ -75,8 +117,17 @@ void FED4::calibrateTouchSensors()
     touchAttachInterrupt(TOUCH_PAD_CENTER, onCenterPadTouch, center_threshold);
     touchAttachInterrupt(TOUCH_PAD_RIGHT, onRightPadTouch, right_threshold);
 
+    // Clear wakePad one more time before re-enabling interrupts
+    wakePad = 0;
+
     // Re-enable interrupts after calibration is complete
     interrupts();
+    
+    // Small delay after re-enabling interrupts to allow any hardware settling
+    delay(10);
+    
+    // Final clear of wakePad after interrupts are enabled and settled
+    wakePad = 0;
 }
 
 /**

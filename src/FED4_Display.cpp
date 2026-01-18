@@ -624,7 +624,7 @@ void FED4::displayInitStatus(const char* message) {
   // Display the initialization message
   setCursor(6, 135);
   print("Initializing: ");
-  setCursor(6, 153);
+  setCursor(6, 158);
   print(message);
   
   refresh();

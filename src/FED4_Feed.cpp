@@ -30,6 +30,14 @@ void FED4::dispense() {
         pelletPresent = checkForPellet();
         pelletReady = true;
         
+        // Check if button is pressed - if so, fake pelletPresent to exit dispense
+        if (digitalRead(BUTTON_1) == 1) {
+            hapticDoubleBuzz();
+            higherBeep();
+            lowBeep();
+            pelletPresent = true;
+        }
+        
         // Increment block pellet count when pellet drops
         if (pelletDropped) {
             blockPelletCount++;
