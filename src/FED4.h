@@ -66,7 +66,7 @@ static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 24;
 
-static const float TOUCH_THRESHOLD = 0.1; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
+static const float TOUCH_THRESHOLD = 0.15; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
 static const char *META_FILE = "/meta.json";
 
 static const char *PREFS_NAMESPACE = "fed4";
@@ -171,7 +171,7 @@ public:
     void hapticTripleBuzz(uint8_t duration = 5);
     void hapticRumble(uint16_t duration_ms = 300);
 
-    // Touch sensor management (defined in FED4_Sensors.cpp)
+    // Touch sensor management (defined in FED4_Touch.cpp)
     bool initializeTouch();
     void calibrateTouchSensors();
     void interpretTouch();
@@ -480,7 +480,7 @@ private:
     friend class FED4_Motor;
     friend class FED4_RTC;
     friend class FED4_SD;
-    friend class FED4_Sensors;
+    friend class FED4_Touch;
     friend class FED4_Vitals;
     friend class FED4_Feed;
     friend class FED4_Begin;
