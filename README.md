@@ -16,28 +16,28 @@ FED4 (Feeding Experimentation Device) is an open-source device for training mice
 
 ## Features
 
-- 🔄 Automated pellet dispensing system
-- 📊 Real-time data logging
-- 🌡️ Environmental monitoring
-- 🔋 Power management
-- 📱 Interactive display
-- 🎵 Audio feedback
-- 💾 SD card storage
-- 🕹️ Touch and button controls
-- 🌐 Optional Hublink integration for network connectivity
+- Automated pellet dispensing system 
+- Three nose-pokes
+- Pellet approach sensor
+- Multi-colored signal LEDs
+- Audio feedback
+- Haptic feedback
+- Temperature/Humidity monitoring
+- Activity monitoring
+- Optional Hublink integration for network connectivity
 
 ## Hardware Components
 
-- Sharp Memory Display
-- NeoPixel and LED strips
+- MCP23X17 I/O expander
+- MAX17048 fuel gauge (battery monitor)
 - DS3231 RTC (Real-Time Clock)
-- LIS3DH Accelerometer
-- Temperature/Humidity Sensor
-- Battery Monitor
-- Stepper Motor
-- Touch Sensors
-- Motion Sensor
-- Speaker System
+- BME680 temperature/humidity/pressure/gas sensor
+- LIS3DH accelerometer
+- MLX90393 magnetometer
+- VL53L1X time-of-flight distance sensor
+- STHS34PF80 motion sensor
+- VEML7700 ambient light sensor
+- MAX98357A I2S amplifier
 
 ## Library Structure
 
@@ -61,171 +61,42 @@ void run()
 - Prints status
 - Manages sleep cycles
 
-### Power Management
-
-#### Sleep Control
-```cpp
-void sleep()
-```
-- Timer-based wake-up (6 seconds)
-- Sensor polling on wake
-- Touch/button handling
-
-#### LDO Control
-```cpp
-bool initializeLDOs()
-void LDO2_ON()
-void LDO2_OFF()
-void LDO3_ON()
-void LDO3_OFF()
-```
-- Power rail management
-- Component power states
-
-### Feeding System
-
-#### Core Feeding
-```cpp
-void feed()
-void initFeeding()
-void dispense()
-void finishFeeding()
-```
-- Pellet dispensing control
-- Status monitoring
-- Error handling
-
-#### Motor Control
-```cpp
-bool initializeMotor()
-void releaseMotor()
-void minorJamClear()
-void majorJamClear()
-void vibrateJamClear()
-```
-- Stepper motor management
-- Jam detection and clearing
-- Error recovery
-
-### Sensor Systems
-
-#### Touch Sensors
-```cpp
-bool initializeTouch()
-void handleTouch()
-void calibrateTouchSensors()
-```
-- Capacitive input handling
-- Auto-calibration
-- Event processing
-
-#### Motion Detection
-```cpp
-bool initializeMotionSensor()
-void configureMotionSensor()
-bool isMotionDataReady()
-```
-- Presence detection
-- Configurable sensitivity
-- Status monitoring
-
-#### Accelerometer
-```cpp
-bool initializeAccel()
-void setAccelRange()
-void setAccelPerformanceMode()
-```
-- 3-axis measurement
-- Multiple range options
-- Power/performance modes
-
-### User Interface
-
-#### Display
-```cpp
-bool initializeDisplay()
-void updateDisplay()
-void displayTask()
-void displayEnvironmental()
-```
-- Status visualization
-- Menu system
-- Environmental data display
-
-#### LED Control
-```cpp
-bool initializePixel()
-bool initializeStrip()
-void setPixColor()
-```
-- Visual feedback
-- Status indication
-- Custom patterns
-
-#### Audio
-```cpp
-bool initializeSpeaker()
-void playTone()
-void soundSweep()
-```
-- Event feedback
-- Custom sound patterns
-- Multiple frequencies
-
-### Data Management
-
-#### SD Card
-```cpp
-bool initializeSD()
-bool createMetaJson()
-void logData()
-```
-- Configuration storage
-- Data logging
-- File management
-
-#### RTC
-```cpp
-bool initializeRTC()
-void updateRTC()
-DateTime now()
-```
-- Time management
-- Event timestamping
-- Synchronization
-
-### Environmental Monitoring
-```cpp
-bool initializeVitals()
-float getBatteryVoltage()
-float getTemperature()
-float getHumidity()
-```
-- System vitals
-- Environmental conditions
-- Battery monitoring
-
 ## Usage Example
 
 ```cpp
-#include "FED4.h"
 
-FED4 fed;
+#include <FED4.h>     // include the FED4 library
+FED4 fed4;            // start FED4 object
+char task[] = "FR1";  // give the task a unique name
 
 void setup() {
-  // Initialize FED4 with program name
-  fed.begin("MyExperiment");
-  
-  // Configure settings
-  fed.setMouseId("M001");
-  fed.setSex("M");
-  fed.setStrain("C57BL/6");
+  fed4.begin(task);  // initialize FED4 hardware
 }
 
 void loop() {
-  // Main operation loop
-  fed.run();
+  fed4.run();  // run this once per loop
+
+  if (fed4.leftTouch) {     // if left poke is touched
+    fed4.lowBeep();         // 500hz 200ms beep
+    fed4.leftLight("red");  // light LEDs around left poke red
+    fed4.logData("Left");
+    fed4.feed();  // feed one pellet, logging drop and retrieval
+  }
+
+  if (fed4.centerTouch) {  // if center poke is touched
+    fed4.click();          // audio click stimulus
+    fed4.hapticBuzz();
+    fed4.centerLight("green");  // light LEDs around center poke green
+    fed4.logData("Center");
+  }
+
+  if (fed4.rightTouch) {      // if right poke is touched
+    fed4.click();             // audio click stimulus
+    fed4.rightLight("blue");  // light LEDs around right poke blue
+    fed4.logData("Right");
+  }
 }
+
 ```
 
 ## Hublink Integration
