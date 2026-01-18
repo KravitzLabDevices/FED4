@@ -226,7 +226,7 @@ void FED4::resetJingle() { // 🎵 Power cycle jingle
     playTone(1500, 100, 0.2);   // Triumphant final note
     
     // Final flourish
-    delay(350);
+    delay(500);
     playTone(1600, 300, 0.15);    // Quick high note
 }
 
