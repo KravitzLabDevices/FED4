@@ -194,7 +194,7 @@ void FED4::playStartup()
 void FED4::resetSpeaker()
 {
     i2s.end();
-    delay(50);
+    delay(10);
     initializeSpeaker();
 }
 
@@ -279,6 +279,7 @@ void FED4::higherBeep(){
  */
 void FED4::click(){
     // Use playTone() to make a very short tone/click
+    resetSpeaker();
     playTone(400, 30, 1);
 }
 

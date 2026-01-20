@@ -374,6 +374,7 @@ public:
     int photogate1State;
     String event = "";
     float retrievalTime;
+    float pokeDuration = 0.0;
     int touchPadLeftBaseline;
     int touchPadCenterBaseline;
     int touchPadRightBaseline;

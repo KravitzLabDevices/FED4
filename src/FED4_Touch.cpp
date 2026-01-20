@@ -212,11 +212,6 @@ void FED4::interpretTouch()
                          (devCenter >= TOUCH_THRESHOLD) || 
                          (devRight >= TOUCH_THRESHOLD);
     
-    // Debug: Print baseline values to verify they're correct
-    Serial.printf("[Touch Debug] Baselines: L=%d C=%d R=%d | Raw values: L=%d C=%d R=%d\n",
-                 touchPadLeftBaseline, touchPadCenterBaseline, touchPadRightBaseline,
-                 valLeft, valCenter, valRight);
-    
     if (touchDetected) {
         // Software-based touch determination: find which pad changed most
         // This works around electrical crosstalk causing wrong interrupts to fire
@@ -351,30 +346,7 @@ void FED4::interpretTouch()
                 }
             }
             
-            // Debug: print first few readings
-            if (totalReadings <= 10) {
-                Serial.printf("[Touch Debug] Reading #%d: L=%.3f C=%.3f R=%.3f (max=%.3f, peak=%.3f, voted=%s)\n",
-                             totalReadings, devLeft, devCenter, devRight, maxDev, peakMaxDev, currentPadName);
-                
-                // Check for bad baselines
-                bool leftBad = (touchPadLeftBaseline > 0 && valLeft > 0 && 
-                               (touchPadLeftBaseline > valLeft * 10 || valLeft > touchPadLeftBaseline * 10));
-                bool centerBad = (touchPadCenterBaseline > 0 && valCenter > 0 && 
-                                 (touchPadCenterBaseline > valCenter * 10 || valCenter > touchPadCenterBaseline * 10));
-                bool rightBad = (touchPadRightBaseline > 0 && valRight > 0 && 
-                                (touchPadRightBaseline > valRight * 10 || valRight > touchPadRightBaseline * 10));
-                
-                if (leftBad || centerBad || rightBad) {
-                    Serial.printf("[Touch Debug] Bad baselines detected: L=%s C=%s R=%s\n",
-                                 leftBad ? "BAD" : "OK", centerBad ? "BAD" : "OK", rightBad ? "BAD" : "OK");
-                }
-            }
-            
             delay(1);
-        }
-        
-        if (touchDetected && (millis() - touchStartTime >= maxSamplingTime_ms)) {
-            Serial.printf("[Touch Debug] Sampling timeout after %lu ms\n", maxSamplingTime_ms);
         }
         
         // Clear all state after touch is released (exactly like the example)
@@ -407,24 +379,6 @@ void FED4::interpretTouch()
                 detectedPad = 3;  // RIGHT pad
                 padName = "RIGHT";
             }
-        }
-        
-        // Debug output: print touch duration and detected pad (matching example format)
-        if (detectedPad > 0) {
-            int majorityVotes = 0;
-            if (detectedPad == 1) majorityVotes = leftPadVotes;
-            else if (detectedPad == 2) majorityVotes = centerPadVotes;
-            else if (detectedPad == 3) majorityVotes = rightPadVotes;
-            
-            Serial.printf("[Touch] Detected: %s pad | Duration: %lu ms | Votes: L=%d C=%d R=%d (total=%d)\n",
-                         padName, touchDuration, leftPadVotes, centerPadVotes, rightPadVotes, totalReadings);
-            if (totalReadings > 0) {
-                Serial.printf("[Touch] Confidence: %.1f%% (%d/%d readings)\n",
-                             (float)majorityVotes / totalReadings * 100, majorityVotes, totalReadings);
-            }
-        } else {
-            Serial.printf("[Touch] No valid pad detected | Duration: %lu ms | Votes: L=%d C=%d R=%d (total=%d)\n",
-                         touchDuration, leftPadVotes, centerPadVotes, rightPadVotes, totalReadings);
         }
         
         // Map detected pad to touch flags (direct mapping)
