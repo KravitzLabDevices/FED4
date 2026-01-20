@@ -8,7 +8,7 @@ void FED4::serialStatusReport()
     
     // Check if motion sensor is disabled
     if (!useMotionSensor || isnan(motionPercentage)) {
-        Serial.printf("%02d/%02d/%02d %02d:%02d:%02d | %.1fC - %.1f%% - %.1fhPa - %.1fKΩ | %.1fLux | %.2fV(%.1f%%) | No Motion | Pel %d | Left/Cent/Right %d/%d/%d | Poke %.3f | Mem %d | Wake %d\n",        
+        Serial.printf("%02d/%02d/%02d %02d:%02d:%02d | %.1fC - %.1f%% - %.1fhPa - %.1fKΩ | %.1fLux | %.2fV(%.1f%%) | No Motion | Pel %d | Left/Cent/Right %d/%d/%d | Poke %.0fms | Mem %d | Wake %d\n",        
             rtc.now().month(), rtc.now().day(), rtc.now().year(), rtc.now().hour(), rtc.now().minute(), rtc.now().second(),
             temperature, humidity, pressure, gasResistance, lux, 
             cellVoltage, cellPercent,
@@ -18,7 +18,7 @@ void FED4::serialStatusReport()
             ESP.getFreeHeap(),
             wakeCount);
     } else {
-        Serial.printf("%02d/%02d/%02d %02d:%02d:%02d | %.1fC - %.1f%% - %.1fhPa - %.1fKΩ | %.1fLux | %.2fV(%.1f%%) | Motion %d(%.1f%%) | Pel %d | Left/Cent/Right %d/%d/%d | Poke %.3f | Mem %d | Wake %d\n",        
+        Serial.printf("%02d/%02d/%02d %02d:%02d:%02d | %.1fC - %.1f%% - %.1fhPa - %.1fKΩ | %.1fLux | %.2fV(%.1f%%) | Motion %d(%.1f%%) | Pel %d | Left/Cent/Right %d/%d/%d | Poke %.0fms | Mem %d | Wake %d\n",        
             rtc.now().month(), rtc.now().day(), rtc.now().year(), rtc.now().hour(), rtc.now().minute(), rtc.now().second(),
             temperature, humidity, pressure, gasResistance, lux, 
             cellVoltage, cellPercent,

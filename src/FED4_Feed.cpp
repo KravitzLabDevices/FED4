@@ -136,6 +136,7 @@ void FED4::handlePelletInWell() {
             // Verify touch is actually above threshold (rising edge, not falling edge)
             float rightDev = abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0);
             if (rightDev >= TOUCH_THRESHOLD) {
+                unsigned long pokeStartTime = millis();
                 leftCount++;
                 retrievalTime = 0.0;
                 dispenseError = false;
@@ -148,6 +149,7 @@ void FED4::handlePelletInWell() {
                 while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
                     delay(10);
                 }
+                pokeDuration = (float)(millis() - pokeStartTime);
             }
             wakePad = 0; // Reset after handling (whether processed or not)
         }
@@ -155,6 +157,7 @@ void FED4::handlePelletInWell() {
             // Verify touch is actually above threshold (rising edge, not falling edge)
             float centerDev = abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0);
             if (centerDev >= TOUCH_THRESHOLD) {
+                unsigned long pokeStartTime = millis();
                 rightCount++;
                 retrievalTime = 0.0;
                 dispenseError = false;
@@ -165,9 +168,10 @@ void FED4::handlePelletInWell() {
                 bluePix();
                 outputPulse(2, 100);
                 // Wait for touch to return to baseline before allowing next detection
-                while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
+                while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
                     delay(10);
                 }
+                pokeDuration = (float)(millis() - pokeStartTime);
             }
             wakePad = 0; // Reset after handling (whether processed or not)
         }
@@ -175,6 +179,7 @@ void FED4::handlePelletInWell() {
             // Verify touch is actually above threshold (rising edge, not falling edge)
             float leftDev = abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0);
             if (leftDev >= TOUCH_THRESHOLD) {
+                unsigned long pokeStartTime = millis();
                 centerCount++;
                 retrievalTime = 0.0;
                 dispenseError = false;
@@ -188,6 +193,7 @@ void FED4::handlePelletInWell() {
                 while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
                     delay(10);
                 }
+                pokeDuration = (float)(millis() - pokeStartTime);
             }
             wakePad = 0; // Reset after handling (whether processed or not)
         }

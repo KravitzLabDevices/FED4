@@ -363,6 +363,7 @@ void FED4::interpretTouch()
         
         // Calculate total touch duration
         unsigned long touchDuration = millis() - touchStartTime;
+        pokeDuration = (float)touchDuration;  // Store in class member for logging
         
         // Determine majority pad based on votes
         uint8_t detectedPad = 0;  // 0=none, 1=left, 2=center, 3=right
