@@ -305,6 +305,7 @@ public:
     DateTime now();
     void adjustRTC(uint32_t timestamp);
     void updateTime();
+    bool forceRTCUpdate = false; // Set to true to force RTC update on next initialization
 
     // Vitals functions (defined in FED4_Vitals.cpp)
     float getBatteryVoltage();

@@ -40,10 +40,11 @@ bool FED4::initializeRTC()
 
     // Try-catch like pattern to ensure preferences.end() is always called
     do {
-        if (isNewCompilation())
+        if (forceRTCUpdate || isNewCompilation())
         {
             updateRTC();
             updateCompilationID();
+            forceRTCUpdate = false; // Reset the flag after updating
         }
         result = true;  // If we get here, everything succeeded
     } while (false);

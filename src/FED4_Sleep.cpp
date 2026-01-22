@@ -29,7 +29,7 @@ void FED4::startSleep() {
   }
 
   // Calibrate touch sensors before sleep on every N wake-ups, unless program is ActivityMonitor
-  if (program != "ActivityMonitor" && wakeCount % 20 == 0)  {
+  if (program != "ActivityMonitor" && wakeCount % 200 == 0)  {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
     
