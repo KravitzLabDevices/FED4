@@ -189,6 +189,8 @@ public:
     void stripTheaterChase(const char *colorName, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripTheaterChase(uint32_t color, unsigned long wait, unsigned int groupSize = 3, unsigned int numChases = 10);
     void stripRainbow(unsigned long wait, unsigned int numLoops);
+    void randomMotion(float motionStrength, uint32_t color = CRGB::White, unsigned long frameDelay = 50, unsigned int numFrames = 200);
+    void randomMotion(float motionStrength, const char *colorName, unsigned long frameDelay = 50, unsigned int numFrames = 200);
     void lightsOff();
     void setStripPixel(uint8_t pixel, uint32_t color);
     void leftLight(uint32_t color);
