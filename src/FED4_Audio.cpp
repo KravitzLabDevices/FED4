@@ -274,13 +274,9 @@ void FED4::higherBeep(){
 
 /**
  * Plays a very short click sound
- * Used for immediate feedback on button presses or quick events
- * Uses playTone() with minimum duration needed for reliability at 48000 Hz
  */
 void FED4::click(){
-    // Use playTone() to make a very short tone/click
-    resetSpeaker();
-    playTone(400, 30, 1);
+    noise(8, 0.1);
 }
 
 /**

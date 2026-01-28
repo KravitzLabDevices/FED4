@@ -1,9 +1,7 @@
 #include "FED4.h"
-#include "esp_timer.h"
 
 // Initialize the static members
 uint8_t FED4::wakePad = 0;  // 0=none, 1=left, 2=center, 3=right
-static volatile int64_t lastCalibrationTime_us = 0;  // Timestamp of last calibration in microseconds
 
 // Separate ISR callbacks for each touch pad (avoids legacy driver API calls)
 void IRAM_ATTR FED4::onTouchWakeUp()
@@ -54,7 +52,7 @@ bool FED4::initializeTouch()
         return false;
     }
     
-    delay(25);  // Allow touch subsystem to stabilize
+    delay(5);  // Allow touch subsystem to stabilize
     return true;
 }
 
@@ -161,11 +159,6 @@ void FED4::calibrateTouchSensors(bool checkStability)
 
     // Clear wakePad one more time before re-enabling interrupts
     wakePad = 0;
-
-    // Record calibration timestamp (in microseconds) before re-enabling interrupts
-    // This prevents false triggers immediately after calibration completes
-    // ISRs will ignore triggers within 10ms (10000 microseconds) of this timestamp
-    lastCalibrationTime_us = esp_timer_get_time();
 
     // Re-enable interrupts after calibration is complete
     interrupts();

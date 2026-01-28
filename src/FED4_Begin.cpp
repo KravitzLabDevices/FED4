@@ -257,6 +257,14 @@ bool FED4::begin(const char *programName)
     statuses["Speaker"].initialized = initializeSpeaker();
     playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going?
 
+    // Prepare SPI bus for SD card initialization
+    // Ensure display CS is deselected (display uses LOW when inactive)
+    pinMode(DISPLAY_CS, OUTPUT);
+    digitalWrite(DISPLAY_CS, LOW);
+    
+    // Small delay to allow SPI bus to stabilize after display operations
+    delay(10);
+    
     // Initialize SD
     Serial.println("Initializing SD Card");
     displayInitStatus("SD Card");

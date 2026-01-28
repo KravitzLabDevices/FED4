@@ -14,17 +14,74 @@
  */
 bool FED4::initializeSD()
 {
+    // Ensure display CS is deselected first (display uses LOW when inactive)
+    pinMode(DISPLAY_CS, OUTPUT);
+    digitalWrite(DISPLAY_CS, LOW);
+    
+    // Ensure SD CS is high (inactive)
     pinMode(SD_CS, OUTPUT);
-    digitalWrite(SD_CS, HIGH); // SD inactive = HIGH
-    SPI.setBitOrder(MSBFIRST);
-
-    // Initialize SD card
-    if (SD.begin(SD_CS, SPI, 4000000))
+    digitalWrite(SD_CS, HIGH);
+    
+    // Small delay to allow SPI bus to stabilize after display operations
+    delay(20);
+    
+    // Retry logic similar to battery monitor initialization
+    int maxRetries = 3;
+    int retryCount = 0;
+    
+    while (retryCount < maxRetries)
     {
-        createMetaJson(); // Ensure meta.json exists
-        return true;
+        // Ensure CS pins are in correct state before each attempt
+        digitalWrite(DISPLAY_CS, LOW);  // Display deselected
+        digitalWrite(SD_CS, HIGH);       // SD deselected
+        delay(10);
+        
+        // Ensure SPI is in the correct state for SD card
+        // Reset bit order to MSBFIRST (display uses LSBFIRST)
+        SPI.setBitOrder(MSBFIRST);
+        SPI.setDataMode(SPI_MODE0);
+        
+        // Add delay for SD card power stabilization (especially important on first attempt)
+        if (retryCount == 0) {
+            delay(100); // Longer delay on first attempt
+        } else {
+            delay(50);  // Shorter delay on retries
+        }
+        
+        // Initialize SD card with 4MHz (SD.begin will set the frequency internally)
+        if (SD.begin(SD_CS, SPI, 4000000))
+        {
+            // Small delay after successful initialization
+            delay(5);
+            
+            // Verify the card is accessible by checking root directory
+            if (SD.exists("/"))
+            {
+                createMetaJson(); // Ensure meta.json exists
+                Serial.printf("SD card initialized successfully on attempt %d\n", retryCount + 1);
+                return true;
+            }
+            else
+            {
+                Serial.printf("SD card initialized but root directory not accessible (attempt %d)\n", retryCount + 1);
+                SD.end();
+            }
+        }
+        else
+        {
+            Serial.printf("SD card initialization attempt %d failed\n", retryCount + 1);
+        }
+        
+        retryCount++;
+        if (retryCount < maxRetries)
+        {
+            // End SD if it was partially initialized
+            SD.end();
+            delay(100); // Longer delay between retries for SD card
+        }
     }
-    Serial.println("SD card initialization failed");
+    
+    Serial.println("SD card initialization failed after all retries");
     return false;
 }
 
@@ -543,14 +600,12 @@ bool FED4::logData(const String &newEvent)
         dataFile.clearWriteError();
         dataFile.close();
         digitalWrite(SD_CS, HIGH);
-        SPI.endTransaction();
         noPix();
         return false;
     }
     
     dataFile.close();
     digitalWrite(SD_CS, HIGH);
-    SPI.endTransaction();
     noPix();
     
     // update screen counters when logging except at startup and not in ActivityMonitor
@@ -597,7 +652,6 @@ String FED4::getMetaValue(const char *rootKey, const char *subKey)
     metaFile.close();
 
     digitalWrite(SD_CS, HIGH); // Deselect after operations
-    SPI.endTransaction();
 
     if (error)
     {

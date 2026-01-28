@@ -66,7 +66,7 @@ void FED4::jammed(){
     //LDO2_OFF();  // For now leave this On until we get new boards
 
     enableAmp(false); 
-
+    syncHublink(); // Sync with Hublink before sleep
     // put FED4 to sleep with timer wakeup for sensor polling
     esp_sleep_enable_timer_wakeup(10 * 1000000); // Wake up every 10 seconds (in microseconds)
     esp_light_sleep_start();
