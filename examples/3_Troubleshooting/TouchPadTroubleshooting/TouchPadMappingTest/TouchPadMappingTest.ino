@@ -49,7 +49,7 @@ void IRAM_ATTR isrNUM6() {
 
 void setup() {
     Serial.begin(115200);
-    delay(2000);
+    delay(200);
     
     Serial.println("\n==========================================");
     Serial.println("FED4 Touch Pad Mapping Test");
@@ -70,7 +70,7 @@ void setup() {
         sum1 += touchRead(TOUCH_NUM1);
         sum5 += touchRead(TOUCH_NUM5);
         sum6 += touchRead(TOUCH_NUM6);
-        delay(50);
+        delay(5);
     }
     baseline1 = sum1 / 10;
     baseline5 = sum5 / 10;
@@ -184,7 +184,16 @@ void loop() {
         }
         Serial.println("----------------------------------------\n");
         
-        // Wait for touch to release
+        // Continuously read and print while touch is held
+        unsigned long touchStartTime = millis();
+        int readingCount = 0;
+        
+        // Count votes for each pad to determine majority
+        int pad1Votes = 0;  // NUM1 (RIGHT)
+        int pad5Votes = 0;  // NUM5 (CENTER)
+        int pad6Votes = 0;  // NUM6 (LEFT)
+        int totalReadings = 0;
+        
         while (touchDetected) {
             val1 = touchRead(TOUCH_NUM1);
             val5 = touchRead(TOUCH_NUM5);
@@ -195,7 +204,46 @@ void loop() {
             touchDetected = (dev1 >= TOUCH_THRESHOLD) || 
                            (dev5 >= TOUCH_THRESHOLD) || 
                            (dev6 >= TOUCH_THRESHOLD);
-            delay(10);
+            
+            // Recalculate max deviation and pad detection for current reading
+            float maxDev = max(max(dev1, dev5), dev6);
+            uint8_t currentActualTouch = 0;
+            const char* currentPadName = "NONE";
+            const char* currentPhysicalPad = "UNKNOWN";
+            
+            if (maxDev >= TOUCH_THRESHOLD) {
+                if (maxDev == dev6 && dev6 >= TOUCH_THRESHOLD) {
+                    currentActualTouch = 6;
+                    currentPadName = "NUM6";
+                    currentPhysicalPad = "LEFT";
+                    pad6Votes++;
+                    totalReadings++;
+                } else if (maxDev == dev5 && dev5 >= TOUCH_THRESHOLD) {
+                    currentActualTouch = 5;
+                    currentPadName = "NUM5";
+                    currentPhysicalPad = "CENTER";
+                    pad5Votes++;
+                    totalReadings++;
+                } else if (maxDev == dev1 && dev1 >= TOUCH_THRESHOLD) {
+                    currentActualTouch = 1;
+                    currentPadName = "NUM1";
+                    currentPhysicalPad = "RIGHT";
+                    pad1Votes++;
+                    totalReadings++;
+                }
+            }
+            
+            // Print current readings periodically to avoid flooding serial
+            readingCount++;
+            if (readingCount % 100 == 0) {  // Print every ~100ms (100 * 1ms delay)
+                unsigned long elapsed = millis() - touchStartTime;
+                Serial.printf("[Held: %lums] %s (%s) - %.1f%% | ", 
+                             elapsed, currentPadName, currentPhysicalPad, maxDev * 100);
+                Serial.printf("NUM1:%d(%.1f%%) NUM5:%d(%.1f%%) NUM6:%d(%.1f%%)\n",
+                             val1, dev1 * 100, val5, dev5 * 100, val6, dev6 * 100);
+            }
+            
+            delay(1);
         }
         
         // Clear all state after touch is released
@@ -207,15 +255,51 @@ void loop() {
             touchRead(TOUCH_NUM1);  // Read to clear internal state
             touchRead(TOUCH_NUM5);
             touchRead(TOUCH_NUM6);
-            delay(10);
+            delay(1);
         }
         
         // Small delay to ensure touch subsystem has stabilized
-        delay(100);
+        delay(1);
         
-        Serial.println("Touch released. State cleared. Ready for next touch.\n");
+        // Calculate total touch duration
+        unsigned long touchDuration = millis() - touchStartTime;
+        
+        // Determine majority pad based on votes (handles crosstalk)
+        const char* majorityPadName = "NONE";
+        const char* majorityPhysicalPad = "UNKNOWN";
+        int majorityVotes = 0;
+        
+        if (totalReadings > 0) {
+            if (pad6Votes >= pad5Votes && pad6Votes >= pad1Votes && pad6Votes > 0) {
+                majorityPadName = "NUM6";
+                majorityPhysicalPad = "LEFT";
+                majorityVotes = pad6Votes;
+            } else if (pad5Votes >= pad1Votes && pad5Votes > 0) {
+                majorityPadName = "NUM5";
+                majorityPhysicalPad = "CENTER";
+                majorityVotes = pad5Votes;
+            } else if (pad1Votes > 0) {
+                majorityPadName = "NUM1";
+                majorityPhysicalPad = "RIGHT";
+                majorityVotes = pad1Votes;
+            }
+        }
+        
+        // Print summary with majority decision
+        Serial.println("----------------------------------------");
+        Serial.printf("TOUCH RELEASED\n");
+        Serial.printf("  Duration: %lu ms\n", touchDuration);
+        Serial.printf("  Majority Decision: %s (%s pad)\n", majorityPadName, majorityPhysicalPad);
+        Serial.printf("  Vote Breakdown: NUM1=%d, NUM5=%d, NUM6=%d (total=%d readings)\n", 
+                     pad1Votes, pad5Votes, pad6Votes, totalReadings);
+        if (totalReadings > 0) {
+            Serial.printf("  Confidence: %.1f%% (%d/%d readings)\n", 
+                         (float)majorityVotes / totalReadings * 100, majorityVotes, totalReadings);
+        }
+        Serial.println("----------------------------------------");
+        Serial.println("State cleared. Ready for next touch.\n");
     }
     
-    delay(50); // Small delay to prevent excessive CPU usage
+    delay(1); // Small delay to prevent excessive CPU usage
 }
 

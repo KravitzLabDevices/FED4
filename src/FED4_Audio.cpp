@@ -194,7 +194,7 @@ void FED4::playStartup()
 void FED4::resetSpeaker()
 {
     i2s.end();
-    delay(50);
+    delay(10);
     initializeSpeaker();
 }
 

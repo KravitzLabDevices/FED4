@@ -66,7 +66,7 @@ static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 24;
 
-static const float TOUCH_THRESHOLD = 0.15; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
+static const float TOUCH_THRESHOLD = 0.2; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
 static const char *META_FILE = "/meta.json";
 
 static const char *PREFS_NAMESPACE = "fed4";
@@ -377,6 +377,7 @@ public:
     int photogate1State;
     String event = "";
     float retrievalTime;
+    float pokeDuration = 0.0;
     int touchPadLeftBaseline;
     int touchPadCenterBaseline;
     int touchPadRightBaseline;

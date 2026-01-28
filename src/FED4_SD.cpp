@@ -339,7 +339,7 @@ bool FED4::createLogFile()
 
     // Write CSV headers
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,FR,");
-    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,DispenseError,MotorTurns,Motion,");
+    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,PokeDuration,DispenseError,MotorTurns,Motion,");
     dataFile.println("Temperature,Humidity,Pressure,GasResistance,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
     dataFile.flush();  // Force write to SD card
@@ -547,6 +547,8 @@ bool FED4::logData(const String &newEvent)
             dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
         }
         dataFile.write(',');
+        dataFile.printf("%.3f", pokeDuration); // PokeDuration
+        dataFile.write(',');
         dataFile.write(dispenseError ? '1' : '0'); // Write single character
         dataFile.write(',');
         dataFile.print(int(motorTurns/25)); // MotorTurns
@@ -554,7 +556,7 @@ bool FED4::logData(const String &newEvent)
         motorTurns = 0; // Reset after logging
     }
     else {
-        dataFile.print(",,,"); // RetrievalTime, DispenseError
+        dataFile.print(",,,,"); // RetrievalTime, PokeDuration, DispenseError, MotorTurns
     }
 
     // Write counters and status
