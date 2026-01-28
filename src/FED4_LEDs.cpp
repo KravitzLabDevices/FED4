@@ -122,22 +122,22 @@ void FED4::stripRainbow(unsigned long wait, unsigned int numLoops)
 
 // Example usage:
 // Random motion animation with different motion strengths:
-// randomMotion(-1.0, "white", 50, 200);    // 100% left motion, white dots, 50ms delay, 200 frames
-// randomMotion(1.0, "red", 30, 300);       // 100% right motion, red dots, 30ms delay, 300 frames
-// randomMotion(0.0, "blue", 40, 250);      // Random direction, blue dots, 40ms delay, 250 frames
-// randomMotion(0.5, "green", 50, 200);     // 75% right bias, green dots, 50ms delay, 200 frames
-// randomMotion(-0.5, "yellow", 50, 200);   // 75% left bias, yellow dots, 50ms delay, 200 frames
-void FED4::randomMotion(float motionStrength, const char *colorName, unsigned long frameDelay, unsigned int numFrames)
+// randomMotion(-1.0, "white", 50, 10000);    // 100% left motion, white dots, 50ms delay, 10 seconds duration
+// randomMotion(1.0, "red", 30, 5000);       // 100% right motion, red dots, 30ms delay, 5 seconds duration
+// randomMotion(0.0, "blue", 40, 8000);      // Random direction, blue dots, 40ms delay, 8 seconds duration
+// randomMotion(0.5, "green", 50, 10000);     // 75% right bias, green dots, 50ms delay, 10 seconds duration
+// randomMotion(-0.5, "yellow", 50, 10000);   // 75% left bias, yellow dots, 50ms delay, 10 seconds duration
+void FED4::randomMotion(float motionStrength, const char *colorName, unsigned long frameDelay, unsigned long durationMs)
 {
-    randomMotion(motionStrength, getColorFromString(colorName), frameDelay, numFrames);
+    randomMotion(motionStrength, getColorFromString(colorName), frameDelay, durationMs);
 }
 
 // Random motion animation that simulates dots moving across the LED strip
 // motionStrength: -1.0 = 100% left motion, +1.0 = 100% right motion, 0.0 = random direction
-// color: Color of the moving dots
-// frameDelay: Delay between frames in milliseconds
-// numFrames: Number of frames to run the animation
-void FED4::randomMotion(float motionStrength, uint32_t color, unsigned long frameDelay, unsigned int numFrames)
+// color: Color of the moving dots (default: blue)
+// frameDelay: Delay between frames in milliseconds (default: 75)
+// durationMs: Duration of the animation in milliseconds (default: 2000)
+void FED4::randomMotion(float motionStrength, uint32_t color, unsigned long frameDelay, unsigned long durationMs)
 {
     // Clamp motionStrength to valid range
     if (motionStrength < -1.0f) motionStrength = -1.0f;
@@ -151,13 +151,12 @@ void FED4::randomMotion(float motionStrength, uint32_t color, unsigned long fram
     
     // Structure to track moving dots
     struct Dot {
-        int position;      // Current position (0 to NUM_STRIP_LEDS-1)
-        int direction;     // -1 for left, +1 for right
+        int position;      // Current position (1 to 6)
         bool active;        // Whether this dot is active
     };
     
     // Maximum number of dots active at once
-    const int MAX_DOTS = 3;
+    const int MAX_DOTS = 5;
     Dot dots[MAX_DOTS];
     
     // Initialize all dots as inactive
@@ -165,26 +164,38 @@ void FED4::randomMotion(float motionStrength, uint32_t color, unsigned long fram
         dots[i].active = false;
     }
     
-    // Track completed cycles (dots that have crossed the full visible area)
+    // Track completed cycles (dots that have moved off the visible area)
     unsigned int completedCycles = 0;
     const unsigned int MAX_CYCLES = 3;
     
-    // Run animation until 3 cycles are completed
-    unsigned int frame = 0;
-    while (completedCycles < MAX_CYCLES && frame < numFrames) {
+    // Run animation for the specified duration
+    unsigned long startTime = millis();
+    while (completedCycles < MAX_CYCLES && (millis() - startTime) < durationMs) {
         // Clear the strip
         fill_solid(strip_leds, NUM_STRIP_LEDS, CRGB::Black);
         
-        // Update existing dots
+        // Update existing dots - direction determined probabilistically each step
         for (int i = 0; i < MAX_DOTS; i++) {
             if (dots[i].active) {
+                // Determine movement direction probabilistically based on motionStrength
+                float randVal = (float)random(0, 10000) / 10000.0f;
+                int moveDirection;
+                
+                if (randVal < probRight) {
+                    // Move right
+                    moveDirection = 1;
+                } else {
+                    // Move left
+                    moveDirection = -1;
+                }
+                
                 // Move the dot
-                dots[i].position += dots[i].direction;
+                dots[i].position += moveDirection;
                 
                 // Check if dot has moved off the visible area (positions 0 and 7 are excluded)
                 // Dots are only visible in positions 1 to 6
                 if (dots[i].position < 1 || dots[i].position > 6) {
-                    // Dot completed a cycle (deactivate if at position 0, 7, or beyond)
+                    // Dot moved off the visible area
                     completedCycles++;
                     dots[i].active = false;
                 } else {
@@ -194,30 +205,30 @@ void FED4::randomMotion(float motionStrength, uint32_t color, unsigned long fram
             }
         }
         
-        // Randomly spawn new dots at edges
-        // Higher probability of spawning when fewer dots are active
+        // Randomly spawn new dots anywhere in the visible range
+        // Ensure minimum of 2 dots are always active
         int activeCount = 0;
         for (int i = 0; i < MAX_DOTS; i++) {
             if (dots[i].active) activeCount++;
         }
         
-        // Spawn new dots with probability based on active count
-        if (activeCount < MAX_DOTS && random(0, 100) < 30) { // 30% chance per frame when not at max
+        const int MIN_DOTS = 2;
+        
+        // If we have fewer than minimum dots, always spawn (100% chance)
+        // Otherwise, spawn with probability based on active count
+        bool shouldSpawn = false;
+        if (activeCount < MIN_DOTS) {
+            shouldSpawn = true; // Always spawn if below minimum
+        } else if (activeCount < MAX_DOTS && random(0, 100) < 30) {
+            shouldSpawn = true; // 30% chance per frame when not at max
+        }
+        
+        if (shouldSpawn) {
             // Find an inactive dot slot
             for (int i = 0; i < MAX_DOTS; i++) {
                 if (!dots[i].active) {
-                    // Determine spawn side and direction based on motionStrength
-                    float randVal = (float)random(0, 10000) / 10000.0f;
-                    
-                    if (randVal < probRight) {
-                        // Spawn from left edge (position 1), moving right
-                        dots[i].position = 1;
-                        dots[i].direction = 1;
-                    } else {
-                        // Spawn from right edge (position 6), moving left
-                        dots[i].position = 6;
-                        dots[i].direction = -1;
-                    }
+                    // Spawn dot at random position in visible range (1 to 6)
+                    dots[i].position = random(1, 7); // random between 1 and 6 inclusive
                     dots[i].active = true;
                     // Draw the newly spawned dot immediately at its spawn position
                     strip_leds[dots[i].position] = color;
@@ -229,7 +240,6 @@ void FED4::randomMotion(float motionStrength, uint32_t color, unsigned long fram
         // Show the frame
         FastLED.show();
         delay(frameDelay);
-        frame++;
         
         // Stop if we've completed 3 cycles
         if (completedCycles >= MAX_CYCLES) {
