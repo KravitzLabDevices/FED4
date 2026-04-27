@@ -1,6 +1,8 @@
 // src/FED4_Audio.cpp
 #include "FED4.h"
 
+static constexpr uint32_t FED4_AUDIO_SAMPLE_RATE_HZ = 48000;
+
 /**
  * Initializes the speaker and configures the I2S driver
  * return true if initialization is successful, false otherwise
@@ -104,7 +106,7 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
     delay(1);  // Stabilize amp
     
     // Generate and play tone
-    const uint32_t sampleRate = 48000;
+    const uint32_t sampleRate = FED4_AUDIO_SAMPLE_RATE_HZ;
     const uint32_t originalSampleCount = (sampleRate * duration_ms) / 1000;
     const float twoPiF = 2.0 * M_PI * frequency;
 
@@ -312,7 +314,9 @@ void FED4::soundSweep(uint32_t startFreq, uint32_t endFreq, uint32_t duration_ms
  * control the volume of the noise.
  */
 void FED4::noise(uint32_t duration_ms, float amplitude){
-    const uint32_t sampleRate = 22050;
+    // Important: generate noise at the same rate I2S is clocking out,
+    // otherwise noise duration/pitch will be distorted.
+    const uint32_t sampleRate = FED4_AUDIO_SAMPLE_RATE_HZ;
     const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
     
     int16_t sampleBuffer[256];
@@ -334,4 +338,304 @@ void FED4::noise(uint32_t duration_ms, float amplitude){
     if (samplesInBuffer > 0) {
         i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
     }
+}
+
+void FED4::marioCoin()
+{
+    if (audioSilenced) return;
+
+    // Approximation using a square wave + short envelope to get closer to the classic timbre.
+    auto playSquare = [&](uint32_t frequency, uint32_t duration_ms, float amplitude) {
+        const uint32_t sampleCount = (FED4_AUDIO_SAMPLE_RATE_HZ * duration_ms) / 1000;
+        const uint32_t fadeSamples = min<uint32_t>((FED4_AUDIO_SAMPLE_RATE_HZ * 2) / 1000, sampleCount / 2); // ~2ms fade
+        const float halfPeriodSamples = (frequency > 0) ? (float)FED4_AUDIO_SAMPLE_RATE_HZ / (2.0f * (float)frequency) : 0.0f;
+
+        int16_t sampleBuffer[256];
+        size_t samplesInBuffer = 0;
+
+        float phaseSamples = 0.0f;
+        int sign = 1;
+
+        for (uint32_t i = 0; i < sampleCount; i++) {
+            float env = 1.0f;
+            if (fadeSamples > 0) {
+                if (i < fadeSamples) env = (float)i / (float)fadeSamples;
+                else if (i > (sampleCount - fadeSamples)) env = (float)(sampleCount - i) / (float)fadeSamples;
+            }
+
+            int16_t s = 0;
+            if (frequency > 0) {
+                const float scaled = amplitude * env * 32767.0f;
+                s = (int16_t)(sign * scaled);
+
+                phaseSamples += 1.0f;
+                if (phaseSamples >= halfPeriodSamples) {
+                    phaseSamples -= halfPeriodSamples;
+                    sign = -sign;
+                }
+            }
+
+            sampleBuffer[samplesInBuffer++] = s;
+            if (samplesInBuffer >= 256) {
+                i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+                samplesInBuffer = 0;
+            }
+        }
+
+        if (samplesInBuffer > 0) {
+            i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+        }
+    };
+
+    digitalWrite(AUDIO_SD, HIGH);
+    delay(1);
+
+    // Classic fast upward "ping" motif (approximation)
+    playSquare(1661, 18, 0.40f); // G#6-ish bite
+    playSquare(0,    6,  0.00f); // tiny rest
+    playSquare(2637, 60, 0.42f); // E7-ish ring
+
+    delayMicroseconds(500);
+    digitalWrite(AUDIO_SD, LOW);
+}
+
+void FED4::marioJump()
+{
+    if (audioSilenced) return;
+
+    auto playSquare = [&](uint32_t frequency, uint32_t duration_ms, float amplitude) {
+        const uint32_t sampleCount = (FED4_AUDIO_SAMPLE_RATE_HZ * duration_ms) / 1000;
+        const uint32_t fadeSamples = min<uint32_t>((FED4_AUDIO_SAMPLE_RATE_HZ * 2) / 1000, sampleCount / 2);
+        const float halfPeriodSamples = (frequency > 0) ? (float)FED4_AUDIO_SAMPLE_RATE_HZ / (2.0f * (float)frequency) : 0.0f;
+
+        int16_t sampleBuffer[256];
+        size_t samplesInBuffer = 0;
+        float phaseSamples = 0.0f;
+        int sign = 1;
+
+        for (uint32_t i = 0; i < sampleCount; i++) {
+            float env = 1.0f;
+            if (fadeSamples > 0) {
+                if (i < fadeSamples) env = (float)i / (float)fadeSamples;
+                else if (i > (sampleCount - fadeSamples)) env = (float)(sampleCount - i) / (float)fadeSamples;
+            }
+
+            int16_t s = 0;
+            if (frequency > 0) {
+                const float scaled = amplitude * env * 32767.0f;
+                s = (int16_t)(sign * scaled);
+
+                phaseSamples += 1.0f;
+                if (phaseSamples >= halfPeriodSamples) {
+                    phaseSamples -= halfPeriodSamples;
+                    sign = -sign;
+                }
+            }
+
+            sampleBuffer[samplesInBuffer++] = s;
+            if (samplesInBuffer >= 256) {
+                i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+                samplesInBuffer = 0;
+            }
+        }
+
+        if (samplesInBuffer > 0) {
+            i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+        }
+    };
+
+    digitalWrite(AUDIO_SD, HIGH);
+    delay(1);
+
+    // Stepped upward glide (square wave is more "8-bit" than sine)
+    playSquare(740,  22, 0.28f);
+    playSquare(988,  22, 0.28f);
+    playSquare(1319, 24, 0.30f);
+    playSquare(1760, 26, 0.30f);
+
+    delayMicroseconds(500);
+    digitalWrite(AUDIO_SD, LOW);
+}
+
+void FED4::marioPipe()
+{
+    if (audioSilenced) return;
+
+    auto playSquare = [&](uint32_t frequency, uint32_t duration_ms, float amplitude) {
+        const uint32_t sampleCount = (FED4_AUDIO_SAMPLE_RATE_HZ * duration_ms) / 1000;
+        const uint32_t fadeSamples = min<uint32_t>((FED4_AUDIO_SAMPLE_RATE_HZ * 2) / 1000, sampleCount / 2);
+        const float halfPeriodSamples = (frequency > 0) ? (float)FED4_AUDIO_SAMPLE_RATE_HZ / (2.0f * (float)frequency) : 0.0f;
+
+        int16_t sampleBuffer[256];
+        size_t samplesInBuffer = 0;
+        float phaseSamples = 0.0f;
+        int sign = 1;
+
+        for (uint32_t i = 0; i < sampleCount; i++) {
+            float env = 1.0f;
+            if (fadeSamples > 0) {
+                if (i < fadeSamples) env = (float)i / (float)fadeSamples;
+                else if (i > (sampleCount - fadeSamples)) env = (float)(sampleCount - i) / (float)fadeSamples;
+            }
+
+            int16_t s = 0;
+            if (frequency > 0) {
+                const float scaled = amplitude * env * 32767.0f;
+                s = (int16_t)(sign * scaled);
+
+                phaseSamples += 1.0f;
+                if (phaseSamples >= halfPeriodSamples) {
+                    phaseSamples -= halfPeriodSamples;
+                    sign = -sign;
+                }
+            }
+
+            sampleBuffer[samplesInBuffer++] = s;
+            if (samplesInBuffer >= 256) {
+                i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+                samplesInBuffer = 0;
+            }
+        }
+
+        if (samplesInBuffer > 0) {
+            i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+        }
+    };
+
+    digitalWrite(AUDIO_SD, HIGH);
+    delay(1);
+
+    // Downward "bloop" with a low tail
+    playSquare(988,  28, 0.26f);
+    playSquare(740,  28, 0.26f);
+    playSquare(523,  30, 0.26f);
+    playSquare(392,  36, 0.24f);
+    playSquare(262,  55, 0.22f);
+    
+    delayMicroseconds(500);
+    digitalWrite(AUDIO_SD, LOW);
+}
+
+void FED4::marioFireball()
+{
+    if (audioSilenced) return;
+
+    auto playSquare = [&](uint32_t frequency, uint32_t duration_ms, float amplitude) {
+        const uint32_t sampleCount = (FED4_AUDIO_SAMPLE_RATE_HZ * duration_ms) / 1000;
+        const uint32_t fadeSamples = min<uint32_t>((FED4_AUDIO_SAMPLE_RATE_HZ * 1) / 1000, sampleCount / 2); // ~1ms fade for sharper attacks
+        const float halfPeriodSamples = (frequency > 0) ? (float)FED4_AUDIO_SAMPLE_RATE_HZ / (2.0f * (float)frequency) : 0.0f;
+
+        int16_t sampleBuffer[256];
+        size_t samplesInBuffer = 0;
+        float phaseSamples = 0.0f;
+        int sign = 1;
+
+        for (uint32_t i = 0; i < sampleCount; i++) {
+            float env = 1.0f;
+            if (fadeSamples > 0) {
+                if (i < fadeSamples) env = (float)i / (float)fadeSamples;
+                else if (i > (sampleCount - fadeSamples)) env = (float)(sampleCount - i) / (float)fadeSamples;
+            }
+
+            int16_t s = 0;
+            if (frequency > 0) {
+                const float scaled = amplitude * env * 32767.0f;
+                s = (int16_t)(sign * scaled);
+
+                phaseSamples += 1.0f;
+                if (phaseSamples >= halfPeriodSamples) {
+                    phaseSamples -= halfPeriodSamples;
+                    sign = -sign;
+                }
+            }
+
+            sampleBuffer[samplesInBuffer++] = s;
+            if (samplesInBuffer >= 256) {
+                i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+                samplesInBuffer = 0;
+            }
+        }
+
+        if (samplesInBuffer > 0) {
+            i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+        }
+    };
+
+    digitalWrite(AUDIO_SD, HIGH);
+    delay(1);
+
+    // Rapid staccato bursts
+    playSquare(1319, 18, 0.28f);
+    playSquare(0,     6, 0.00f);
+    playSquare(1568, 18, 0.28f);
+    playSquare(0,     6, 0.00f);
+    playSquare(1760, 18, 0.28f);
+    playSquare(0,     6, 0.00f);
+    playSquare(1568, 18, 0.28f);
+    playSquare(0,     6, 0.00f);
+    playSquare(1319, 22, 0.28f);
+
+    delayMicroseconds(500);
+    digitalWrite(AUDIO_SD, LOW);
+}
+
+void FED4::marioMushroom()
+{
+    if (audioSilenced) return;
+
+    auto playSquare = [&](uint32_t frequency, uint32_t duration_ms, float amplitude) {
+        const uint32_t sampleCount = (FED4_AUDIO_SAMPLE_RATE_HZ * duration_ms) / 1000;
+        const uint32_t fadeSamples = min<uint32_t>((FED4_AUDIO_SAMPLE_RATE_HZ * 2) / 1000, sampleCount / 2);
+        const float halfPeriodSamples = (frequency > 0) ? (float)FED4_AUDIO_SAMPLE_RATE_HZ / (2.0f * (float)frequency) : 0.0f;
+
+        int16_t sampleBuffer[256];
+        size_t samplesInBuffer = 0;
+        float phaseSamples = 0.0f;
+        int sign = 1;
+
+        for (uint32_t i = 0; i < sampleCount; i++) {
+            float env = 1.0f;
+            if (fadeSamples > 0) {
+                if (i < fadeSamples) env = (float)i / (float)fadeSamples;
+                else if (i > (sampleCount - fadeSamples)) env = (float)(sampleCount - i) / (float)fadeSamples;
+            }
+
+            int16_t s = 0;
+            if (frequency > 0) {
+                const float scaled = amplitude * env * 32767.0f;
+                s = (int16_t)(sign * scaled);
+
+                phaseSamples += 1.0f;
+                if (phaseSamples >= halfPeriodSamples) {
+                    phaseSamples -= halfPeriodSamples;
+                    sign = -sign;
+                }
+            }
+
+            sampleBuffer[samplesInBuffer++] = s;
+            if (samplesInBuffer >= 256) {
+                i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+                samplesInBuffer = 0;
+            }
+        }
+
+        if (samplesInBuffer > 0) {
+            i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+        }
+    };
+
+    digitalWrite(AUDIO_SD, HIGH);
+    delay(1);
+
+    // Power-up style rising arpeggio (approximation)
+    playSquare(523,  30, 0.24f);  // C5
+    playSquare(659,  30, 0.24f);  // E5
+    playSquare(784,  30, 0.24f);  // G5
+    playSquare(1046, 32, 0.26f);  // C6
+    playSquare(1319, 32, 0.26f);  // E6
+    playSquare(1568, 32, 0.26f);  // G6
+    playSquare(2093, 70, 0.28f);  // C7
+
+    delayMicroseconds(500);
+    digitalWrite(AUDIO_SD, LOW);
 }

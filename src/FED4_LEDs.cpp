@@ -43,7 +43,12 @@
 // Initialize the strip
 bool FED4::initializeStrip()
 {
-    FastLED.addLeds<NEOPIXEL, RGB_STRIP_PIN>(strip_leds, NUM_STRIP_LEDS);
+    // Ensure front LED power rail is enabled before initializing
+    LDO3_ON();
+    delay(2);
+
+    // Explicit WS2812B + GRB order for front strip reliability
+    FastLED.addLeds<WS2812B, RGB_STRIP_PIN, GRB>(strip_leds, NUM_STRIP_LEDS);
     setStripBrightness(50); // Default brightness
     
     // Test the strip by setting all pixels to red briefly

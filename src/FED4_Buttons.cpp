@@ -61,7 +61,8 @@ void FED4::checkButton1() {
     delay(100);
     holdTime += 100;
     if (holdTime >= 1000) {
-        bopBeep();
+        marioMushroom();
+        delay (500);
         Serial.println("********** TEST PELLET DISPENSE **********");
         feed();
         break;

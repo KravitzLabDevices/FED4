@@ -24,63 +24,74 @@ bool FED4::initializeSD()
     
     // Small delay to allow SPI bus to stabilize after display operations
     delay(20);
-    
-    // Retry logic similar to battery monitor initialization
-    int maxRetries = 3;
-    int retryCount = 0;
-    
-    while (retryCount < maxRetries)
+
+    // Some cards (especially on cold boot) are sensitive to SPI state and clock speed.
+    // We start slow, fully reset SPI between attempts, then ramp up.
+    static const uint32_t kInitSpeedsHz[] = {
+        400000,   // conservative first attempt
+        1000000,  // moderate retry
+        4000000   // normal speed
+    };
+    const int maxRetries = (int)(sizeof(kInitSpeedsHz) / sizeof(kInitSpeedsHz[0]));
+
+    for (int attempt = 0; attempt < maxRetries; attempt++)
     {
         // Ensure CS pins are in correct state before each attempt
-        digitalWrite(DISPLAY_CS, LOW);  // Display deselected
-        digitalWrite(SD_CS, HIGH);       // SD deselected
+        digitalWrite(DISPLAY_CS, LOW); // Display deselected (inactive)
+        digitalWrite(SD_CS, HIGH);     // SD deselected (inactive)
+        delay(2);
+
+        // Cold-boot stabilization time (helps cards that need power/oscillator settle)
+        if (attempt == 0)
+        {
+            delay(250);
+        }
+
+        // Fully reset SPI between attempts so SD starts from a clean bus state
+        SPI.end();
         delay(10);
-        
+        SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+
         // Ensure SPI is in the correct state for SD card
         // Reset bit order to MSBFIRST (display uses LSBFIRST)
         SPI.setBitOrder(MSBFIRST);
         SPI.setDataMode(SPI_MODE0);
-        
-        // Add delay for SD card power stabilization (especially important on first attempt)
-        if (retryCount == 0) {
-            delay(100); // Longer delay on first attempt
-        } else {
-            delay(50);  // Shorter delay on retries
-        }
-        
-        // Initialize SD card with 4MHz (SD.begin will set the frequency internally)
-        if (SD.begin(SD_CS, SPI, 4000000))
+
+        const uint32_t speedHz = kInitSpeedsHz[attempt];
+        Serial.printf("SD init attempt %d/%d @ %lu Hz...\n", attempt + 1, maxRetries, (unsigned long)speedHz);
+
+        if (SD.begin(SD_CS, SPI, speedHz))
         {
-            // Small delay after successful initialization
             delay(5);
-            
-            // Verify the card is accessible by checking root directory
-            if (SD.exists("/"))
+
+            const uint8_t cardType = SD.cardType();
+            if (cardType == CARD_NONE)
+            {
+                Serial.printf("SD.begin ok but cardType=CARD_NONE (attempt %d)\n", attempt + 1);
+                SD.end();
+            }
+            else if (SD.exists("/"))
             {
                 createMetaJson(); // Ensure meta.json exists
-                Serial.printf("SD card initialized successfully on attempt %d\n", retryCount + 1);
+                Serial.printf("SD card initialized successfully on attempt %d\n", attempt + 1);
                 return true;
             }
             else
             {
-                Serial.printf("SD card initialized but root directory not accessible (attempt %d)\n", retryCount + 1);
+                Serial.printf("SD card initialized but root directory not accessible (attempt %d)\n", attempt + 1);
                 SD.end();
             }
         }
         else
         {
-            Serial.printf("SD card initialization attempt %d failed\n", retryCount + 1);
+            Serial.printf("SD card initialization attempt %d failed\n", attempt + 1);
         }
-        
-        retryCount++;
-        if (retryCount < maxRetries)
-        {
-            // End SD if it was partially initialized
-            SD.end();
-            delay(100); // Longer delay between retries for SD card
-        }
+
+        // Cooldown before retry
+        SD.end();
+        delay(150);
     }
-    
+
     Serial.println("SD card initialization failed after all retries");
     return false;
 }

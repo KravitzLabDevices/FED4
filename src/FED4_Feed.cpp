@@ -33,8 +33,7 @@ void FED4::dispense() {
         // Check if button is pressed - if so, fake pelletPresent to exit dispense
         if (digitalRead(BUTTON_1) == 1) {
             hapticDoubleBuzz();
-            higherBeep();
-            lowBeep();
+            marioPipe();
             pelletPresent = true;
         }
         

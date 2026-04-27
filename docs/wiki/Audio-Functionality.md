@@ -13,6 +13,14 @@ The FED4 uses an **I2S-driven speaker** (MAX98357A). Audio is initialized in `be
 
 - **`playStartup()`** — startup melody. **`resetJingle()`** — power-cycle jingle. **`menuJingle()`** — menu arpeggio.
 
+**"Super Mario"-style sound effects (tone synthesis)**
+
+- **`marioCoin()`** — coin pickup sound (approx).
+- **`marioJump()`** — jump sound (approx).
+- **`marioPipe()`** — pipe/travel “bloop” (approx).
+- **`marioFireball()`** — fireball shot sound (approx).
+- **`marioMushroom()`** — power-up sound (approx).
+
 **Other**
 
 - **`soundSweep(startFreq, endFreq, duration_ms)`** — frequency sweep. **`noise(duration_ms, amplitude)`** — white noise.

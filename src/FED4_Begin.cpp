@@ -270,6 +270,27 @@ bool FED4::begin(const char *programName)
     displayInitStatus("SD Card");
     statuses["SD Card"].initialized = initializeSD();
 
+    // Cold-boot recovery window: some cards need extra time/attempts on power-up.
+    // If init failed, keep trying briefly before entering the blocking error UI.
+    if (!statuses["SD Card"].initialized)
+    {
+        const unsigned long recoveryWindowMs = 2500;
+        const unsigned long retryDelayMs = 250;
+        unsigned long startMs = millis();
+
+        Serial.printf("SD init failed; retrying for up to %lu ms...\n", (unsigned long)recoveryWindowMs);
+        while (!statuses["SD Card"].initialized && (millis() - startMs) < recoveryWindowMs)
+        {
+            delay(retryDelayMs);
+            statuses["SD Card"].initialized = initializeSD();
+        }
+
+        if (statuses["SD Card"].initialized)
+        {
+            Serial.println("SD recovered during startup retry window");
+        }
+    }
+
     // Initialize Hublink if enabled
     #ifndef FED4_EXCLUDE_HUBLINK
         if (useHublink)

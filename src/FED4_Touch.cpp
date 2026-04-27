@@ -3,6 +3,9 @@
 // Initialize the static members
 uint8_t FED4::wakePad = 0;  // 0=none, 1=left, 2=center, 3=right
 
+// Track last calibration time (microseconds) to suppress immediate ISR triggers
+static volatile int64_t lastCalibrationTime_us = 0;
+
 // Separate ISR callbacks for each touch pad (avoids legacy driver API calls)
 void IRAM_ATTR FED4::onTouchWakeUp()
 {

@@ -362,6 +362,13 @@ public:
     void soundSweep(uint32_t startFreq = 500, uint32_t endFreq = 1500, uint32_t duration_ms = 1000);
     void noise(uint32_t duration_ms = 500, float amplitude = 1);
 
+    // "Super Mario"-style sound effects (tone synthesis)
+    void marioCoin();
+    void marioJump();
+    void marioPipe();
+    void marioFireball();
+    void marioMushroom();
+
     void setEvent(const String &newEvent)
     {
         event = newEvent;
