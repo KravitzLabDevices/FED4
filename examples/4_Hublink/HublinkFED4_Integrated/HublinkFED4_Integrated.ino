@@ -12,6 +12,7 @@ void setup()
 
     // Initialize FED4 (this will also initialize Hublink if enabled)
     fed4.begin("HublinkTest");
+    fed4.useMotionSensor = false;
 }
 
 void loop()

@@ -5,6 +5,7 @@ FED4 fed4;
 void setup() {
   Serial.begin(115200);
   fed4.begin();
+  fed4.useMotionSensor = false;
   // fed4.playStartup();
 }
 

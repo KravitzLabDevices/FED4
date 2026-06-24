@@ -5,6 +5,7 @@ FED4 fed4;
 void setup() {
   Serial.begin(115200);
   fed4.begin("FED4-Mario-SFX");
+  fed4.useMotionSensor = false;
 
   delay(500);
   Serial.println("Playing Mario SFX demo (coin, jump, pipe, fireball, mushroom)...");

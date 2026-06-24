@@ -15,6 +15,7 @@ char task[] = "Pavlovian";  // give the task a unique name
 
 void setup() {
   fed4.begin(task);  // initialize FED4 hardware
+  fed4.useMotionSensor = false;
 }
 
 void loop() {

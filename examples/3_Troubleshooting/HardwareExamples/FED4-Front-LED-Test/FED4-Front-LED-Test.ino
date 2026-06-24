@@ -13,14 +13,13 @@ char task[] = "FrontLED_Test";
 void setup() {
   Serial.begin(115200);
 
-  // Optional: reduce startup time/noise for this test
-  fed4.useMotionSensor = false;
   fed4.sleepyLEDs = false;
 
   if (!fed4.begin(task)) {
     Serial.println("FED4 begin() failed");
     while (true) { delay(1000); }
   }
+  fed4.useMotionSensor = false;
 
   // Clear strip before starting
   fed4.lightsOff();
