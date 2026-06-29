@@ -46,6 +46,7 @@ void setup() {
   
   // Initialize FED4 hardware
   fed4.begin(task);
+  fed4.useMotionSensor = false;
   fed4.logData("Sequence: " + sequenceManager.getCleanTargetSequence());
   fed4.sleepyLEDs = false;
   

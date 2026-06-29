@@ -26,6 +26,7 @@ int resetInterval = 30;                                    // number of minutes 
 
 void setup() {
   fed4.begin();                                            // initialize FED4 hardware
+  fed4.useMotionSensor = false;
 }
 
 void loop() {

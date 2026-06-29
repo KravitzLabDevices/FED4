@@ -17,6 +17,7 @@ void setup()
   delay(1000);
 
   fed4.begin(); // inits SD card
+  fed4.useMotionSensor = false;
   hublink.begin();
   hublink.onTimestampReceived(onTimestampReceived);
 }

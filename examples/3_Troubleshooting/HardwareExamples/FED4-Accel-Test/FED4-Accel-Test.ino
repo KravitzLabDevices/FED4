@@ -65,6 +65,7 @@ void setup() {
     Serial.println("ERROR: Failed to initialize FED4");
     while (1) delay(1000);
   }
+  fed.useMotionSensor = false;
 
   Serial.println("FED4 initialized");
 

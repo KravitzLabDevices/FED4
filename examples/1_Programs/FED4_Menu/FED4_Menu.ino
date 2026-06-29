@@ -24,6 +24,7 @@ String currentTask;
 
 void setup() {
   fed4.begin();  // Initialize FED4 hardware and systems
+  fed4.useMotionSensor = false;
 
   // Update the currently selected task from the meta.json file
   currentTask = fed4.getMetaValue("fed", "program");

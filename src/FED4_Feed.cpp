@@ -127,74 +127,37 @@ void FED4::handlePelletInWell() {
         if (retrievalTime > 20)
             break;
 
-        // wakePad mapping (physical pad to touch mapping is rotated):
-        // Physical LEFT pad (wakePad=1) → triggers centerTouch
-        // Physical CENTER pad (wakePad=2) → triggers rightTouch
-        // Physical RIGHT pad (wakePad=3) → triggers leftTouch
-        if (wakePad == 3) {  // RIGHT pad interrupt → Left touch
-            // Verify touch is actually above threshold (rising edge, not falling edge)
-            float rightDev = abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0);
-            if (rightDev >= TOUCH_THRESHOLD) {
-                unsigned long pokeStartTime = millis();
-                leftCount++;
+        // Use same majority-vote touch detection as normal pokes (direct L/C/R mapping)
+        if (wakePad != 0) {
+            interpretTouch();
+
+            if (leftTouch) {
                 retrievalTime = 0.0;
                 dispenseError = false;
-                // Serial.println("LeftWithPellet");
                 logData("LeftWithPellet");
                 click();
                 updateDisplay();
                 outputPulse(1, 100);
-                // Wait for touch to return to baseline before allowing next detection
-                while (abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                    delay(10);
-                }
-                pokeDuration = (float)(millis() - pokeStartTime);
-            }
-            wakePad = 0; // Reset after handling (whether processed or not)
-        }
-        else if (wakePad == 2) {  // CENTER pad interrupt → Right touch
-            // Verify touch is actually above threshold (rising edge, not falling edge)
-            float centerDev = abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0);
-            if (centerDev >= TOUCH_THRESHOLD) {
-                unsigned long pokeStartTime = millis();
-                rightCount++;
+                resetTouchFlags();
+            } else if (centerTouch) {
                 retrievalTime = 0.0;
                 dispenseError = false;
-                // Serial.println("CenterWithPellet");
-                logData("CenterWithPellet"); 
-                click();
-                updateDisplay();
-                bluePix();
-                outputPulse(2, 100);
-                // Wait for touch to return to baseline before allowing next detection
-                while (abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                    delay(10);
-                }
-                pokeDuration = (float)(millis() - pokeStartTime);
-            }
-            wakePad = 0; // Reset after handling (whether processed or not)
-        }
-        else if (wakePad == 1) {  // LEFT pad interrupt → Center touch
-            // Verify touch is actually above threshold (rising edge, not falling edge)
-            float leftDev = abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0);
-            if (leftDev >= TOUCH_THRESHOLD) {
-                unsigned long pokeStartTime = millis();
-                centerCount++;
-                retrievalTime = 0.0;
-                dispenseError = false;
-                // Serial.println("CenterWithPellet");
                 logData("CenterWithPellet");
                 click();
                 updateDisplay();
                 bluePix();
                 outputPulse(2, 100);
-                // Wait for touch to return to baseline before allowing next detection
-                while (abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0) >= TOUCH_THRESHOLD) {
-                    delay(10);
-                }
-                pokeDuration = (float)(millis() - pokeStartTime);
+                resetTouchFlags();
+            } else if (rightTouch) {
+                retrievalTime = 0.0;
+                dispenseError = false;
+                logData("RightWithPellet");
+                click();
+                updateDisplay();
+                bluePix();
+                outputPulse(2, 100);
+                resetTouchFlags();
             }
-            wakePad = 0; // Reset after handling (whether processed or not)
         }
         
         delay(10); // Small delay to prevent excessive CPU usage

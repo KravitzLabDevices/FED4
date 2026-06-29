@@ -16,6 +16,7 @@ bool proxCompleted = false;
 
 void setup() {
   fed4.begin(task);  // initialize FED4 hardware
+  fed4.useMotionSensor = false;
   fed4.sleepSeconds = 1;
 }
 
