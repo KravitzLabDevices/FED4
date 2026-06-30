@@ -2,65 +2,77 @@
 #define FED4_PINS_h
 
 // Motor Control Pins
-#define MOTOR_MSBY 15  // MSBY motor
-#define MOTOR_PIN_1 46 // A2 motor
-#define MOTOR_PIN_2 37 // A3 motor
-#define MOTOR_PIN_3 21 // A4 motor
-#define MOTOR_PIN_4 38 // A5 motor
+#define MOTOR_PIN_1 38 // A2 motor
+#define MOTOR_PIN_2 45 // A3 motor
+#define MOTOR_PIN_3 46 // A4 motor
+#define MOTOR_PIN_4 47 // A5 motor
 
 // User Buttons
-#define BUTTON_1 40 // User Button 1 - bottom
-#define BUTTON_2 39 // User Button 2 - middle
-#define BUTTON_3 14 // User Button 3 - top
+#define BUTTON_1 15// User Button 1 - bottom
+#define BUTTON_2 16 // User Button 2 - middle
+#define BUTTON_3 39 // User Button 3 - top
 
 // Touch Sensor Pins
-#define TOUCH_PAD_CENTER TOUCH_PAD_NUM5 // Touch pad - Center
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM1  // Touch pad - Right
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM6   // Touch pad - Left
+#define TOUCH_PAD_CENTER TOUCH_PAD_NUM3 // Touch pad - Center
+#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM2  // Touch pad - Right
+#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1   // Touch pad - Left
+
+// Photogate Pins
+#define PHOTOGATE_1 14 // Center
+#define PHOTOGATE_2 17 // Left
+#define PHOTOGATE_3 18 // Right
+#define PHOTOGATE_4 37 // Pellet Detector
 
 // Audio Interface
-#define AUDIO_TRRS_1 2
-#define AUDIO_TRRS_2 3
-#define AUDIO_TRRS_3 4
-#define AUDIO_LRCLK 48
-#define AUDIO_BCLK 45
-#define AUDIO_DIN 41
-#define AUDIO_SD 42
+#define AUDIO_TRRS_1 4 // Audio TRRS pin 1
+#define AUDIO_TRRS_2 5 // Audio TRRS pin 2
+#define AUDIO_TRRS_3 6 // Audio TRRS pin 3
+
+// Interrupt Logic
+#define INT_OR 7 // Interrupt ORing logic
+
+// Amplifier Interface
+#define AMP_LRCLK 40 // Amplifier left right clock
+#define AMP_BCLK 41 // Amplifier bit clock
+#define AMP_DIN 42 // Amplifier data input
+#define EXP_AMP_SD 4 // Amplifier SD line on GPIO expander
 
 // SPI Interface
-#define SD_CS 10
-#define DISPLAY_CS 17
-#define SPI_MOSI 11
-#define SPI_SCK 12
-#define SPI_MISO 13
+#define SPI_MOSI 13 // SPI master output, slave input
+#define SPI_SCK 12 // SPI clock
+#define SPI_MISO 11 // SPI master input, slave output
+#define SD_CS 48 // SD card chip select
+
+// Display Interface
+#define DISPLAY_CS 44 // Display chip select
+#define DISPLAY_VCOM 43 // Display VCOM
+#define EXP_DISPLAY_RESET 6 // Display reset on GPIO expander
+#define EXP_DISPLAY_LED 7 // Display LED on GPIO expander
 
 // I2C Interface
-#define SDA 8
-#define SCL 9
-#define SDA_2 20
-#define SCL_2 19
+#define SDA 8 // I2C data
+#define SCL 9 // I2C clock
 
 // Power Management
-#define LDO2_ENABLE 47
-#define BAT_VOLTAGE 7
-#define USER_PIN_18 18
+#define EXP_PSV2_EN 13 // PSV2 enable on GPIO expander
+#define EXP_PSV3_EN 12 // PSV3 enable on GPIO expander
+
+// User Control Pins
+#define USER_SRV_INT 21 // User Servo or interrupt
+#define EXP_USER_GPX0 8 // User pin 8 on GPIO expander
+#define EXP_USER_GPX1 9 // User pin 9 on GPIO expander
+#define EXP_USER_GPX2 10 // Touch point 10 on GPIO expander
+#define EXP_USER_GPX3 11 // Touch point 11 on GPIO expander
+
+// Solenoid Control
+#define EXP_SOL_1 2 // Solenoid 1 on GPIO expander
+#define EXP_SOL_2 3 // Solenoid 2 on GPIO expander
 
 // LED Control
-#define NEOPIXEL_PIN 35
-#define RGB_STRIP_PIN 36 // front LEDs
+#define STATUS_LED 35 // Status LED
+#define RGB_STRIP 36 // front LEDs
 
-// ADC Configuration
-#define VBAT_ADC_CHANNEL ADC1_CHANNEL_6
-
-// GPIO Expander Pins
-#define EXP_PHOTOGATE_1 12 // Center
-#define EXP_PHOTOGATE_2 13 // Left
-#define EXP_PHOTOGATE_3 0  // Right
-#define EXP_PHOTOGATE_4 11 // Pellet Detector
-#define EXP_XSHUT_1 2      // controls timing for ToF sensors
-#define EXP_XSHUT_2 15     // controls timing for ToF sensors
-#define EXP_XSHUT_3 3      // controls timing for ToF sensors
-#define EXP_LDO3 14        // enables LDO3
-#define EXP_HAPTIC 8       // Turns on/off haptic motor
+// Haptic Motor
+#define EXP_HAPTIC 5       // Turns on/off haptic motor
 
 #endif
