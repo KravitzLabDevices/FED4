@@ -486,7 +486,7 @@ void FED4::rightLight(const char *colorName, uint8_t brightness)
 }
 
 // ── STATUS LED ──────────────────────────────────────────────────────────────
-// Single red LED driven by PWM on GPIO STATUS_LED (always-on 3.3V rail).
+// Single red LED driven by PWM on GPIO STATUS_LED.
 // API: redPix(brightness) to light, noPix() to turn off.
 // brightness = PWM duty cycle, 0 (off) – 255 (full).
 // Example: redPix(5);    // dim red indicator
