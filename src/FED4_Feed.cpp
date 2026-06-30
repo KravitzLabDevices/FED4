@@ -120,7 +120,7 @@ void FED4::handlePelletInWell() {
     
     while (pelletPresent)
     { // while pellet is in well, monitor for pokes and retrieval time
-        bluePix(); 
+        redPix();
         pelletPresent = checkForPellet();
 
         retrievalTime = (static_cast<float>(millis() - pelletWellTime)) / 1000.0f;
@@ -145,7 +145,7 @@ void FED4::handlePelletInWell() {
                 logData("CenterWithPellet");
                 click();
                 updateDisplay();
-                bluePix();
+                redPix();
                 outputPulse(2, 100);
                 resetTouchFlags();
             } else if (rightTouch) {
@@ -154,7 +154,7 @@ void FED4::handlePelletInWell() {
                 logData("RightWithPellet");
                 click();
                 updateDisplay();
-                bluePix();
+                redPix();
                 outputPulse(2, 100);
                 resetTouchFlags();
             }
@@ -165,7 +165,7 @@ void FED4::handlePelletInWell() {
 }
 
 void FED4::finishFeeding() {
-        purplePix();
+        redPix();
     // Serial.println("Pellet Removed");
 
     if (pelletReady) {
@@ -204,7 +204,7 @@ void FED4::finishFeeding() {
  */
 bool FED4::checkForPellet()
 {
-    return !mcp.digitalRead(EXP_PHOTOGATE_1);
+    return !digitalRead(PHOTOGATE_1);
 }
 
 /** 
@@ -215,8 +215,7 @@ bool FED4::checkForPellet()
 bool FED4::didPelletDrop()
 {
     if (dropSensorAvailable) {
-        //With drop sensor use:
-        return !mcp.digitalRead(EXP_PHOTOGATE_4);
+        return !digitalRead(PHOTOGATE_4);
     } else {
         //Without drop sensor use:
         return false; // Always return false when sensor is not available
@@ -230,8 +229,8 @@ bool FED4::didPelletDrop()
  */
 bool FED4::initializeDropSensor()
 {
-    // Read the drop sensor status
-    bool sensorStatus = mcp.digitalRead(EXP_PHOTOGATE_4);
+    // Read the drop sensor status (HIGH = sensor present and clear)
+    bool sensorStatus = digitalRead(PHOTOGATE_4);
     
     // Set the flag based on sensor status
     dropSensorAvailable = sensorStatus;

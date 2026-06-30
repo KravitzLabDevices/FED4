@@ -1,20 +1,15 @@
 #include "FED4.h"
 
-// ToF sensor instance - using MCP pin 1 like the working script
-SFEVL53L1X distanceSensor(Wire, 1); // Changed from EXP_XSHUT_1 (pin 2) to pin 1
+// ToF sensor instance - no XSHUT pin on v1.7 board
+SFEVL53L1X distanceSensor(Wire);
 
 bool FED4::initializeToF()
 {
-    // Configure XSHUT pin (using MCP pin 1 like the working script)
-    mcp.pinMode(1, OUTPUT); // Use pin 1 instead of EXP_XSHUT_1 (pin 2)
-    mcp.digitalWrite(1, HIGH); // XSHUT must be pulled high for the sensor to be found
-    delay(10); // Give sensor more time to power up
-    
     // Set I2C clock speed for better compatibility
-    Wire.setClock(100000); // Set to 100kHz for better compatibility
+    Wire.setClock(100000); // Set to 100kHz
     delay(10);
     
-    // Retry logic like the working battery monitor
+    // Retry logic for reliable initialization
     int maxRetries = 3;
     int retryCount = 0;
     bool sensorInitialized = false;
@@ -23,7 +18,7 @@ bool FED4::initializeToF()
         retryCount++;
         Serial.println("Initializing ToF sensor");
         
-        // Reset I2C bus if this isn't the first attempt
+        // Reset I2C bus on retry
         if (retryCount > 1) {
             Wire.end();
             delay(50); // Give bus time to reset
@@ -57,10 +52,6 @@ bool FED4::initializeToF()
 
 int FED4::prox()
 {
-    // Ensure XSHUT is high (should already be set from initialization)
-    mcp.digitalWrite(1, HIGH); // Use pin 1 instead of EXP_XSHUT_1
-    delay(1); // Give sensor time to wake up
-    
     // Try to initialize the sensor if not already done
     if (distanceSensor.begin() != 0)  // Begin returns 0 on a good init
     {
@@ -83,10 +74,10 @@ int FED4::prox()
     }
     
     // Get the distance measurement
-    int calibration = 20; //set calibration value here, default is 20mm 
+    int calibration = 20; // calibration offset in mm
     distance = distanceSensor.getDistance() - calibration;
 
-    //limit reported distance to 0-150mm, with error value of -1
+    // Limit reported distance to 0-150mm, error value of -1
     if (distance >= -20 && distance < 0) {
         distance = 0;
     }
@@ -103,4 +94,4 @@ int FED4::prox()
     distanceSensor.stopRanging();
     
     return distance;
-} 
+}

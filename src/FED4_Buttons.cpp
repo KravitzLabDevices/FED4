@@ -97,7 +97,7 @@ void FED4::checkButton3() {
     // At 500ms: Provide haptic feedback for audio toggle threshold
     if (holdTime == 500) {
       // temporarily unmute audio even if it is silenced
-      digitalWrite(AUDIO_SD, HIGH);
+      mcp.digitalWrite(EXP_AMP_SD, HIGH);
       click();
     }
     

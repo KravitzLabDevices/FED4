@@ -1,18 +1,12 @@
 #ifndef FED4_h
 #define FED4_h
 
-
-// note there is a known issue with FastLED 3.10.3 on ESP32-S3 devices
-// keep FastLED version 3.10.2 until this issue is fixed in the main FastLED repository
-// https://github.com/FastLED/FastLED/issues/5100
-
 #include <Arduino.h>
 #include <map>
 #include <string>
 #include <Adafruit_MCP23X17.h>  // version 2.3.2 
 #include "Adafruit_MAX1704X.h"  // version 1.0.3
 #include <Stepper.h>  // version 1.1.3
-#include <Adafruit_NeoPixel.h> // version 1.15.2
 #include <FastLED.h> // version 3.10.2 
 #include <Wire.h> 
 #include <Adafruit_GFX.h>  // version 1.12.3
@@ -33,9 +27,7 @@
 #include <ArduinoJson.h>
 #include <Adafruit_LIS3DH.h> //version 1.3.0
 #include <Adafruit_Sensor.h>
-#include "Adafruit_MLX90393.h" //version 2.0.5
 #include "SparkFun_VL53L1X.h" //version 1.2.12
-#include "Adafruit_STHS34PF80.h"  //version 1.0.2
 #include "Adafruit_VEML7700.h" //version 2.1.6
 #include <ESP32Time.h> //version 2.0.6
 
@@ -47,26 +39,8 @@
 // Pin Definitions
 #include "FED4_Pins.h"
 
-// Board Version: set to 162 for v1.6.2 or 163 for v1.6.3
-#ifndef FED4_BOARD_VERSION
-  #define FED4_BOARD_VERSION 163
-#endif
-
-#if FED4_BOARD_VERSION == 163
-  #define FED4_BOARD_VERSION_STR "1.6.3"
-#elif FED4_BOARD_VERSION == 162
-  #define FED4_BOARD_VERSION_STR "1.6.2"
-#else
-  #error "Unsupported FED4_BOARD_VERSION. Use 162 (v1.6.2) or 163 (v1.6.3)."
-#endif
-
-// Device Constants
-static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;   // Default I2C address for LIS3DH accelerometer
-#if FED4_BOARD_VERSION == 163
-  static const uint8_t MLX90393_I2C_ADDRESS = 0x10; // MLX90393 I2C address for board v1.6.3
-#else
-  static const uint8_t MLX90393_I2C_ADDRESS = 0x0C; // MLX90393 I2C address for board v1.6.2
-#endif
+// Board Version: v1.7
+#define FED4_BOARD_VERSION_STR "1.7.0"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -79,7 +53,6 @@ static const uint16_t DISPLAY_WIDTH = 144;
 static const uint16_t DISPLAY_HEIGHT = 168;
 
 static const uint8_t NUM_STRIP_LEDS = 8;
-static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 24;
 
@@ -107,8 +80,8 @@ public:
     void syncHublink();
     static void onHublinkTimestampReceived(uint32_t timestamp);
 
-    // Motion sensor (STHS34PF80) control
-    bool useMotionSensor = true; // Default to true, can be set to false to disable STHS34PF80
+    // Motion sensor (PIR EKMB1107112) control
+    bool useMotionSensor = true; // Default to true, can be set to false to disable PIR
 
     // Button functions
     bool initializeButtons();
@@ -197,8 +170,8 @@ public:
     void logTouchEvent(); // Log touch events separately from critical path
     static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right
 
-    // Pixel an Strip control (defined in FED4_LEDs.cpp)
-    // (strip)
+    // Status LED and Strip control (defined in FED4_LEDs.cpp)
+    // (strip - front RGB LEDs on PSV3 rail)
     bool initializeStrip();
     void setStripBrightness(uint8_t brightness);
     void colorWipe(const char *colorName, unsigned long wait);
@@ -223,7 +196,7 @@ public:
     void centerLight(const char *colorName, uint8_t brightness);
     void rightLight(const char *colorName);
     void rightLight(const char *colorName, uint8_t brightness);
-    // (pixel)
+    // (status pixel - single red LED on STATUS_LED pin)
     bool initializePixel();
     void setPixBrightness(uint8_t brightness);
     void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 5);
@@ -260,6 +233,8 @@ public:
     void displayLowBatteryWarning();
     void displayActivityMonitor();
     void displayActivityCounters();
+    void displayReset();
+    void displayLight(bool on);
 
     void serialStatusReport();
 
@@ -271,12 +246,12 @@ public:
     void handleTouch();
     unsigned long pollSensorsTimer = 0;
 
-    
-    bool initializeLDOs();
-    void LDO2_ON();
-    void LDO2_OFF();
-    void LDO3_ON();
-    void LDO3_OFF();
+    // Power management (defined in FED4_Sleep.cpp)
+    bool initializePower();
+    void PSV2_ON();
+    void PSV2_OFF();
+    void PSV3_ON();
+    void PSV3_OFF();
 
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
@@ -339,7 +314,6 @@ public:
     float getWhite();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
-    
 
     // variables to store temp/humidity/pressure/gas and battery info so we don't have to keep pinging the chips every time
     float temperature = -1.0;
@@ -415,8 +389,6 @@ public:
     void refresh();
     void drawPixel(int16_t x, int16_t y, uint16_t color);
 
-
-
     // Accelerometer functions (defined in FED4_Accel.cpp)
     bool initializeAccel();
     void setAccelRange(lis3dh_range_t range);
@@ -426,25 +398,24 @@ public:
     void readAccel(float &x, float &y, float &z);
     bool accelDataReady();
 
-    // Magnet functions (defined in FED4_Magnet.cpp)
-    bool initializeMagnet();
-    void setMagnetGain(mlx90393_gain_t gain);
-    mlx90393_gain_t getMagnetGain();
-    bool readMagnetData(float &x, float &y, float &z);
-    bool getMagnetEvent(sensors_event_t *event);
-    void configureMagnet(mlx90393_gain_t gain = MLX90393_GAIN_5X);
-
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
     int prox();
 
-    // Motion sensor functions (defined in FED4_Motion.cpp)
-    bool initializeMotion();
+    // Motion sensor functions (defined in FED4_Motion.cpp) - PIR EKMB1107112
+    // PIR pin configured in begin(); no protocol init required
     bool motion();
     void resetMotionCounters();
 
     // Drop sensor functions
     bool initializeDropSensor();
+
+    // Solenoid functions (defined in FED4_Begin.cpp)
+    bool initializeSolenoids();
+    void solenoid(uint8_t num, bool state);
+
+    // INT_OR wake line
+    bool initializeIntOr();
 
     // Memory monitoring function
     void printMemoryStatus();
@@ -466,13 +437,9 @@ private:
     RTC_DS3231 rtc;
     ESP32Time Inrtc;
     Adafruit_BME680 bme;
-    Adafruit_NeoPixel pixels;
     Stepper stepper;
-    TwoWire I2C_2;
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
-    Adafruit_MLX90393 magnet;
-    Adafruit_STHS34PF80 motionSensor;
     Adafruit_VEML7700 lightSensor;
     I2SClass i2s;  // New I2S driver object for ESP32 core 3.x
 
@@ -489,7 +456,7 @@ private:
     String strain;
     String age;
     bool dropSensorAvailable; // Flag to store drop sensor availability status
-    bool motionSensorInitialized; // Flag to track if motion sensor baseline is established
+    uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
 
     // RTC functions
     Preferences preferences;
@@ -513,7 +480,6 @@ private:
     friend class FED4_Feed;
     friend class FED4_Begin;
     friend class FED4_Audio;
-    friend class FED4_Magnet;
     friend class FED4_Accel;
     friend class FED4_Menu;
     friend class FED4_Motion;

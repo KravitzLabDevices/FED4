@@ -23,6 +23,9 @@
 #define PHOTOGATE_3 18 // Right
 #define PHOTOGATE_4 37 // Pellet Detector
 
+// PIR Motion Sensor
+#define PIR_MOTION 10 // PIR motion sensor
+
 // Audio Interface
 #define AUDIO_TRRS_1 4 // Audio TRRS pin 1
 #define AUDIO_TRRS_2 5 // Audio TRRS pin 2

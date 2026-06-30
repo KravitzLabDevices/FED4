@@ -1,8 +1,13 @@
 #include "FED4.h"
 
-#define SHARPMEM_BIT_WRITECMD (0x01) // 0x80 if writing, 0x00 if reading
-#define SHARPMEM_BIT_VCOM (0x02)     // ROM_IN pin state
-#define SHARPMEM_BIT_CLEAR (0x04)    // CL pin state
+// Display: Kyocera TN0216ANVNANN-GN00  320×176 Memory-in-Pixel (MIP)
+// Interface: 3-wire SPI (SCLK, SCS, SI) + RST + VCOM
+// RST = LOW → display ON;  RST = HIGH → display OFF (VCOM must be LOW when RST HIGH)
+// Pixel data: 0 = BLACK, 1 = WHITE  (section 9-1)
+// SPI bit order: LSBFIRST — AG0 / D0 are the "first" bits per the datasheet notation,
+//   meaning they map to bit 0 (transmitted first by LSBFIRST).
+// Gate address: linear mapping assumed (address = line number 1–176).
+//   If rows appear interleaved, consult the section 7 address table in the datasheet.
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) \
@@ -13,11 +18,11 @@
     }
 #endif
 
-// Add these lookup tables at the top of the file
+// Pixel bit-mask lookup tables (LSBFIRST: bit 0 = leftmost pixel in each byte group)
 static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
-                             clr[] = {(uint8_t)~1, (uint8_t)~2, (uint8_t)~4,
-                                      (uint8_t)~8, (uint8_t)~16, (uint8_t)~32,
-                                      (uint8_t)~64, (uint8_t)~128};
+                             clr[] = {(uint8_t)~1,   (uint8_t)~2,   (uint8_t)~4,
+                                      (uint8_t)~8,   (uint8_t)~16,  (uint8_t)~32,
+                                      (uint8_t)~64,  (uint8_t)~128};
 
 void FED4::updateDisplay() {
   setFont(&FreeSans9pt7b);
@@ -31,9 +36,7 @@ void FED4::updateDisplay() {
     displayTask();
     displayMouseId();
 
-    // draw line to split on screen text 
-    //drawLine(0,59,168,59, DISPLAY_BLACK);  
-    drawLine(0,60,168,60, DISPLAY_BLACK);  
+    drawLine(0, 60, 175, 60, DISPLAY_BLACK);  
 
     // draw screen elements
     displayEnvironmental();
@@ -51,9 +54,7 @@ void FED4::displayActivityMonitor() {
   displayTask();
   displayMouseId();
 
-  // draw line to split on screen text 
-  drawLine(0,59,168,59, DISPLAY_BLACK);  
-  drawLine(0,60,168,60, DISPLAY_BLACK);  
+  drawLine(0, 60, 175, 60, DISPLAY_BLACK);  
 
   // draw screen elements (same as normal display)
   displayEnvironmental();
@@ -213,8 +214,7 @@ void FED4::displayAge(){
 }
 
 void FED4::displayEnvironmental(){
-  //try to make text inverse white on black
-  fillRect (0, 0, 144, 17, DISPLAY_BLACK);
+  fillRect(0, 0, 176, 17, DISPLAY_BLACK);
   
   setFont(&Org_01);
   setTextSize(2);
@@ -321,30 +321,23 @@ void FED4::displayDateTime() {
   setTextSize(2);
   setTextColor(DISPLAY_WHITE);
 
-  // Print date and time at bottom of the screen
-  fillRect(0, 146, 144, 22, DISPLAY_BLACK);
+  // Bottom bar anchored to the base of the 320-pixel tall logical display
+  fillRect(0, 296, 176, 24, DISPLAY_BLACK);
   DateTime current = rtc.now();
-  
-  // Buffer for formatting time
+
   char timeStr[6];  // HH:MM\0
   char dateStr[9];  // MM.DD.YY\0
-  
-  // Format date string
-  snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
-           current.month(), 
-           current.day(), 
-           current.year() - 2000);
-           
-  // Format time string
-  snprintf(timeStr, sizeof(timeStr), "%02d:%02d", 
-           current.hour(), 
-           current.minute());
 
-  // Display formatted strings
-  setCursor(5, 160);
+  snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d",
+           current.month(), current.day(), current.year() - 2000);
+
+  snprintf(timeStr, sizeof(timeStr), "%02d:%02d",
+           current.hour(), current.minute());
+
+  setCursor(5, 312);
   print(dateStr);
-  
-  setCursor(94, 160);
+
+  setCursor(100, 312);
   print(timeStr);
 }
 
@@ -375,144 +368,126 @@ void FED4::displayLowBatteryWarning() {
     refresh();
 }
 
-/**
- * Initializes the Sharp Memory Display
- * 
- * @return bool - true if initialization successful, false if buffer allocation fails
- * 
- * This function:
- * - Sets up the display CS pin and SPI bit order
- * - Allocates display buffer memory
- * - Sends initial clear command to display
- * - Configures default display settings (rotation, font, text properties)
- * - Performs initial refresh
- */
+// Resets the display panel via MCP expander RST line.
+// Per section 8 of the TN0216 datasheet:
+//   RST = HIGH → display OFF (panel blanked, pixel memory retained)
+//   RST = LOW  → display ON (normal operation)
+// VCOM must be LOW whenever RST is HIGH to prevent shoot-through current.
+void FED4::displayReset()
+{
+    mcp.pinMode(EXP_DISPLAY_RESET, OUTPUT);
+
+    // Ensure VCOM is LOW before asserting RST HIGH (shoot-through prevention, section 6-2)
+    pinMode(DISPLAY_VCOM, OUTPUT);
+    digitalWrite(DISPLAY_VCOM, LOW);
+    vcom = false;
+
+    // Brief RST HIGH: blanks the panel so random power-on pixel memory isn't visible
+    mcp.digitalWrite(EXP_DISPLAY_RESET, HIGH);
+    delay(10);
+
+    // RST LOW: display enters normal operation — hold LOW for the device lifetime
+    mcp.digitalWrite(EXP_DISPLAY_RESET, LOW);
+    delay(10);
+}
+
+// Controls the display frontlight LED via MCP expander
+void FED4::displayLight(bool on)
+{
+    mcp.pinMode(EXP_DISPLAY_LED, OUTPUT);
+    mcp.digitalWrite(EXP_DISPLAY_LED, on ? HIGH : LOW);
+}
+
 bool FED4::initializeDisplay()
 {
-    pinMode(DISPLAY_CS, OUTPUT);
-    digitalWrite(DISPLAY_CS, LOW); // Display inactive = LOW
     SPI.setBitOrder(LSBFIRST);
 
-    // Initialize the display buffer
-    if (displayBuffer)
-    {
+    pinMode(DISPLAY_CS, OUTPUT);
+    digitalWrite(DISPLAY_CS, LOW); // SCS inactive = LOW
+
+    // Allocate framebuffer: 320×176 = 7040 bytes
+    if (displayBuffer) {
         free(displayBuffer);
         displayBuffer = nullptr;
     }
-    uint16_t bufferSize = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
+    const uint32_t bufferSize = (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8; // 7040 bytes
     displayBuffer = (uint8_t *)malloc(bufferSize);
-    if (!displayBuffer)
-    {
+    if (!displayBuffer) {
         Serial.println("Failed to allocate display buffer");
         return false;
     }
-    memset(displayBuffer, 0xff, bufferSize);
+    // All-white initial frame (Data 1 = WHITE, section 9-1); clears random pixel memory at power-on
+    memset(displayBuffer, 0xFF, bufferSize);
 
-    vcom = false;
-
-    // Initialize display with a clear command
-    SPI.setBitOrder(LSBFIRST);
-    digitalWrite(DISPLAY_CS, HIGH); // Select display
-
-    uint8_t cmd = SHARPMEM_BIT_WRITECMD | SHARPMEM_BIT_CLEAR;
-    if (vcom)
-        cmd |= SHARPMEM_BIT_VCOM;
-    vcom = !vcom;
-
-    SPI.transfer(cmd);
-    SPI.transfer(0x00); // Required trailing byte
-
-    digitalWrite(DISPLAY_CS, LOW); // Deselect display
-
-    delay(1); // Give display time to process clear command
-
-    setRotation(2);
+    // Portrait orientation: logical 176 wide × 320 tall
+    // If the display appears rotated, try setRotation(3) as an alternative
+    setRotation(1);
     setFont(&FreeSans9pt7b);
     setTextSize(1);
     setTextColor(DISPLAY_BLACK);
     setTextWrap(false);
 
-    refresh(); // Initial refresh to ensure display is ready
+    refresh(); // Push initial white frame to panel
     return true;
 }
 
-void FED4::sendDisplayCommand(uint8_t cmd)
-{
-    SPI.setBitOrder(LSBFIRST);
-    digitalWrite(DISPLAY_CS, HIGH); // Select display (active HIGH)
-
-    // Toggle VCOM
-    cmd |= SHARPMEM_BIT_WRITECMD;
-    if (vcom)
-    {
-        cmd |= SHARPMEM_BIT_VCOM;
-    }
-    vcom = !vcom;
-
-    SPI.transfer(cmd);
-
-    digitalWrite(DISPLAY_CS, LOW); // Deselect display
-}
-
+// Clears the display to white.
+// TN0216 has no hardware clear command — write all-white pixels and refresh.
 void FED4::clearDisplay()
 {
-    sendDisplayCommand(SHARPMEM_BIT_CLEAR);
-    delay(1); // Wait for the clear to complete
-    memset(displayBuffer, 0xff, (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8);
+    memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
+    refresh();
 }
 
+// Sends the full framebuffer to the panel using Kyocera line-oriented SPI protocol (section 9-2).
+// Each gate line: 1 address byte + 40 data bytes + 4 dummy bytes = 360 clocks.
+// All 176 lines are sent within a single SCS=HIGH window (continuous mode).
 void FED4::refresh()
 {
-    uint16_t i, currentline;
-
     SPI.setBitOrder(LSBFIRST);
+
+    // Toggle VCOM each refresh — AC drive requirement (section 9-3, ≥ ~1 Hz)
+    vcom = !vcom;
+    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
+
+    // tsSCS: SCS must be LOW for ≥ 4 ms before asserting HIGH for the next frame (section 9-4)
+    delay(4);
+
+    // Assert SCS active HIGH — all 176 lines sent in one SCS window (section 9-2)
     digitalWrite(DISPLAY_CS, HIGH);
 
-    uint8_t cmd = SHARPMEM_BIT_WRITECMD;
-    if (vcom)
-    {
-        cmd |= SHARPMEM_BIT_VCOM;
-    }
-    vcom = !vcom;
+    const uint8_t bytesPerLine = DISPLAY_WIDTH / 8; // 40 bytes = 320 pixels
 
-    SPI.transfer(cmd);
+    for (uint8_t line = 1; line <= DISPLAY_HEIGHT; line++) {
+        // Gate address byte (AG0~AG7).
+        // LSBFIRST: AG0 (bit 0) is sent first, matching the AG0~AG7 transmission order.
+        // Gate line addressing assumed linear from section 7: address = line number (1–176).
+        SPI.transfer(line);
 
-    uint8_t bytes_per_line = DISPLAY_WIDTH / 8;
-    uint16_t totalbytes = (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8;
-
-    // Use static buffer to avoid stack allocation on every call
-    static uint8_t lineBuffer[22]; // Maximum size needed: bytes_per_line + 2 = 18 + 2 = 20, rounded up to 22
-
-    // Send all lines
-    for (i = 0; i < totalbytes; i += bytes_per_line)
-    {
-        // Send address byte (line number)
-        currentline = ((i + 1) / (DISPLAY_WIDTH / 8)) + 1;
-        lineBuffer[0] = currentline;
-
-        // Copy display data for this line
-        memcpy(lineBuffer + 1, displayBuffer + i, bytes_per_line);
-
-        // Add end of line marker
-        lineBuffer[bytes_per_line + 1] = 0x00;
-
-        // Send the entire line at once
-        for (uint8_t j = 0; j < bytes_per_line + 2; j++)
-        {
-            SPI.transfer(lineBuffer[j]);
+        // Pixel data: 40 bytes, D0 (bit 0 of first byte) = leftmost pixel (section 9-1)
+        const uint8_t *row = displayBuffer + (uint16_t)(line - 1) * bytesPerLine;
+        for (uint8_t b = 0; b < bytesPerLine; b++) {
+            SPI.transfer(row[b]);
         }
+
+        // 32 dummy bits (DUM0–DUM31): required for internal panel line processing (section 9-1)
+        SPI.transfer(0x00);
+        SPI.transfer(0x00);
+        SPI.transfer(0x00);
+        SPI.transfer(0x00);
     }
 
-    SPI.transfer(0x00);
-
+    // Deassert SCS; tsSCS and thSCS satisfied by the delay(4) at the start of the next call
     digitalWrite(DISPLAY_CS, LOW);
 }
 
 void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
-    if ((x < 0) || (x >= DISPLAY_WIDTH) || (y < 0) || (y >= DISPLAY_HEIGHT))
+    // Bounds check against logical (rotation-adjusted) dimensions
+    if ((x < 0) || (x >= _width) || (y < 0) || (y >= _height))
         return;
 
+    // Convert logical → physical coordinates for the current rotation
     switch (rotation)
     {
     case 1:
@@ -527,16 +502,13 @@ void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)
         _swap_int16_t(x, y);
         y = DISPLAY_HEIGHT - 1 - y;
         break;
+    // case 0: no transform
     }
 
     if (color)
-    {
         displayBuffer[(y * DISPLAY_WIDTH + x) / 8] |= pgm_read_byte(&set[x & 7]);
-    }
     else
-    {
         displayBuffer[(y * DISPLAY_WIDTH + x) / 8] &= pgm_read_byte(&clr[x & 7]);
-    }
 }
 
 void FED4::startupAnimation(){
@@ -546,15 +518,15 @@ void FED4::startupAnimation(){
 
   const char* text = "FED4";  // Text to animate
   int textWidth = 28;         // Approximate width of each character in pixels
-  int textX = 144;   // Start position off the screen (right side)
+  int textX = 176;   // Start position off the screen (right side, logical width)
   int mouseX = 0;
-  int centerX = (144 - strlen(text) * textWidth) / 2; // Center X position
+  int centerX = (176 - strlen(text) * textWidth) / 2; // Center X position
   int textY = 60;        // Vertical height of the text
 
   while (textX > centerX) {
     // Clear only the buffer (not hardware) to prevent flickering
-    // Avoid clearDisplay() which sends hardware commands - just clear buffer directly
-    memset(displayBuffer, 0xff, (DISPLAY_WIDTH * DISPLAY_HEIGHT) / 8);
+    // Avoid clearDisplay() (which calls refresh) mid-animation — clear the buffer directly
+    memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
 
     //draw FED4
     fillRect(100, 92, 32, 20, DISPLAY_BLACK);    //FED4
@@ -618,8 +590,7 @@ void FED4::displayInitStatus(const char* message) {
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
   
-  // Clear area for status message (below FED4 logo, around y=100-130)
-  fillRect(0, 125, 144, 100, DISPLAY_WHITE);
+  fillRect(0, 125, 176, 171, DISPLAY_WHITE); // Clear message area (to y=296 bottom bar)
   
   // Display the initialization message
   setCursor(6, 135);

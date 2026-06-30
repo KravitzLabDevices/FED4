@@ -244,9 +244,6 @@ void FED4::pollSensors(int minToUpdateSensors) {
   // Increment poll counter
   pollCount++;
 
-  // A quirk of the ESP32-S3 is that the the primary I2C bus must
-  // be exercised before I2C_2 works properly - calling prox() here does that
-  // TODO: See if there is a simpler way to do this - this is a hack.
   prox();
   motion();
 
