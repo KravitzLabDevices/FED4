@@ -120,7 +120,7 @@ bool FED4::begin(const char *programName)
     // Initialize temperature/humidity/pressure/gas sensor BME680
     displayInitStatus("Temp/Humidity");
     Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
-    statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
+    statuses["Temp/Humidity"].initialized = bme.begin(I2C_ADDR_BME680, &Wire);
     if (!statuses["Temp/Humidity"].initialized)
     {
         Serial.println("BME680 sensor initialization failed - check wiring on pins 8 & 9!");
@@ -201,9 +201,9 @@ bool FED4::begin(const char *programName)
     displayInitStatus("Solenoids");
     statuses["Solenoids"].initialized = initializeSolenoids();
 
-    // Initialize INT_OR wake line
-    displayInitStatus("INT_OR");
-    statuses["INT_OR"].initialized = initializeIntOr();
+    // Initialize INT_OR interrupt subsystem (active-LOW, scans ToF/RTC/BAT/PIR/Accel)
+    displayInitStatus("Interrupts");
+    statuses["INT_OR"].initialized = initializeInterrupts();
 
     // Clear I2C bus to reset any stuck states before sensor polling
     Wire.beginTransmission(0x00);

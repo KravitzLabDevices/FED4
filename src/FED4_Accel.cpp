@@ -3,7 +3,7 @@
 /********************************************************
  * FED4 Accelerometer Functions
  *
- * The FED4 uses a LIS3DH accelerometer on the secondary I2C bus.
+ * The FED4 uses a LIS2DH12TR accelerometer on the primary I2C bus (0x19).
  * Default configuration:
  * - Range: ±2G
  * - Data Rate: 50 Hz
@@ -22,14 +22,14 @@
  *    bool success = fed.initializeAccel();
  *
  * 2. Set Range (affects sensitivity):
- *    fed.setAccelRange(LIS3DH_RANGE_2_G);  // ±2g (default)
+ *    fed.setAccelRange(LIS3DH_RANGE_2_G);  // ±2g (default)  [enum from Adafruit_LIS3DH lib]
  *    fed.setAccelRange(LIS3DH_RANGE_4_G);  // ±4g
  *    fed.setAccelRange(LIS3DH_RANGE_8_G);  // ±8g
  *    fed.setAccelRange(LIS3DH_RANGE_16_G); // ±16g
  *
  * 3. Set Performance Mode (affects resolution and power):
- *    fed.setAccelPerformanceMode(LIS3DH_MODE_LOW_POWER);     // 8-bit, lowest power
- *    fed.setAccelPerformanceMode(LIS3DH_MODE_NORMAL);        // 10-bit
+ *    fed.setAccelPerformanceMode(LIS3DH_MODE_LOW_POWER);       // 8-bit, lowest power
+ *    fed.setAccelPerformanceMode(LIS3DH_MODE_NORMAL);          // 10-bit
  *    fed.setAccelPerformanceMode(LIS3DH_MODE_HIGH_RESOLUTION); // 12-bit (default)
  *
  * 4. Set Data Rate (affects power consumption):
@@ -68,10 +68,9 @@ bool FED4::initializeAccel()
     Serial.println("Initializing Accelerometer");
     accel = Adafruit_LIS3DH();
 
-    // Then begin with the default address
-    if (!accel.begin(LIS3DH_I2C_ADDRESS)) // Use default I2C address for LIS3DH
+    if (!accel.begin(I2C_ADDR_ACCEL))
     {
-        Serial.println("Could not find LIS3DH accelerometer");
+        Serial.println("Could not find LIS2DH12 accelerometer");
         return false;
     }
 

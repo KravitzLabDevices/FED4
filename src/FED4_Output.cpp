@@ -66,19 +66,4 @@ void FED4::solenoid(uint8_t num, bool state)
     }
 }
 
-// Initialize INT_OR ORed interrupt/wake line
-// INT_OR aggregates interrupt signals from peripherals; configure as GPIO wake source
-bool FED4::initializeIntOr()
-{
-    pinMode(INT_OR, INPUT);
-
-    esp_err_t err = gpio_wakeup_enable((gpio_num_t)INT_OR, GPIO_INTR_HIGH_LEVEL);
-    if (err != ESP_OK) {
-        Serial.println("INT_OR: failed to enable GPIO wakeup");
-        return false;
-    }
-
-    // esp_sleep_enable_gpio_wakeup() is called once in initializeButtons(); no need to repeat
-    Serial.println("INT_OR wake line initialized");
-    return true;
-}
+// INT_OR initialization moved to FED4_Interrupts.cpp (initializeInterrupts)

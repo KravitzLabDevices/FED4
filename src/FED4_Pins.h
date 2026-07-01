@@ -56,6 +56,15 @@
 #define SDA 8 // I2C data
 #define SCL 9 // I2C clock
 
+// I2C Device Addresses
+#define I2C_ADDR_ACCEL       0x19 // LIS2DH12TR  (SA0=HIGH)
+#define I2C_ADDR_BME680      0x76 // BME680       (SDO=LOW)
+#define I2C_ADDR_MCP23017    0x20 // MCP23017     (A0/A1/A2=LOW)
+#define I2C_ADDR_MAX17048    0x36 // MAX17048     (fixed)
+#define I2C_ADDR_RTC         0x68 // DS3231       (fixed)
+#define I2C_ADDR_TOF         0x29 // VL53L1X      (fixed)
+#define I2C_ADDR_LIGHT       0x10 // VEML7700     (fixed)
+
 // Power Management
 #define EXP_PSV2_EN 13 // PSV2 enable on GPIO expander
 #define EXP_PSV3_EN 12 // PSV3 enable on GPIO expander

@@ -85,9 +85,19 @@ void FED4::wakeUp() {
   // Reconfigure GPIO expander pins after wake-up
   mcp.pinMode(EXP_HAPTIC, OUTPUT);
   mcp.digitalWrite(EXP_HAPTIC, LOW);
-  
+
   PSV3_ON();  // Turn on PSV3 (front RGB strip)
   enableAmp(true);
+
+  // If woken by INT_OR (GPIO wake, line LOW), scan interrupt sources so the
+  // sketch can call getLastInterruptMask() after sleep() returns.
+  // scanAndClearInterrupts() also releases the line so the next sleep is clean.
+  if (wakeCause == ESP_SLEEP_WAKEUP_GPIO && interruptPending()) {
+    lastInterruptMask = scanAndClearInterrupts();
+    Serial.printf("INT_OR wake: sources = 0x%02X\n", lastInterruptMask);
+  } else {
+    lastInterruptMask = INT_SRC_NONE;
+  }
 
   // Only check button and sensor polling if not woken up by touch
   if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {

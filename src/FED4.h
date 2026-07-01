@@ -414,8 +414,31 @@ public:
     bool initializeSolenoids();
     void solenoid(uint8_t num, bool state);
 
-    // INT_OR wake line
-    bool initializeIntOr();
+    // ── Interrupt subsystem (defined in FED4_Interrupts.cpp) ──────────────────
+    // INT_OR is the active-LOW AND of all open-drain sensor interrupts
+    // and ACCEL_INT1 (push-pull, configured active-LOW).
+
+    // Bit flags identifying each interrupt source
+    enum FED4IntSource : uint8_t {
+        INT_SRC_NONE    = 0,
+        INT_SRC_TOF     = 1 << 0,  // VL53L1X data-ready / threshold
+        INT_SRC_RTC     = 1 << 1,  // DS3231 alarm 1 or alarm 2
+        INT_SRC_BATTERY = 1 << 2,  // MAX17048 voltage / SOC alert
+        INT_SRC_ACCEL   = 1 << 3,  // LIS2DH12TR inertial event on INT1
+    };
+
+    bool initializeInterrupts();                     // configure INT_OR wake + accel INT1
+    bool interruptPending();                         // true when INT_OR is LOW
+    uint8_t scanInterrupts();                        // bitmask of all asserted sources (no clear)
+    void clearInterrupts(uint8_t mask = 0xFF);       // clear latches for given sources
+    uint8_t scanAndClearInterrupts();                // scan + clear + verify line release
+    FED4IntSource firstInterruptSource();            // highest-priority single source
+    uint8_t getLastInterruptMask();                  // mask captured automatically on GPIO wake
+
+    // Opt-in per-source interrupt enable helpers
+    bool enableAccelInterrupt(float threshold_g = 0.1f, uint8_t duration_count = 0);
+    bool enableRTCAlarmInterrupt(uint8_t alarmNum = 1);  // arm DS3231 alarm on INT pin
+    bool enableBatteryAlert(float minVoltage, float maxVoltage);  // set MAX17048 VALERT window
 
     // Memory monitoring function
     void printMemoryStatus();
@@ -456,6 +479,7 @@ private:
     String strain;
     String age;
     bool dropSensorAvailable; // Flag to store drop sensor availability status
+    uint8_t lastInterruptMask = 0; // captured by wakeUp() on INT_OR GPIO wake
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
 
     // RTC functions
