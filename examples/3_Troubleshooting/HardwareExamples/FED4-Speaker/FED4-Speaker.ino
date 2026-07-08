@@ -1,95 +1,128 @@
+/*
+ * FED4 Speaker / Amplifier Test
+ *
+ * Plays tones on button presses.
+ *
+ *   I2S pins:
+ *     BCLK  = 41
+ *     LRCLK = 40
+ *     DIN   = 42
+ *   PSV2 must be enabled first (MCP pin 13).
+ *   Library audio is MONO @ 48 kHz.
+ *   Buttons: BUTTON_1=15, BUTTON_2=16.
+ */
+
 #include <Arduino.h>
-#include "Audio.h"
-#include "Wire.h"
-#include "WiFi.h"
-#include "FS.h"
-#include "SD.h"
-#include <SPI.h>
-#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
+#include <Wire.h>
+#include <ESP_I2S.h>
+#include <Adafruit_MCP23X17.h>
+#include <cmath>
 
-// Define the I2S pins
-#define I2S_DATA_IN_PIN 41
-#define I2S_BIT_CLOCK_PIN 45
-#define I2S_LEFT_RIGHT_CLOCK_PIN 48
-#define I2S_SD_PIN 42
-#define BUTTON_1_PIN 40
-#define BUTTON_2_PIN 39
+// I2S amp pins (src/FED4_Pins.h)
+#define AMP_BCLK  41
+#define AMP_LRCLK 40
+#define AMP_DIN   42
 
-unsigned long lastDebounceTime = 0;  // Last time the output pin was toggled
-const unsigned long debounceDelay = 200; // Debounce delay in milliseconds
+// MCP expander pins
+#define EXP_AMP_ENABLE 4 // Amp enable (HIGH = on) -> maps to EXP_AMP_SD in FED4_Pins.h
+#define EXP_PSV2_EN 13 // Powers amp rail
 
-Audio audio;
-I2SClass i2s;  // New I2S object for tone generation
+// User buttons
+#define BUTTON_1_PIN 15
+#define BUTTON_2_PIN 16
 
+#define SDA_PIN 8
+#define SCL_PIN 9
+
+Adafruit_MCP23X17 mcp;
+I2SClass i2s;
+
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 200;
 
 void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
-  const uint32_t sampleRate = 44100;
-  const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
-  const float amplitude = 0.5;
+  const uint32_t sampleRate = 48000;
+  const uint32_t originalSampleCount = (sampleRate * duration_ms) / 1000;
+  const float amplitude = 0.25;
   const float twoPiF = 2.0 * M_PI * frequency;
 
-  // Buffer to store multiple samples before writing
+  // Pad short tones to one full I2S buffer (same as FED4::playTone)
+  const uint32_t sampleCount = (originalSampleCount < 256) ? 256 : originalSampleCount;
+
   int16_t sampleBuffer[256];
   size_t samplesInBuffer = 0;
 
   for (uint32_t i = 0; i < sampleCount; i++) {
-    float sample = amplitude * sin((twoPiF * i) / sampleRate);
-    sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
-    
+    if (i < originalSampleCount) {
+      float sample = amplitude * sin((twoPiF * i) / sampleRate);
+      sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
+    } else {
+      sampleBuffer[samplesInBuffer++] = 0;
+    }
+
     if (samplesInBuffer >= 256) {
-      i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+      i2s.write((uint8_t *)sampleBuffer, sizeof(sampleBuffer));
       samplesInBuffer = 0;
     }
   }
 
-  // Write any remaining samples
   if (samplesInBuffer > 0) {
-    i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+    i2s.write((uint8_t *)sampleBuffer, samplesInBuffer * sizeof(int16_t));
   }
 }
 
+void playTone(uint32_t frequency, uint32_t duration_ms) {
+  mcp.digitalWrite(EXP_AMP_ENABLE, HIGH);
+  delay(1); // stabilize amp
+  generateSineWave(frequency, duration_ms);
+  delayMicroseconds(500); // let DMA start before cutting amp
+  mcp.digitalWrite(EXP_AMP_ENABLE, LOW);
+}
+
+bool setupAmp() {
+  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+
+  if (!mcp.begin_I2C()) {
+    Serial.println("Error initializing MCP23017 — cannot enable amp.");
+    return false;
+  }
+
+  // Amp lives on PSV2; enable that rail first
+  mcp.pinMode(EXP_PSV2_EN, OUTPUT);
+  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
+  delay(1);
+
+  // Amp enable line: start disabled
+  mcp.pinMode(EXP_AMP_ENABLE, OUTPUT);
+  mcp.digitalWrite(EXP_AMP_ENABLE, LOW);
+  return true;
+}
 
 void setupI2S() {
-  // Configure I2S pins
-  i2s.setPins(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN);
-  
-  // Initialize I2S with new API
-  if (!i2s.begin(I2S_MODE_STD, 44100, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
+  i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
+
+  // Match FED4::initializeSpeaker(): mono @ 48 kHz
+  if (!i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
     Serial.println("Failed to initialize I2S");
   }
 }
 
-void resetI2S() {
-  i2s.end(); // Stop I2S driver
-  setupI2S(); // Reinitialize I2S driver
-}
-
 void setup() {
   Serial.begin(115200);
-  Serial.println("Starting...");
+  while (!Serial) delay(10);
 
-  pinMode(47, OUTPUT);
-  digitalWrite(47, HIGH);
-  delay(1000);
+  Serial.println("=== FED4 Speaker Test ===");
+  Serial.println("I2S: BCLK=41, LRCLK=40, DIN=42 | amp enable=MCP4 via PSV2");
 
-  if (!SD.begin(10)) {
-    Serial.println("Card Mount Failed");
-    return;
+  if (!setupAmp()) {
+    while (1) delay(10);
   }
 
-  delay(1000);
-  pinMode(I2S_SD_PIN, OUTPUT);
-  pinMode(BUTTON_1_PIN, INPUT);
-  pinMode(BUTTON_2_PIN, INPUT);
-  digitalWrite(I2S_SD_PIN, HIGH);
-  Wire.begin();
+  pinMode(BUTTON_1_PIN, INPUT_PULLDOWN);
+  pinMode(BUTTON_2_PIN, INPUT_PULLDOWN);
 
-  // Configure the I2S audio output
-  audio.setPinout(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN, -1);
-  audio.setVolume(20); 
-
-  // Initial I2S setup
   setupI2S();
+  Serial.println("I2S ready. Press Button 1 or 2.");
 }
 
 void loop() {
@@ -97,36 +130,16 @@ void loop() {
   int button2State = digitalRead(BUTTON_2_PIN);
 
   if (button1State == HIGH && (millis() - lastDebounceTime) > debounceDelay) {
-    Serial.println("Button 1 Pressed");
-    
-    // Play the MP3 file
-    audio.connecttoFS(SD, "/Audio/Beep.mp3");
-   
-    Serial.println(audio.inBufferFilled());
-    Serial.println(audio.inBufferFree());
-    // Serial.println(audio.inBufferSize());
+    Serial.println("Button 1 — 880 Hz beep");
+    playTone(880, 200);
     lastDebounceTime = millis();
   }
 
   if (button2State == HIGH && (millis() - lastDebounceTime) > debounceDelay) {
-    Serial.println("Button 2 Pressed");
-    
-    delay(100);  // Give some time to stop audio
-    
-    audio.stopSong();
-
-    // Reset and reinitialize I2S before generating tones
-    resetI2S();
-    
-    // Generate the beep sound (1000 Hz tone for 250 milliseconds)
-    generateSineWave(1000, 250);
+    Serial.println("Button 2 — two-tone");
+    playTone(1000, 250);
     delay(100);
-    generateSineWave(1500, 250);  // adjust the Hz to affect the pitch of the tone.
-    delay(100);
-    
-    // Update the lastDebounceTime
+    playTone(1500, 250);
     lastDebounceTime = millis();
   }
-
-  audio.loop();
 }

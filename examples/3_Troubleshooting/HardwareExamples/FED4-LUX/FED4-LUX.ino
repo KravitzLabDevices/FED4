@@ -1,30 +1,34 @@
-#include "Adafruit_VEML7700.h"
+/*
+ * FED4 LUX Test (VEML7700)
+ *
+ * Updated for current hardware:
+ * - Single main I2C bus: SDA=8, SCL=9
+ * - VEML7700 on default address 0x10
+ *
+ * Settings mirror FED4 library defaults (src/FED4_Vitals.cpp):
+ * - Gain: VEML7700_GAIN_2
+ * - Integration: VEML7700_IT_800MS
+ * - Power save disabled
+ */
+
 #include <Wire.h>
-#define SDA 8
-#define SCL 9
-TwoWire I2C_2 = TwoWire(1);
-Adafruit_VEML7700 veml = Adafruit_VEML7700();
+#include "Adafruit_VEML7700.h"
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("Adafruit VEML7700 Test");
-  Wire.begin(); 
-	I2C_2.begin(SDA, SCL);
-  if (!veml.begin(&I2C_2)) {
-    Serial.println("Sensor not found");
-    while (1);
-  }
-  Serial.println("Sensor found");
+#define SDA_PIN 8
+#define SCL_PIN 9
 
-  Serial.print(F("Gain: "));
+Adafruit_VEML7700 veml;
+
+void printSensorConfig() {
+  Serial.print("Gain: ");
   switch (veml.getGain()) {
-    case VEML7700_GAIN_1: Serial.println("1"); break;
-    case VEML7700_GAIN_2: Serial.println("2"); break;
-    case VEML7700_GAIN_1_4: Serial.println("1/4"); break;
-    case VEML7700_GAIN_1_8: Serial.println("1/8"); break;
+    case VEML7700_GAIN_1: Serial.println("1x"); break;
+    case VEML7700_GAIN_2: Serial.println("2x"); break;
+    case VEML7700_GAIN_1_4: Serial.println("1/4x"); break;
+    case VEML7700_GAIN_1_8: Serial.println("1/8x"); break;
   }
 
-  Serial.print(F("Integration Time (ms): "));
+  Serial.print("Integration Time (ms): ");
   switch (veml.getIntegrationTime()) {
     case VEML7700_IT_25MS: Serial.println("25"); break;
     case VEML7700_IT_50MS: Serial.println("50"); break;
@@ -33,23 +37,50 @@ void setup() {
     case VEML7700_IT_400MS: Serial.println("400"); break;
     case VEML7700_IT_800MS: Serial.println("800"); break;
   }
+}
 
-  veml.setLowThreshold(10000);
-  veml.setHighThreshold(20000);
-  veml.interruptEnable(true);
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);
+
+  Serial.println("=== FED4 LUX Test (VEML7700) ===");
+
+  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.setTimeout(1000);
+
+  if (!veml.begin(&Wire)) {
+    Serial.println("VEML7700 not found on main I2C bus.");
+    while (1) delay(10);
+  }
+
+  // Match library defaults for dark-room sensitivity.
+  veml.setGain(VEML7700_GAIN_2);
+  veml.setIntegrationTime(VEML7700_IT_800MS);
+  veml.powerSaveEnable(false);
+  veml.enable(true);
+
+  printSensorConfig();
+  Serial.println("Sensor ready.\n");
 }
 
 void loop() {
-  Serial.print("raw ALS: "); Serial.println(veml.readALS());
-  Serial.print("raw white: "); Serial.println(veml.readWhite());
-  Serial.print("lux: "); Serial.println(veml.readLux());
+  float lux = veml.readLux();
+  uint16_t als = veml.readALS();
+  uint16_t white = veml.readWhite();
 
-  uint16_t irq = veml.interruptStatus();
-  if (irq & VEML7700_INTERRUPT_LOW) {
-    Serial.println("** Low threshold");
+  Serial.print("raw ALS: ");
+  Serial.println(als);
+
+  Serial.print("raw white: ");
+  Serial.println(white);
+
+  Serial.print("lux: ");
+  if (isnan(lux) || lux < 0.0f) {
+    Serial.println("invalid");
+  } else {
+    Serial.println(lux, 2);
   }
-  if (irq & VEML7700_INTERRUPT_HIGH) {
-    Serial.println("** High threshold");
-  }
+
+  Serial.println();
   delay(500);
 }

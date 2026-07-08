@@ -35,7 +35,6 @@ extern SFEVL53L1X distanceSensor;
 // ── LIS2DH12 register helpers ────────────────────────────────────────────────
 // The Adafruit_LIS3DH library (register-compatible with LIS2DH12) does not
 // expose raw register write/read publicly, so we use Wire directly.
-// FED4 v1.7: SA0 pin = HIGH → I2C address 0x19.
 
 static constexpr uint8_t LIS3DH_ADDR = I2C_ADDR_ACCEL; // LIS2DH12TR
 

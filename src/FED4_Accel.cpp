@@ -70,7 +70,7 @@ bool FED4::initializeAccel()
 
     if (!accel.begin(I2C_ADDR_ACCEL))
     {
-        Serial.println("Could not find LIS2DH12 accelerometer");
+        Serial.println("Could not find accelerometer");
         return false;
     }
 

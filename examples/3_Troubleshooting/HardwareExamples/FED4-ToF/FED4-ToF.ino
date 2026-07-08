@@ -1,65 +1,65 @@
-#include <Arduino.h>
+/*
+ * FED4 ToF Distance Test (SparkFun VL53L1X)
+ *
+ * Reads distance from the VL53L1X on the primary I2C bus.
+ * On current hardware the sensor is always-on (no XSHUT pin).
+ *
+ * Pins / address (see src/FED4_Pins.h, src/FED4_Prox.cpp):
+ *   SDA=8, SCL=9, 100kHz
+ *   I2C address 0x29
+ *
+ * Library: SparkFun VL53L1X (same as FED4 library)
+ */
+
 #include <Wire.h>
-#include <vl53l4cd_class.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <assert.h>
-#include <stdlib.h>
-#include <Adafruit_MCP23X17.h>
+#include "SparkFun_VL53L1X.h"  // http://librarymanager/All#SparkFun_VL53L1X
 
-Adafruit_MCP23X17 mcp;
-#define DEV_I2C Wire
-#define SerialPort Serial
-#define XSHUT 1
+#define SDA_PIN 8
+#define SCL_PIN 9
 
-VL53L4CD sensor_vl53l4cd_sat(&DEV_I2C, -1);
+// No XSHUT — sensor is always powered
+SFEVL53L1X distanceSensor(Wire);
 
-void setup()
-{
-  SerialPort.begin(115200);
-  SerialPort.println("Starting...");
-   pinMode(47, OUTPUT);
-  digitalWrite(47, HIGH);
-    if (!mcp.begin_I2C()) {
-        Serial.println("Error initializing MCP23017.");
-        while (1);
-    }
-    mcp.pinMode(XSHUT, OUTPUT);
-    mcp.digitalWrite(XSHUT, HIGH); // XSHUT must be pulled high for the sensor to be found
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);
 
+  Serial.println("=== FED4 ToF Distance Test ===");
+  Serial.println("VL53L1X on main I2C (always-on, no XSHUT)");
 
-  DEV_I2C.begin();
-  sensor_vl53l4cd_sat.begin();
-  sensor_vl53l4cd_sat.VL53L4CD_Off();
-  sensor_vl53l4cd_sat.InitSensor();
-  sensor_vl53l4cd_sat.VL53L4CD_SetRangeTiming(200, 0);
-  sensor_vl53l4cd_sat.VL53L4CD_StartRanging();
-}
+  Wire.begin(SDA_PIN, SCL_PIN, 100000); // 100kHz — match FED4::initializeToF()
+  Wire.setTimeout(1000);
+  delay(10);
 
-void loop()
-{
-  uint8_t NewDataReady = 0;
-  VL53L4CD_Result_t results;
-  uint8_t status;
-  char report[64];
-
-  do {
-    status = sensor_vl53l4cd_sat.VL53L4CD_CheckForDataReady(&NewDataReady);
-  } while (!NewDataReady);
-
-  if ((!status) && (NewDataReady != 0)) {
-    // (Mandatory) Clear HW interrupt to restart measurements
-    sensor_vl53l4cd_sat.VL53L4CD_ClearInterrupt();
-
-    // Read measured distance. RangeStatus = 0 means valid data
-    sensor_vl53l4cd_sat.VL53L4CD_GetResult(&results);
-    snprintf(report, sizeof(report), "Status = %3u, Distance = %5u mm, Signal = %6u kcps/spad\r\n",
-             results.range_status,
-             results.distance_mm,
-             results.signal_per_spad_kcps);
-    SerialPort.print(report);
+  if (distanceSensor.begin() != 0) {  // begin() returns 0 on success
+    Serial.println("ToF sensor failed to begin. Check wiring / power. Freezing...");
+    while (1) delay(10);
   }
 
+  Serial.println("Sensor online!");
+  Serial.println();
+}
+
+void loop() {
+  distanceSensor.startRanging();
+
+  unsigned long startTime = millis();
+  while (!distanceSensor.checkForDataReady()) {
+    if (millis() - startTime > 100) {
+      Serial.println("Timeout waiting for distance data");
+      distanceSensor.stopRanging();
+      delay(500);
+      return;
+    }
+    delay(1);
+  }
+
+  int distance = distanceSensor.getDistance();  // mm
+  distanceSensor.clearInterrupt();
+  distanceSensor.stopRanging();
+
+  Serial.print("Distance(mm): ");
+  Serial.println(distance);
+
+  delay(100);
 }

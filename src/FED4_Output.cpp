@@ -65,5 +65,3 @@ void FED4::solenoid(uint8_t num, bool state)
             break;
     }
 }
-
-// INT_OR initialization moved to FED4_Interrupts.cpp (initializeInterrupts)
