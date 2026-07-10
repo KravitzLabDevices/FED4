@@ -8,12 +8,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-#define EXP_PSV2_EN 13
-#define EXP_HAPTIC 5
+#include <FED4_Pins.h>
 
 Adafruit_MCP23X17 mcp;
 
@@ -30,7 +25,7 @@ void setup() {
 
   Serial.println("=== FED4 Haptic Test ===");
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed.");
     while (1) delay(10);
@@ -38,7 +33,7 @@ void setup() {
 
   // Enable PSV2 rail (haptic is powered from PSV2).
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
   delay(5);
 
   // Configure haptic output and start off.

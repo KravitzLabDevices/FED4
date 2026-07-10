@@ -13,10 +13,7 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME680.h>
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-#define I2C_ADDR_BME680 0x76
+#include <FED4_Pins.h>
 
 Adafruit_BME680 bme; // Uses default Wire bus
 
@@ -27,7 +24,7 @@ void setup() {
   Serial.println("=== FED4 BME680 Test ===");
   Serial.println("Temp/Humidity/Pressure/Gas on main I2C");
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000); // Match FED4::begin()
+  Wire.begin(SDA, SCL, 100000); // Match FED4::begin()
   Wire.setTimeout(1000);
 
   if (!bme.begin(I2C_ADDR_BME680, &Wire)) {

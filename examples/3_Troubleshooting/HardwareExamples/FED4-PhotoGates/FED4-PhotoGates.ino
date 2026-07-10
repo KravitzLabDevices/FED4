@@ -6,11 +6,7 @@
  */
 
 #include <Arduino.h>
-
-#define PHOTOGATE_1 14 // Center
-#define PHOTOGATE_2 17 // Left
-#define PHOTOGATE_3 18 // Right
-#define PHOTOGATE_4 37 // Pellet detector
+#include <FED4_Pins.h>
 
 int last1 = HIGH, last2 = HIGH, last3 = HIGH, last4 = HIGH;
 

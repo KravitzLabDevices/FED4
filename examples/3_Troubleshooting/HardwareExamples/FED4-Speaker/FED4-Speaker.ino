@@ -17,22 +17,7 @@
 #include <ESP_I2S.h>
 #include <Adafruit_MCP23X17.h>
 #include <cmath>
-
-// I2S amp pins (src/FED4_Pins.h)
-#define AMP_BCLK  41
-#define AMP_LRCLK 40
-#define AMP_DIN   42
-
-// MCP expander pins
-#define EXP_AMP_ENABLE 4 // Amp enable (HIGH = on) -> maps to EXP_AMP_SD in FED4_Pins.h
-#define EXP_PSV2_EN 13 // Powers amp rail
-
-// User buttons
-#define BUTTON_1_PIN 15
-#define BUTTON_2_PIN 16
-
-#define SDA_PIN 8
-#define SCL_PIN 9
+#include <FED4_Pins.h>
 
 Adafruit_MCP23X17 mcp;
 I2SClass i2s;
@@ -72,15 +57,15 @@ void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
 }
 
 void playTone(uint32_t frequency, uint32_t duration_ms) {
-  mcp.digitalWrite(EXP_AMP_ENABLE, HIGH);
+  mcp.digitalWrite(EXP_AMP_SD, HIGH);
   delay(1); // stabilize amp
   generateSineWave(frequency, duration_ms);
   delayMicroseconds(500); // let DMA start before cutting amp
-  mcp.digitalWrite(EXP_AMP_ENABLE, LOW);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 bool setupAmp() {
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
 
   if (!mcp.begin_I2C()) {
     Serial.println("Error initializing MCP23017 — cannot enable amp.");
@@ -89,12 +74,12 @@ bool setupAmp() {
 
   // Amp lives on PSV2; enable that rail first
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
   delay(1);
 
   // Amp enable line: start disabled
-  mcp.pinMode(EXP_AMP_ENABLE, OUTPUT);
-  mcp.digitalWrite(EXP_AMP_ENABLE, LOW);
+  mcp.pinMode(EXP_AMP_SD, OUTPUT);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
   return true;
 }
 
@@ -118,16 +103,16 @@ void setup() {
     while (1) delay(10);
   }
 
-  pinMode(BUTTON_1_PIN, INPUT_PULLDOWN);
-  pinMode(BUTTON_2_PIN, INPUT_PULLDOWN);
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  pinMode(BUTTON_2, INPUT_PULLDOWN);
 
   setupI2S();
   Serial.println("I2S ready. Press Button 1 or 2.");
 }
 
 void loop() {
-  int button1State = digitalRead(BUTTON_1_PIN);
-  int button2State = digitalRead(BUTTON_2_PIN);
+  int button1State = digitalRead(BUTTON_1);
+  int button2State = digitalRead(BUTTON_2);
 
   if (button1State == HIGH && (millis() - lastDebounceTime) > debounceDelay) {
     Serial.println("Button 1 — 880 Hz beep");

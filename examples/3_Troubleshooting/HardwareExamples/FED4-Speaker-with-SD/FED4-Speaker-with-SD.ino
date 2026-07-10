@@ -14,24 +14,7 @@
 #include <Adafruit_MCP23X17.h>
 #include "Audio.h"
 #include <cmath>
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-#define AMP_BCLK 41
-#define AMP_LRCLK 40
-#define AMP_DIN 42
-
-#define BUTTON_1_PIN 15
-#define BUTTON_2_PIN 16
-
-#define SD_CS 48
-#define SPI_SCK 12
-#define SPI_MISO 11
-#define SPI_MOSI 13
-
-#define EXP_AMP_SD 4
-#define EXP_PSV2_EN 13
+#include <FED4_Pins.h>
 
 unsigned long lastDebounceTime = 0;
 const unsigned long debounceDelay = 200;
@@ -77,7 +60,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
     Serial.println("MCP init failed");
     while (1) delay(10);
@@ -85,12 +68,12 @@ void setup() {
 
   // Enable PSV2 rail and amp control line.
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
   mcp.pinMode(EXP_AMP_SD, OUTPUT);
   mcp.digitalWrite(EXP_AMP_SD, HIGH);
 
-  pinMode(BUTTON_1_PIN, INPUT_PULLDOWN);
-  pinMode(BUTTON_2_PIN, INPUT_PULLDOWN);
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  pinMode(BUTTON_2, INPUT_PULLDOWN);
 
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
   if (!SD.begin(SD_CS, SPI, 4000000)) {
@@ -105,8 +88,8 @@ void setup() {
 }
 
 void loop() {
-  bool b1 = digitalRead(BUTTON_1_PIN);
-  bool b2 = digitalRead(BUTTON_2_PIN);
+  bool b1 = digitalRead(BUTTON_1);
+  bool b2 = digitalRead(BUTTON_2);
 
   if (b1 && (millis() - lastDebounceTime) > debounceDelay) {
     Serial.println("Button 1: play /Audio/Beep.mp3");

@@ -13,12 +13,10 @@
 
 #include <Wire.h>
 #include "SparkFun_VL53L1X.h"  // http://librarymanager/All#SparkFun_VL53L1X
-
-#define SDA_PIN 8
-#define SCL_PIN 9
+#include <FED4_Pins.h>
 
 // No XSHUT — sensor is always powered
-SFEVL53L1X distanceSensor(Wire);
+SFEVL53L1X tofSensor(Wire);
 
 void setup() {
   Serial.begin(115200);
@@ -27,11 +25,11 @@ void setup() {
   Serial.println("=== FED4 ToF Distance Test ===");
   Serial.println("VL53L1X on main I2C (always-on, no XSHUT)");
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000); // 100kHz — match FED4::initializeToF()
+  Wire.begin(SDA, SCL, 100000); // 100kHz — match FED4::initializeToF()
   Wire.setTimeout(1000);
   delay(10);
 
-  if (distanceSensor.begin() != 0) {  // begin() returns 0 on success
+  if (tofSensor.begin() != 0) {  // begin() returns 0 on success
     Serial.println("ToF sensor failed to begin. Check wiring / power. Freezing...");
     while (1) delay(10);
   }
@@ -41,22 +39,22 @@ void setup() {
 }
 
 void loop() {
-  distanceSensor.startRanging();
+  tofSensor.startRanging();
 
   unsigned long startTime = millis();
-  while (!distanceSensor.checkForDataReady()) {
+  while (!tofSensor.checkForDataReady()) {
     if (millis() - startTime > 100) {
       Serial.println("Timeout waiting for distance data");
-      distanceSensor.stopRanging();
+      tofSensor.stopRanging();
       delay(500);
       return;
     }
     delay(1);
   }
 
-  int distance = distanceSensor.getDistance();  // mm
-  distanceSensor.clearInterrupt();
-  distanceSensor.stopRanging();
+  int distance = tofSensor.getDistance();  // mm
+  tofSensor.clearInterrupt();
+  tofSensor.stopRanging();
 
   Serial.print("Distance(mm): ");
   Serial.println(distance);

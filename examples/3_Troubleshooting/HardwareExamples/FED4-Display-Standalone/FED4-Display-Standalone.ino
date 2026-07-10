@@ -8,7 +8,7 @@
  *   SPI:  SCK=12, MOSI=13, CS(SCS)=44, VCOM=43
  *   I2C:  SDA=8, SCL=9 (MCP23017)
  *   MCP:  EXP_DISPLAY_RESET=6, EXP_DISPLAY_LED=7
- *         EXP_PSV2_EN=13, EXP_PSV3_EN=12 (enable both rails)
+ *         EXP_PSV2_EN=13, EXP_PSV3_EN=12 (enable both rails, ~ON active-low)
  *
  * Panel: 320 x 176 physical pixels, 3-wire SPI, LSBFIRST
  * RGB bit polarity: 0 = BLACK, 1 = WHITE
@@ -19,23 +19,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_MCP23X17.h>
-
-// SPI / display pins (src/FED4_Pins.h)
-#define SPI_SCK 12
-#define SPI_MOSI 13
-#define SPI_MISO 11
-#define DISPLAY_CS 44
-#define DISPLAY_VCOM 43
-
-// I2C
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-// MCP expander pins
-#define EXP_DISPLAY_RESET 6
-#define EXP_DISPLAY_LED 7
-#define EXP_PSV2_EN 13
-#define EXP_PSV3_EN 12
+#include <FED4_Pins.h>
 
 // Physical panel size (Kyocera TN0216) — used by SPI refresh
 static const uint16_t PANEL_WIDTH = 320;
@@ -195,7 +179,7 @@ void setup() {
 
   Serial.println("=== FED4 Display Standalone Test ===");
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed");
     while (1) delay(10);
@@ -204,8 +188,8 @@ void setup() {
   // Enable power rails
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
   mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
-  mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
   delay(5);
 
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);

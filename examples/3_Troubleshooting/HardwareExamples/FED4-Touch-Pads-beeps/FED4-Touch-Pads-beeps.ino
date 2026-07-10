@@ -8,26 +8,10 @@
 #include <Adafruit_MCP23X17.h>
 #include <Adafruit_NeoPixel.h>
 #include <cmath>
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-#define AMP_BCLK 41
-#define AMP_LRCLK 40
-#define AMP_DIN 42
-
-#define EXP_AMP_SD 4
-#define EXP_PSV2_EN 13
-#define EXP_PSV3_EN 12
-
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1
-#define TOUCH_PAD_CENTER TOUCH_PAD_NUM3
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM2
-
-#define STATUS_LED_PIN 35
+#include <FED4_Pins.h>
 
 Adafruit_MCP23X17 mcp;
-Adafruit_NeoPixel pixels(1, STATUS_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels(1, STATUS_LED, NEO_GRB + NEO_KHZ800);
 I2SClass i2s;
 
 uint16_t baseL = 0, baseC = 0, baseR = 0;
@@ -70,7 +54,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
     Serial.println("MCP init failed");
     while (1) delay(10);
@@ -78,8 +62,8 @@ void setup() {
 
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
   mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
-  mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
   mcp.pinMode(EXP_AMP_SD, OUTPUT);
   mcp.digitalWrite(EXP_AMP_SD, LOW);
 

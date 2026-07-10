@@ -17,10 +17,7 @@
 #include <Wire.h>
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_Sensor.h>
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-#define I2C_ADDR_ACCEL 0x19
+#include <FED4_Pins.h>
 
 Adafruit_LIS3DH accel = Adafruit_LIS3DH();
 
@@ -31,7 +28,7 @@ void setup() {
   Serial.println("=== FED4 Accelerometer Test ===");
   Serial.println("LIS2DH12TR on main I2C (Adafruit_LIS3DH driver)");
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000); // 100kHz — match FED4 bus
+  Wire.begin(SDA, SCL, 100000); // 100kHz — match FED4 bus
   Wire.setTimeout(1000);
 
   if (!accel.begin(I2C_ADDR_ACCEL)) {

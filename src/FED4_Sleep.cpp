@@ -158,25 +158,25 @@ bool FED4::initializePower()
 // Enables PSV2 power rail (RTC/amp/haptic/photogate)
 void FED4::PSV2_ON()
 {
-    mcp.digitalWrite(EXP_PSV2_EN, HIGH);
+    mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON is active LOW
     delayMicroseconds(100); // Stabilization time
 }
 
 // Disables PSV2 power rail
 void FED4::PSV2_OFF()
 {
-    mcp.digitalWrite(EXP_PSV2_EN, LOW);
+    mcp.digitalWrite(EXP_PSV2_EN, HIGH);
 }
 
 // Enables PSV3 power rail (front RGB strip)
 void FED4::PSV3_ON()
 {
-    mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+    mcp.digitalWrite(EXP_PSV3_EN, LOW); // ~ON is active LOW
     delayMicroseconds(100); // Stabilization time
 }
 
 // Disables PSV3 power rail (front RGB strip)
 void FED4::PSV3_OFF()
 {
-    mcp.digitalWrite(EXP_PSV3_EN, LOW);
+    mcp.digitalWrite(EXP_PSV3_EN, HIGH);
 }

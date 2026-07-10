@@ -12,14 +12,10 @@
 
 #include <Arduino.h>
 #include <Stepper.h>
+#include <FED4_Pins.h>
 
 #define MOTOR_STEPS 512
 #define MOTOR_SPEED_RPM 24
-
-#define MOTOR_PIN_1 38
-#define MOTOR_PIN_2 45
-#define MOTOR_PIN_3 46
-#define MOTOR_PIN_4 47
 
 Stepper stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4);
 

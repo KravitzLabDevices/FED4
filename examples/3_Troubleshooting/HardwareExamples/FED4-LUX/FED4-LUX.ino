@@ -13,9 +13,7 @@
 
 #include <Wire.h>
 #include "Adafruit_VEML7700.h"
-
-#define SDA_PIN 8
-#define SCL_PIN 9
+#include <FED4_Pins.h>
 
 Adafruit_VEML7700 veml;
 
@@ -45,7 +43,7 @@ void setup() {
 
   Serial.println("=== FED4 LUX Test (VEML7700) ===");
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   Wire.setTimeout(1000);
 
   if (!veml.begin(&Wire)) {

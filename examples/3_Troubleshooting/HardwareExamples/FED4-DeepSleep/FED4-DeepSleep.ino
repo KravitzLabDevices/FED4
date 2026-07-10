@@ -20,26 +20,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
-
-// Primary I2C
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-// MCP power rails
-#define EXP_PSV2_EN 13
-#define EXP_PSV3_EN 12
-
-// Inputs
-#define BUTTON_1_PIN 15
-#define BUTTON_2_PIN 16
-#define BUTTON_3_PIN 39
-#define PHOTOGATE_1_PIN 14
-#define INT_OR_PIN 7
-
-// Touch pads (same mapping as src/FED4_Pins.h)
-#define TOUCH_PAD_CENTER TOUCH_PAD_NUM3
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM2
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1
+#include <FED4_Pins.h>
 
 RTC_DATA_ATTR int bootCount = 0;
 
@@ -80,7 +61,7 @@ void configureWakeSources() {
   esp_sleep_enable_timer_wakeup(SLEEP_SECONDS * 1000000ULL);
 
   // Deep-sleep wake on INT_OR (active-LOW OR of interrupt sources).
-  esp_sleep_enable_ext0_wakeup((gpio_num_t)INT_OR_PIN, 0);
+  esp_sleep_enable_ext0_wakeup((gpio_num_t)INT_OR, 0);
 
   // Touch wake.
   esp_sleep_enable_touchpad_wakeup();
@@ -103,7 +84,7 @@ void setup() {
   printWakeReason();
 
   // Current hardware uses only main I2C.
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
 
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed");
@@ -113,15 +94,15 @@ void setup() {
   // Enable rails used by sensors/LED strip.
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
   mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
-  mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
 
   // Direct GPIO inputs on current board.
-  pinMode(BUTTON_1_PIN, INPUT_PULLDOWN);
-  pinMode(BUTTON_2_PIN, INPUT_PULLDOWN);
-  pinMode(BUTTON_3_PIN, INPUT_PULLDOWN);
-  pinMode(PHOTOGATE_1_PIN, INPUT_PULLUP); // active LOW when blocked
-  pinMode(INT_OR_PIN, INPUT); // external pull-up on hardware
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  pinMode(BUTTON_2, INPUT_PULLDOWN);
+  pinMode(BUTTON_3, INPUT_PULLDOWN);
+  pinMode(PHOTOGATE_1, INPUT_PULLUP); // active LOW when blocked
+  pinMode(INT_OR, INPUT); // external pull-up on hardware
 
   calibrateTouch();
   configureWakeSources();
@@ -131,10 +112,10 @@ void setup() {
 }
 
 void loop() {
-  bool b1 = digitalRead(BUTTON_1_PIN);
-  bool b2 = digitalRead(BUTTON_2_PIN);
-  bool b3 = digitalRead(BUTTON_3_PIN);
-  bool pg1Blocked = (digitalRead(PHOTOGATE_1_PIN) == LOW);
+  bool b1 = digitalRead(BUTTON_1);
+  bool b2 = digitalRead(BUTTON_2);
+  bool b3 = digitalRead(BUTTON_3);
+  bool pg1Blocked = (digitalRead(PHOTOGATE_1) == LOW);
 
   bool tLeft = touched(touchRead(TOUCH_PAD_LEFT), baseLeft);
   bool tCenter = touched(touchRead(TOUCH_PAD_CENTER), baseCenter);

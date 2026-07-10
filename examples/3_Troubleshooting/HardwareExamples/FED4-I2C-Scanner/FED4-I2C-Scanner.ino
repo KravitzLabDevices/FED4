@@ -3,7 +3,7 @@
  *
  * Scans the primary I2C bus (SDA=8, SCL=9).
  * The DS3231 RTC sits behind a TCA4307 isolator on the PSV2 rail,
- * so PSV2 must be enabled via the MCP23017 before the RTC appears.
+ * so PSV2 must be enabled via the MCP23017 before the RTC appears (~ON active-low).
  *
  * Expected devices (see src/FED4_Pins.h):
  *   0x10  VEML7700 lux sensor
@@ -17,12 +17,7 @@
 
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-// MCP23017 expander pins (see src/FED4_Pins.h)
-#define EXP_PSV2_EN 13 // Powers RTC + TCA4307 isolator
+#include <FED4_Pins.h>
 
 Adafruit_MCP23X17 mcp;
 
@@ -38,7 +33,7 @@ void setup() {
   Serial.println();
 
   // Primary I2C bus (same as FED4::begin)
-  Wire.begin(SDA_PIN, SCL_PIN, 100000); // 100kHz
+  Wire.begin(SDA, SCL, 100000); // 100kHz
   Wire.setTimeout(1000);
 
   Serial.println("I2C: SDA=8, SCL=9, 100kHz");
@@ -49,8 +44,8 @@ void setup() {
   } else {
     // Enable PSV2 so the TCA4307 isolator connects the RTC to the bus
     mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-    mcp.digitalWrite(EXP_PSV2_EN, HIGH);
-    Serial.println("PSV2 enabled (MCP pin 13 HIGH) — RTC isolator powered");
+    mcp.digitalWrite(EXP_PSV2_EN, LOW);
+    Serial.println("PSV2 enabled (MCP pin 13 LOW, ~ON active-low) — RTC isolator powered");
   }
 
   Serial.println();

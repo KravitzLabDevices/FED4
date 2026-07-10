@@ -13,20 +13,13 @@
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
 #include <FastLED_NeoPixel.h>
+#include <FED4_Pins.h>
 
-#define AUDIO_TRRS_1 4
-#define AUDIO_TRRS_2 5
-#define AUDIO_TRRS_3 6
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-#define EXP_PSV3_EN 12
-#define RGB_STRIP_PIN 36
 #define NUM_LEDS 8
 #define STRIP_BRIGHTNESS 40
 
 Adafruit_MCP23X17 mcp;
-FastLED_NeoPixel<NUM_LEDS, RGB_STRIP_PIN, NEO_GRB> strip;
+FastLED_NeoPixel<NUM_LEDS, RGB_STRIP, NEO_GRB> strip;
 
 void showStripForTrrs(int trrs1, int trrs2, int trrs3) {
   strip.clear();
@@ -57,12 +50,12 @@ void setup() {
   pinMode(AUDIO_TRRS_2, INPUT_PULLUP);
   pinMode(AUDIO_TRRS_3, INPUT_PULLUP);
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed — strip may be unpowered.");
   } else {
     mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-    mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+    mcp.digitalWrite(EXP_PSV3_EN, LOW); // ~ON active-low
     delay(5);
   }
 

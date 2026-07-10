@@ -2,7 +2,7 @@
  * FED4 Front LEDs Test
  *
  * - Front RGB strip data pin: GPIO 36
- * - Strip power rail: PSV3 via MCP23017 pin 12 (EXP_PSV3_EN)
+ * - Strip power rail: PSV3 via MCP23017 pin 12 (EXP_PSV3_EN, ~ON active-low)
  * - Buttons: 15 / 16 / 39 (INPUT_PULLDOWN)
  * - Main I2C bus: SDA=8, SCL=9
  */
@@ -11,22 +11,13 @@
 #include <Wire.h>
 #include <Adafruit_NeoPixel.h>
 #include <Adafruit_MCP23X17.h>
+#include <FED4_Pins.h>
 
-#define SDA_PIN 8
-#define SCL_PIN 9
-
-#define BUTTON_1_PIN 15
-#define BUTTON_2_PIN 16
-#define BUTTON_3_PIN 39
-
-#define RGB_STRIP_PIN 36
 #define NUMPIXELS 8
 #define BRIGHTNESS 50
 
-#define EXP_PSV3_EN 12
-
 Adafruit_MCP23X17 mcp;
-Adafruit_NeoPixel pixels(NUMPIXELS, RGB_STRIP_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels(NUMPIXELS, RGB_STRIP, NEO_GRB + NEO_KHZ800);
 
 void colorWipe(uint32_t color, unsigned long waitMs) {
   for (int i = 0; i < pixels.numPixels(); i++) {
@@ -66,7 +57,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed.");
     while (1) delay(10);
@@ -74,12 +65,12 @@ void setup() {
 
   // Enable PSV3 rail (powers front RGB strip)
   mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV3_EN, LOW); // ~ON active-low
   delay(5);
 
-  pinMode(BUTTON_1_PIN, INPUT_PULLDOWN);
-  pinMode(BUTTON_2_PIN, INPUT_PULLDOWN);
-  pinMode(BUTTON_3_PIN, INPUT_PULLDOWN);
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  pinMode(BUTTON_2, INPUT_PULLDOWN);
+  pinMode(BUTTON_3, INPUT_PULLDOWN);
 
   pixels.begin();
   pixels.setBrightness(BRIGHTNESS);
@@ -93,9 +84,9 @@ void setup() {
 }
 
 void loop() {
-  bool b1 = digitalRead(BUTTON_1_PIN);
-  bool b2 = digitalRead(BUTTON_2_PIN);
-  bool b3 = digitalRead(BUTTON_3_PIN);
+  bool b1 = digitalRead(BUTTON_1);
+  bool b2 = digitalRead(BUTTON_2);
+  bool b3 = digitalRead(BUTTON_3);
 
   if (b1) {
     Serial.println("Button 1 - Rainbow");

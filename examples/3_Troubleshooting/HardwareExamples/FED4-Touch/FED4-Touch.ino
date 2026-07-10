@@ -9,16 +9,12 @@
 
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
+#include <FED4_Pins.h>
 #include <cmath>
 
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1
-#define TOUCH_PAD_CENTER TOUCH_PAD_NUM3
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM2
-
-#define STATUS_LED_PIN 35
 #define NUMPIXELS 1
 
-Adafruit_NeoPixel pixels(NUMPIXELS, STATUS_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixels(NUMPIXELS, STATUS_LED, NEO_GRB + NEO_KHZ800);
 
 uint16_t baseLeft = 0, baseCenter = 0, baseRight = 0;
 static constexpr float TOUCH_THRESHOLD = 0.20f;

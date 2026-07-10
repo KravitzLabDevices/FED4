@@ -89,7 +89,7 @@ bool FED4::begin(const char *programName)
     Serial.println("Starting up...");
     startupAnimation();
 
-    // Initialize battery monitor (on always-on 3.3V rail)
+    // Initialize battery monitor (MAX17048 on VBATT rail)
     displayInitStatus("Battery Monitor");
     int maxRetries = 3;
     int retryCount = 0;

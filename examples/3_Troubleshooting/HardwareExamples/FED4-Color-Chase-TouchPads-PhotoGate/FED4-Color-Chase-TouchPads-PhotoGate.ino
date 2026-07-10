@@ -4,6 +4,7 @@
 #include <Adafruit_MCP23X17.h>
 #include <ESP_I2S.h>
 #include <cmath>
+#include <FED4_Pins.h>
 
 /*
  * FED4 Color Chase + Touch Pads + Photogate test
@@ -11,34 +12,15 @@
  * Updated for current hardware:
  * - Touch pads use ESP32 touch channels (NUM1/NUM2/NUM3)
  * - Photogates are direct GPIO pins (not MCP pins)
- * - Front RGB strip is on PSV3 rail (enable via MCP pin 12)
- * - Speaker amp SD is on MCP pin 4, and amp rail is PSV2 (MCP pin 13)
+ * - Front RGB strip is on PSV3 rail (enable via MCP pin 12, ~ON active-low)
+ * - Speaker amp SD is on MCP pin 4, and amp rail is PSV2 (MCP pin 13, ~ON active-low)
  * - I2S pins: BCLK=41, LRCLK=40, DIN=42, mono @ 48kHz
  */
 
-// I2C + MCP
-#define SDA_PIN 8
-#define SCL_PIN 9
-#define EXP_PSV2_EN 13
-#define EXP_PSV3_EN 12
-#define EXP_AMP_SD 4
-
 // Front RGB strip
-#define RGB_STRIP_PIN 36
 #define NUM_LEDS 8
 #define BRIGHTNESS 50
-FastLED_NeoPixel<NUM_LEDS, RGB_STRIP_PIN, NEO_GRB> strip;
-
-// I2S (speaker)
-#define AMP_BCLK 41
-#define AMP_LRCLK 40
-#define AMP_DIN 42
-
-// Sensors
-#define TOUCH_PAD_CENTER TOUCH_PAD_NUM3
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM2
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1
-#define PHOTOGATE_CENTER 14
+FastLED_NeoPixel<NUM_LEDS, RGB_STRIP, NEO_GRB> strip;
 
 Adafruit_MCP23X17 mcp;
 I2SClass i2s;
@@ -133,7 +115,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
 
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed");
@@ -143,15 +125,15 @@ void setup() {
   // Enable rails required by this test.
   mcp.pinMode(EXP_PSV2_EN, OUTPUT); // amp rail
   mcp.pinMode(EXP_PSV3_EN, OUTPUT); // front LED strip rail
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
-  mcp.digitalWrite(EXP_PSV3_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
 
   // Amp SD via MCP.
   mcp.pinMode(EXP_AMP_SD, OUTPUT);
   mcp.digitalWrite(EXP_AMP_SD, LOW);
 
   // Photogate input is direct GPIO on new hardware.
-  pinMode(PHOTOGATE_CENTER, INPUT_PULLUP);
+  pinMode(PHOTOGATE_1, INPUT_PULLUP);
 
   strip.begin();
   strip.setBrightness(BRIGHTNESS);
@@ -168,7 +150,7 @@ void loop() {
   uint16_t tLeft = touchRead(TOUCH_PAD_LEFT);
   uint16_t tCenter = touchRead(TOUCH_PAD_CENTER);
   uint16_t tRight = touchRead(TOUCH_PAD_RIGHT);
-  bool pgBlocked = (digitalRead(PHOTOGATE_CENTER) == LOW);
+  bool pgBlocked = (digitalRead(PHOTOGATE_1) == LOW);
 
   bool touchLeft = isTouched(tLeft, baseLeft);
   bool touchCenter = isTouched(tCenter, baseCenter);

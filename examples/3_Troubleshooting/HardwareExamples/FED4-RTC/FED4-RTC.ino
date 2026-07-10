@@ -8,10 +8,7 @@
 #include <Wire.h>
 #include <Adafruit_MCP23X17.h>
 #include "RTClib.h"
-
-#define SDA_PIN 8
-#define SCL_PIN 9
-#define EXP_PSV2_EN 13
+#include <FED4_Pins.h>
 
 RTC_DS3231 rtc;
 Adafruit_MCP23X17 mcp;
@@ -22,7 +19,7 @@ void setup() {
   Serial.begin(115200);
   while (!Serial) delay(10);
 
-  Wire.begin(SDA_PIN, SCL_PIN, 100000);
+  Wire.begin(SDA, SCL, 100000);
 
   if (!mcp.begin_I2C()) {
     Serial.println("MCP23017 init failed.");
@@ -30,7 +27,7 @@ void setup() {
   }
 
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
   delay(5);
 
   if (!rtc.begin(&Wire)) {
