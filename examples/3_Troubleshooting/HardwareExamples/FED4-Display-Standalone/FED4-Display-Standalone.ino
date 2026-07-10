@@ -1,17 +1,15 @@
 /*
  * FED4 Display Standalone Test
  *
- * Drives the Kyocera TN0216 MIP panel without FED4.h.
- * Mirrors the SPI + MCP control path in src/FED4_Display.cpp.
+ * Kyocera TN0216ANVNANN-GN00 (320×176 MIP, 3-wire SPI) without FED4.h.
  *
  * Hardware:
  *   SPI:  SCK=12, MOSI=13, CS(SCS)=44, VCOM=43
  *   I2C:  SDA=8, SCL=9 (MCP23017)
  *   MCP:  EXP_DISPLAY_RESET=6, EXP_DISPLAY_LED=7
- *         EXP_PSV2_EN=13, EXP_PSV3_EN=12 (enable both rails, ~ON active-low)
+ *         EXP_PSV2_EN=13, EXP_PSV3_EN=12 (~ON active-low)
  *
- * Panel: 320 x 176 physical pixels, 3-wire SPI, LSBFIRST
- * RGB bit polarity: 0 = BLACK, 1 = WHITE
+ * Flash with Tools -> "USB CDC On Boot" = ENABLED (GPIO 43/44 are display pins).
  */
 
 #include <Arduino.h>
@@ -19,24 +17,38 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_MCP23X17.h>
+#include <Fonts/FreeSans9pt7b.h>
 #include <FED4_Pins.h>
 
-// Physical panel size (Kyocera TN0216) — used by SPI refresh
+#ifndef _swap_int16_t
+#define _swap_int16_t(a, b) \
+    {                       \
+        int16_t t = a;      \
+        a = b;              \
+        b = t;              \
+    }
+#endif
+
 static const uint16_t PANEL_WIDTH = 320;
 static const uint16_t PANEL_HEIGHT = 176;
-
 static const uint8_t PIXEL_BLACK = 0;
 static const uint8_t PIXEL_WHITE = 1;
+static const uint32_t SPI_HZ = 1000000;
+
+// LSBFIRST: bit 0 = leftmost pixel in each byte group
+static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
+                             clr[] = {(uint8_t)~1,   (uint8_t)~2,   (uint8_t)~4,
+                                      (uint8_t)~8,   (uint8_t)~16,  (uint8_t)~32,
+                                      (uint8_t)~64,  (uint8_t)~128};
 
 Adafruit_MCP23X17 mcp;
 
-// Physical framebuffer is 320x176; setRotation(1) → logical 176x320
 class MIPDisplay : public Adafruit_GFX {
 public:
   MIPDisplay() : Adafruit_GFX(PANEL_WIDTH, PANEL_HEIGHT) {}
 
   bool begin() {
-    const uint32_t bufferSize = (uint32_t)PANEL_WIDTH * PANEL_HEIGHT / 8; // 7040
+    const uint32_t bufferSize = (uint32_t)PANEL_WIDTH * PANEL_HEIGHT / 8;
     if (frameBuffer) {
       free(frameBuffer);
       frameBuffer = nullptr;
@@ -46,9 +58,13 @@ public:
       Serial.println("Failed to allocate framebuffer");
       return false;
     }
-    memset(frameBuffer, 0xFF, bufferSize); // all white
-    setRotation(1);
+    memset(frameBuffer, 0x00, bufferSize); // dark theme default
+    setRotation(1); // logical 176 wide × 320 tall
     return true;
+  }
+
+  void clearBlack() {
+    memset(frameBuffer, 0x00, (uint32_t)PANEL_WIDTH * PANEL_HEIGHT / 8);
   }
 
   void clearWhite() {
@@ -56,31 +72,31 @@ public:
   }
 
   void refresh() {
-    SPI.setBitOrder(LSBFIRST);
-
-    // Toggle VCOM each refresh (AC drive)
     vcomState = !vcomState;
     digitalWrite(DISPLAY_VCOM, vcomState ? HIGH : LOW);
-
-    // SCS must be LOW ≥ 4 ms before next frame
     delay(4);
 
+    delayMicroseconds(30);
     digitalWrite(DISPLAY_CS, HIGH);
+    delay(5); // tsSCS: SCS high ≥ 4 ms before first clock
 
-    const uint8_t bytesPerLine = PANEL_WIDTH / 8; // 40
-    for (uint8_t line = 1; line <= PANEL_HEIGHT; line++) {
-      SPI.transfer(line); // gate address
-      const uint8_t *row = frameBuffer + (uint16_t)(line - 1) * bytesPerLine;
+    SPI.beginTransaction(SPISettings(SPI_HZ, LSBFIRST, SPI_MODE0));
+
+    const uint8_t bytesPerLine = PANEL_WIDTH / 8;
+    for (uint8_t line = 0; line < PANEL_HEIGHT; line++) {
+      SPI.transfer(line);
+      const uint8_t *row = frameBuffer + (uint32_t)line * bytesPerLine;
       for (uint8_t b = 0; b < bytesPerLine; b++) {
         SPI.transfer(row[b]);
       }
-      // 32 dummy clocks
       SPI.transfer(0x00);
       SPI.transfer(0x00);
       SPI.transfer(0x00);
       SPI.transfer(0x00);
     }
 
+    SPI.endTransaction();
+    delay(2); // thSCS: hold SCS high ≥ 1 ms after last clock
     digitalWrite(DISPLAY_CS, LOW);
   }
 
@@ -91,7 +107,6 @@ public:
     int16_t px = x;
     int16_t py = y;
 
-    // Convert logical → physical for current rotation
     switch (rotation) {
       case 1:
         _swap_int16_t(px, py);
@@ -109,12 +124,10 @@ public:
         break;
     }
 
-    const uint32_t index = ((uint32_t)py * PANEL_WIDTH + (uint32_t)px) / 8;
-    const uint8_t bit = px & 7;
     if (color)
-      frameBuffer[index] |= (1 << bit);
+      frameBuffer[(py * PANEL_WIDTH + px) / 8] |= pgm_read_byte(&set[px & 7]);
     else
-      frameBuffer[index] &= ~(1 << bit);
+      frameBuffer[(py * PANEL_WIDTH + px) / 8] &= pgm_read_byte(&clr[px & 7]);
   }
 
 private:
@@ -128,14 +141,12 @@ bool backlightOn = true;
 
 void displayReset() {
   mcp.pinMode(EXP_DISPLAY_RESET, OUTPUT);
-
-  // VCOM must be LOW whenever RST is HIGH (shoot-through prevention)
   pinMode(DISPLAY_VCOM, OUTPUT);
   digitalWrite(DISPLAY_VCOM, LOW);
 
   mcp.digitalWrite(EXP_DISPLAY_RESET, HIGH);
   delay(10);
-  mcp.digitalWrite(EXP_DISPLAY_RESET, LOW); // RST LOW = display ON
+  mcp.digitalWrite(EXP_DISPLAY_RESET, LOW);
   delay(10);
 }
 
@@ -145,39 +156,68 @@ void displayLight(bool on) {
 }
 
 void drawTestScreen() {
-  display.clearWhite();
+  display.clearBlack();
+
+  display.drawRect(0, 0, display.width() - 1, display.height() - 1, PIXEL_WHITE);
+
+  // Proportional font title
+  display.setFont(&FreeSans9pt7b);
+  display.setTextSize(1);
+  display.setTextColor(PIXEL_WHITE);
+  display.setCursor(6, 28);
+  display.print("FED4 Display");
+
+  // Built-in font at three scales
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(8, 52);
+  display.print("Size 1");
+
+  display.setTextSize(2);
+  display.setCursor(8, 72);
+  display.print("Size 2");
+
+  display.setTextSize(3);
+  display.setCursor(8, 104);
+  display.print("Sz3");
 
   display.setTextSize(1);
-  display.setTextColor(PIXEL_BLACK);
-  display.setCursor(8, 30);
-  display.print("FED4 DISPLAY STANDALONE");
-
-  display.setCursor(8, 60);
+  display.setCursor(8, 148);
   display.print("Panel: TN0216 MIP");
 
-  display.setCursor(8, 90);
-  display.print("No FED4.h — SPI+MCP");
-
-  display.setCursor(8, 120);
-  display.print("Backlight: ");
+  display.setCursor(8, 164);
+  display.print("BL: ");
   display.print(backlightOn ? "ON" : "OFF");
 
-  display.fillRect(8, 145, 140, 24, PIXEL_BLACK);
-  display.setTextColor(PIXEL_WHITE);
-  display.setCursor(12, 162);
-  display.print("BLACK BAR TEST");
+  // Shapes (white on black)
+  display.drawLine(8, 182, 168, 182, PIXEL_WHITE);
+  display.fillRect(8, 192, 56, 36, PIXEL_WHITE);
+  display.drawRect(72, 192, 48, 36, PIXEL_WHITE);
+  display.fillCircle(148, 210, 16, PIXEL_WHITE);
+  display.drawTriangle(8, 268, 36, 240, 64, 268, PIXEL_WHITE);
 
-  // Border for geometry check
-  display.drawRect(0, 0, display.width() - 1, display.height() - 1, PIXEL_BLACK);
+  // Inverted label inside white box
+  display.setTextColor(PIXEL_BLACK);
+  display.setCursor(18, 214);
+  display.print("BOX");
+
+  display.setTextColor(PIXEL_WHITE);
+  display.setCursor(80, 214);
+  display.print("rect");
+
+  // Bottom bar (light on dark theme)
+  display.fillRect(0, 296, display.width(), 24, PIXEL_WHITE);
+  display.setTextColor(PIXEL_BLACK);
+  display.setCursor(8, 312);
+  display.print("dark theme + fonts");
 
   display.refresh();
 }
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial) delay(10);
 
-  Serial.println("=== FED4 Display Standalone Test ===");
+  Serial.println("=== FED4 Display Standalone ===");
 
   Wire.begin(SDA, SCL, 100000);
   if (!mcp.begin_I2C()) {
@@ -185,19 +225,17 @@ void setup() {
     while (1) delay(10);
   }
 
-  // Enable power rails
   mcp.pinMode(EXP_PSV2_EN, OUTPUT);
   mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV2_EN, LOW);
   mcp.digitalWrite(EXP_PSV3_EN, LOW);
   delay(5);
 
   SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-  SPI.setFrequency(1000000);
-  SPI.setBitOrder(LSBFIRST);
-
   pinMode(DISPLAY_CS, OUTPUT);
-  digitalWrite(DISPLAY_CS, LOW); // SCS inactive = LOW
+  digitalWrite(DISPLAY_CS, LOW);
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
 
   displayReset();
   displayLight(true);
@@ -207,8 +245,11 @@ void setup() {
     while (1) delay(10);
   }
 
+  display.clearBlack();
+  display.refresh();
+
   drawTestScreen();
-  Serial.println("Display initialized.");
+  Serial.println("Display ready.");
 }
 
 void loop() {
