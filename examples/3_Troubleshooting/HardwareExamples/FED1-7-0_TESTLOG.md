@@ -15,7 +15,7 @@
 | `FED4-LUX.ino` | ✓ | VEML7700 ambient light sensor, main I2C bus, lux readout | |
 | `FED4-Mario-SFX.ino` | | I2S speaker via FED4 library, Mario-style sound effects | |
 | `FED4-Motor.ino` | | 4-wire stepper motor (pins 38/45/46/47), forward/reverse rotation | |
-| `FED4-PhotoGates.ino` | | Four photogate GPIO inputs (center, left, right, pellet detector) | |
+| `FED4-PhotoGates.ino` | ✓ | Four photogate GPIO inputs (center, left, right, pellet detector) | Partial: left/right nose poke untested; will mount test components to validate later. |
 | `FED4-RTC.ino` | ✓ | DS3231 RTC, main I2C via PSV2/TCA4307, date/time readout | |
 | `FED4-SD-Card.ino` | ✓ | SD card over SPI, mount, directory listing, read/write | |
 | `FED4-Speaker-with-SD.ino` | | I2S amplifier, SD card MP3 playback, buttons, MCP PSV2/amp enable | |
