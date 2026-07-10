@@ -24,7 +24,7 @@ Please support them!
  * Constructor for FED4 class
  */
 FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
-               stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4)
+               stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_3, MOTOR_PIN_2, MOTOR_PIN_4)
 #ifndef FED4_EXCLUDE_HUBLINK
                ,
                hublink(SD_CS)
