@@ -10,7 +10,6 @@
 | `FED4-Display-Standalone.ino` | | Kyocera MIP display, SPI, MCP reset/backlight, PSV2/PSV3 rails | |
 | `FED4-Display.ino` | | Kyocera MIP display via FED4 library, SPI, MCP backlight toggle | |
 | `FED4-Haptic.ino` | | Haptic motor, MCP23017, PSV2 power rail | |
-| `FED4-I2C-Scanner.ino` | | Main I2C bus scan, MCP23017, PSV2/TCA4307 for RTC | |
 | `FED4-LED-Position-Test.ino` | | Front 8-LED strip index mapping, per-pixel colors, left/center/right groups | |
 | `FED4-LEDs-Front.ino` | ✓ | Front RGB strip, MCP23017 PSV3, three buttons, LED animations | |
 | `FED4-LUX.ino` | ✓ | VEML7700 ambient light sensor, main I2C bus, lux readout | |
