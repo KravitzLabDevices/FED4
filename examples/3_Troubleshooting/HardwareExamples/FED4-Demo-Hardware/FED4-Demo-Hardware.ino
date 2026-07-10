@@ -11,8 +11,8 @@
  *     for proportional LED brightness while a pad is active.
  *   - ToF: continuous ranging, polled non-blocking (checkForDataReady).
  *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
- *   - Audio: chunked I2S sequencer (~5 ms per chunk); melody and PIR chirp
- *     are queues of {freq, ms} notes. Nothing blocks longer than one chunk.
+ *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
+ *     work and serviceAudio() prefills + feeds ~64 ms per call (3 ms fades).
  *   - Display: redrawn only when displayDirty is set (500 ms telemetry poll
  *     or immediate UI changes).
  *
@@ -35,11 +35,8 @@
  *   B2 — hold for haptic (active while pressed)
  *   B3 — play melody (non-blocking)
  *
- * Set DEBUG_TIMING to 1 for Serial reports of slow loop sections (>3 ms).
+ * Boot: embedded PCM startup clip (sounds/startup_sound.h, ~2.5 s TTS).
  */
-
-#define DEBUG_TIMING 1
-static const uint32_t TIMING_WARN_US = 3000;
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -59,6 +56,7 @@ static const uint32_t TIMING_WARN_US = 3000;
 #include <Fonts/FreeSans9pt7b.h>
 #include <FED4_Pins.h>
 #include "driver/touch_sensor.h"
+#include "sounds/startup_sound.h"
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) \
@@ -92,15 +90,6 @@ static const uint16_t TOUCH_SLEEP_CYCLES = 500;
 
 // Called from display SPI refresh so audio/buttons stay serviced mid-transfer.
 void cooperativeYield();
-
-#if DEBUG_TIMING
-static uint32_t timingSectionUs(const char *label, uint32_t startUs) {
-  uint32_t dt = micros() - startUs;
-  if (dt >= TIMING_WARN_US)
-    Serial.printf("[timing] %s %lu us\n", label, (unsigned long)dt);
-  return dt;
-}
-#endif
 
 static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                              clr[] = {(uint8_t)~1,   (uint8_t)~2,   (uint8_t)~4,
@@ -239,7 +228,6 @@ unsigned long lastPollMs = 0;
 unsigned long lastStripMs = 0;
 unsigned long lastTofMs = 0;
 unsigned long lastVcomMs = 0;
-unsigned long lastAudioServiceMs = 0;
 
 // ---------------------------------------------------------------------------
 // VCOM keepalive (between display refreshes)
@@ -418,26 +406,16 @@ void drawDashboard() {
 }
 
 void refreshDisplay() {
-#if DEBUG_TIMING
-  uint32_t t0 = micros();
-#endif
   display.refresh();
-#if DEBUG_TIMING
-  timingSectionUs("display.refresh", t0);
-#endif
   lastVcomMs = millis();
 }
 
 // ---------------------------------------------------------------------------
-// STATUS_LED from ToF (10–600 mm → 255–0)
+// STATUS_LED mirrors PIR_MOTION (see FED4-PIR-Sensor.ino)
 // ---------------------------------------------------------------------------
 
-void updateStatusLedFromToF(int distanceMm) {
-  uint8_t brightness = 0;
-  if (distanceMm >= 10 && distanceMm <= 600) {
-    brightness = map(distanceMm, 10, 600, 255, 0);
-  }
-  analogWrite(STATUS_LED, brightness);
+void serviceStatusLed() {
+  analogWrite(STATUS_LED, digitalRead(PIR_MOTION) ? 255 : 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -614,7 +592,10 @@ void updateTouchStrip() {
 
 static const uint32_t AUDIO_RATE = 48000;
 static const size_t AUDIO_CHUNK = 256; // samples (~5.3 ms)
-static const float AUDIO_AMPLITUDE = 0.25f;
+static const float AUDIO_AMPLITUDE = 0.22f;
+static const int AUDIO_CHUNKS_PER_SERVICE = 12; // ~64 ms per serviceAudio() call
+static const int AUDIO_PREFILL_CHUNKS = 8;    // prime DMA right after amp enable
+static const uint32_t AUDIO_FADE_MS = 3;       // attack/release per note segment
 
 static const int AUDIO_MAX_NOTES = 16;
 uint16_t audioQueueFreq[AUDIO_MAX_NOTES]; // 0 = silence
@@ -622,8 +603,84 @@ uint16_t audioQueueDur[AUDIO_MAX_NOTES];  // ms
 int audioQueueLen = 0;
 int audioNoteIdx = 0;
 uint32_t audioSamplesLeft = 0;
+uint32_t audioNoteTotalSamples = 0;
+uint32_t audioNoteSamplesDone = 0;
 float audioPhase = 0.0f;
 bool audioActive = false;
+
+static void audioBeginNote() {
+  audioNoteTotalSamples = audioSamplesLeft;
+  audioNoteSamplesDone = 0;
+}
+
+static void audioAdvanceNote() {
+  audioNoteIdx++;
+  if (audioNoteIdx >= audioQueueLen) return;
+  audioSamplesLeft = (AUDIO_RATE * audioQueueDur[audioNoteIdx]) / 1000;
+  audioPhase = 0.0f;
+  audioBeginNote();
+}
+
+static float audioEnvelope() {
+  if (audioNoteTotalSamples == 0) return 1.0f;
+  uint32_t fadeSamples = (AUDIO_RATE * AUDIO_FADE_MS) / 1000;
+  if (fadeSamples > audioNoteTotalSamples / 4)
+    fadeSamples = audioNoteTotalSamples / 4;
+  if (fadeSamples < 1) return 1.0f;
+
+  if (audioNoteSamplesDone < fadeSamples)
+    return (float)audioNoteSamplesDone / (float)fadeSamples;
+  if (audioNoteSamplesDone + fadeSamples > audioNoteTotalSamples)
+    return (float)(audioNoteTotalSamples - audioNoteSamplesDone) / (float)fadeSamples;
+  return 1.0f;
+}
+
+static size_t audioFillChunk(int16_t *buf) {
+  size_t n = 0;
+  while (n < AUDIO_CHUNK) {
+    if (audioSamplesLeft == 0) {
+      audioAdvanceNote();
+      if (audioNoteIdx >= audioQueueLen) break;
+    }
+
+    uint16_t f = audioQueueFreq[audioNoteIdx];
+    if (f == 0) {
+      buf[n++] = 0;
+    } else {
+      float env = audioEnvelope();
+      buf[n++] = (int16_t)(AUDIO_AMPLITUDE * env * sinf(audioPhase) * 32767.0f);
+      audioPhase += 2.0f * (float)M_PI * (float)f / (float)AUDIO_RATE;
+      if (audioPhase > 2.0f * (float)M_PI) audioPhase -= 2.0f * (float)M_PI;
+    }
+    audioSamplesLeft--;
+    audioNoteSamplesDone++;
+  }
+  return n;
+}
+
+static void audioShutdownAmp() {
+  int16_t silence[AUDIO_CHUNK] = {0};
+  i2s.write((uint8_t *)silence, sizeof(silence));
+  delayMicroseconds(500);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
+}
+
+static int audioComputePrefillChunks() {
+  uint32_t totalSamples = 0;
+  for (int i = 0; i < audioQueueLen; i++)
+    totalSamples += (AUDIO_RATE * audioQueueDur[i]) / 1000;
+  int totalChunks = (totalSamples + AUDIO_CHUNK - 1) / AUDIO_CHUNK;
+  int budget = totalChunks / 4;
+  if (budget < 2) budget = 2;
+  if (budget > AUDIO_PREFILL_CHUNKS) budget = AUDIO_PREFILL_CHUNKS;
+  return budget;
+}
+
+static void audioPrimeOutput() {
+  int16_t silence[AUDIO_CHUNK] = {0};
+  i2s.write((uint8_t *)silence, sizeof(silence));
+  i2s.write((uint8_t *)silence, sizeof(silence));
+}
 
 void audioStartQueue(const uint16_t *freqHz, const uint16_t *durMs, int count) {
   if (audioActive || count <= 0) return;
@@ -635,45 +692,28 @@ void audioStartQueue(const uint16_t *freqHz, const uint16_t *durMs, int count) {
   audioSamplesLeft = (AUDIO_RATE * audioQueueDur[0]) / 1000;
   audioPhase = 0.0f;
   audioActive = true;
+  audioBeginNote();
+  audioPrimeOutput();
   mcp.digitalWrite(EXP_AMP_SD, HIGH);
+  delay(5);
+  audioWriteChunks(audioComputePrefillChunks());
+}
+
+static void audioWriteChunks(int maxChunks) {
+  int16_t buf[AUDIO_CHUNK];
+  for (int c = 0; c < maxChunks && audioActive; c++) {
+    size_t n = audioFillChunk(buf);
+    if (n > 0) i2s.write((uint8_t *)buf, n * sizeof(int16_t));
+    if (audioNoteIdx >= audioQueueLen) {
+      audioActive = false;
+      audioShutdownAmp();
+    }
+  }
 }
 
 void serviceAudio() {
-  if (audioActive) {
-    unsigned long gap = millis() - lastAudioServiceMs;
-    if (lastAudioServiceMs && gap > 15)
-      Serial.printf("[audio] starvation gap %lu ms\n", gap);
-  }
-  lastAudioServiceMs = millis();
-
   if (!audioActive) return;
-
-  int16_t buf[AUDIO_CHUNK];
-  size_t n = 0;
-  while (n < AUDIO_CHUNK) {
-    if (audioSamplesLeft == 0) {
-      audioNoteIdx++;
-      if (audioNoteIdx >= audioQueueLen) break;
-      audioSamplesLeft = (AUDIO_RATE * audioQueueDur[audioNoteIdx]) / 1000;
-      audioPhase = 0.0f;
-    }
-    uint16_t f = audioQueueFreq[audioNoteIdx];
-    if (f == 0) {
-      buf[n++] = 0;
-    } else {
-      buf[n++] = (int16_t)(AUDIO_AMPLITUDE * sinf(audioPhase) * 32767.0f);
-      audioPhase += 2.0f * (float)M_PI * (float)f / (float)AUDIO_RATE;
-      if (audioPhase > 2.0f * (float)M_PI) audioPhase -= 2.0f * (float)M_PI;
-    }
-    audioSamplesLeft--;
-  }
-
-  if (n > 0) i2s.write((uint8_t *)buf, n * sizeof(int16_t));
-
-  if (audioNoteIdx >= audioQueueLen) {
-    audioActive = false;
-    mcp.digitalWrite(EXP_AMP_SD, LOW);
-  }
+  audioWriteChunks(AUDIO_CHUNKS_PER_SERVICE);
 }
 
 void startMelody() {
@@ -684,9 +724,27 @@ void startMelody() {
 }
 
 void startChirp() {
+  // Longer leading silence than melody: short clips need ≥1 chunk of settle
+  // after amp enable so the tone does not start mid-buffer with a pop.
   const uint16_t freqs[] = {0, 1200};
-  const uint16_t durs[] = {5, 40};
+  const uint16_t durs[] = {15, 45};
   audioStartQueue(freqs, durs, sizeof(freqs) / sizeof(freqs[0]));
+}
+
+// Blocking boot clip — PCM from PROGMEM, same I2S path as runtime audio.
+void playStartupSound() {
+  mcp.digitalWrite(EXP_AMP_SD, HIGH);
+  delay(5);
+
+  int16_t buf[AUDIO_CHUNK];
+  for (size_t i = 0; i < STARTUP_PCM_SAMPLES;) {
+    size_t n = min(AUDIO_CHUNK, STARTUP_PCM_SAMPLES - i);
+    memcpy_P(buf, &STARTUP_PCM[i], n * sizeof(int16_t));
+    i2s.write((uint8_t *)buf, n * sizeof(int16_t));
+    i += n;
+  }
+
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 // ---------------------------------------------------------------------------
@@ -770,7 +828,6 @@ void serviceToF() {
   if (!tofSensor.checkForDataReady()) return;
   telem.tofMm = tofSensor.getDistance();
   tofSensor.clearInterrupt(); // re-arm for the next sample
-  updateStatusLedFromToF(telem.tofMm);
 }
 
 // BME680 async: beginReading() kicks off the (slow) gas measurement;
@@ -791,58 +848,29 @@ void serviceBme() {
 // ---------------------------------------------------------------------------
 
 void pollSensors() {
-#if DEBUG_TIMING
-  uint32_t tPoll = micros();
-  uint32_t t0;
-#endif
-
   if (telem.rtcOk) {
-#if DEBUG_TIMING
-    t0 = micros();
-#endif
     DateTime now = rtc.now();
     telem.hour = now.hour();
     telem.minute = now.minute();
     telem.second = now.second();
-#if DEBUG_TIMING
-    timingSectionUs("  poll.rtc", t0);
-#endif
   }
 
   if (telem.batOk && maxlipo.isDeviceReady()) {
-#if DEBUG_TIMING
-    t0 = micros();
-#endif
     telem.voltage = maxlipo.cellVoltage();
     telem.percent = maxlipo.cellPercent();
-#if DEBUG_TIMING
-    timingSectionUs("  poll.bat", t0);
-#endif
   }
 
   if (telem.bmeOk && !bmePending) {
-#if DEBUG_TIMING
-    t0 = micros();
-#endif
     unsigned long readyAt = bme.beginReading();
     if (readyAt != 0) {
       bmeReadyMs = readyAt;
       bmePending = true;
     }
-#if DEBUG_TIMING
-    timingSectionUs("  poll.bme.begin", t0);
-#endif
   }
 
   if (telem.luxOk) {
-#if DEBUG_TIMING
-    t0 = micros();
-#endif
     float lux = veml.readLux();
     telem.lux = (isnan(lux) || lux < 0.0f) ? NAN : lux;
-#if DEBUG_TIMING
-    timingSectionUs("  poll.lux", t0);
-#endif
   }
 
   telem.pgC = (digitalRead(PHOTOGATE_1) == LOW);
@@ -850,18 +878,9 @@ void pollSensors() {
   telem.pgR = (digitalRead(PHOTOGATE_3) == LOW);
   telem.pgP = (digitalRead(PHOTOGATE_4) == LOW);
 
-#if DEBUG_TIMING
-  t0 = micros();
-#endif
   readTouchPads();
-#if DEBUG_TIMING
-  timingSectionUs("  poll.touch", t0);
-#endif
 
   if (telem.accelOk) {
-#if DEBUG_TIMING
-    t0 = micros();
-#endif
     sensors_event_t event;
     if (accel.getEvent(&event)) {
       const float g = 9.80665f;
@@ -869,18 +888,12 @@ void pollSensors() {
       telem.accelY = event.acceleration.x / g;
       telem.accelZ = event.acceleration.z / g;
     }
-#if DEBUG_TIMING
-    timingSectionUs("  poll.accel", t0);
-#endif
   }
 
   telem.pirHigh = (digitalRead(PIR_MOTION) == HIGH);
   telem.intOrLow = intOrLevelLow;
 
   displayDirty = true;
-#if DEBUG_TIMING
-  timingSectionUs("pollSensors total", tPoll);
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,6 +1017,7 @@ void setup() {
 
   i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
   i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+  playStartupSound();
 
   strip.begin();
   strip.setBrightness(80);
@@ -1022,28 +1036,35 @@ void setup() {
   lastStripMs = millis();
   lastPollMs = millis();
   pollSensors();
-#if DEBUG_TIMING
-  Serial.println("DEBUG_TIMING on — sections >3 ms logged as [timing]");
-#endif
   Serial.println("Demo ready.");
 }
 
 void loop() {
-#if DEBUG_TIMING
-  uint32_t tLoop = micros();
-#endif
-
   serviceButtons();
   serviceHaptic();
-  serviceAudio();
-  serviceToF();
-  serviceBme();
-  vcomKeepAlive();
 
   if (pirChirpPending) {
     pirChirpPending = false;
     if (!audioActive) startChirp();
   }
+
+  // While tones play, keep the loop I2S-heavy — display SPI and sensor
+  // polls were starving DMA and causing crackle on the melody / PIR chirp.
+  if (audioActive) {
+    serviceAudio();
+    serviceStatusLed();
+    serviceToF();
+    serviceBme();
+    vcomKeepAlive();
+    serviceAudio();
+    return;
+  }
+
+  serviceAudio();
+  serviceStatusLed();
+  serviceToF();
+  serviceBme();
+  vcomKeepAlive();
 
   if (millis() - lastStripMs >= STRIP_MS) {
     lastStripMs = millis();
@@ -1057,17 +1078,7 @@ void loop() {
 
   if (displayDirty) {
     displayDirty = false;
-#if DEBUG_TIMING
-    uint32_t tDraw = micros();
-#endif
     drawDashboard();
-#if DEBUG_TIMING
-    timingSectionUs("drawDashboard", tDraw);
-#endif
     refreshDisplay();
   }
-
-#if DEBUG_TIMING
-  timingSectionUs("loop", tLoop);
-#endif
 }
