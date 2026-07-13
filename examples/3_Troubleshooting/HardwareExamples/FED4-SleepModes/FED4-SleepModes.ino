@@ -4,7 +4,8 @@
  * Alternates 5 s light sleep (display maintained, VCOM keepalive, touch wake)
  * and 5 s deep sleep (panel blanked, PSV3 off, PSV2 off, sensors in lowest power).
  * Before PSV2 off: quiesce SDIO, photogate GPIO, and I2S amp lines to limit
- * back-power into the unpowered 3.3V2 domain.
+ * back-power into the unpowered 3.3V2 domain. EXP_AMP_SD held LOW → MAX98357A
+ * shutdown (~0.6 µA), not 2.4 mA active Iq.
  *
  * Standalone — no FED4.h. See FED1-7-0_TESTLOG.md for v1.7 power rail map.
  *
