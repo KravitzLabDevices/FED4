@@ -14,7 +14,7 @@
  *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
  *     work and serviceAudio() prefills + feeds ~64 ms per call (3 ms fades).
  *   - Display: redrawn only when displayDirty is set (500 ms telemetry poll
- *     or immediate UI changes).
+ *     or immediate UI changes). Serial prints the same dashboard at refresh.
  *
  * FUTURE DEV NOTES:
  *   - Touch drift: the S3 benchmark auto-tracks slow drift in hardware.
@@ -403,6 +403,70 @@ void drawDashboard() {
   display.print(displayLedOn ? "ON" : "OFF");
 
   display.drawRect(0, 0, display.width() - 1, display.height() - 1, PIXEL_WHITE);
+}
+
+static const char *gateSerialLabel(bool blocked) {
+  return blocked ? "[*]" : "[ ]";
+}
+
+void printDashboardSerial() {
+  Serial.println();
+  Serial.println("--- Dashboard ---");
+
+  if (telem.rtcOk)
+    Serial.printf("Time  %02u:%02u:%02u", telem.hour, telem.minute, telem.second);
+  else
+    Serial.print("Time  --:--:--");
+
+  if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f)
+    Serial.printf("  %.2fV", telem.voltage);
+  else
+    Serial.print("  --V");
+
+  if (telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f)
+    Serial.printf("  %.0f%%", telem.percent);
+  else
+    Serial.print("  --%");
+  Serial.println();
+
+  Serial.println("ENV");
+  if (telem.bmeOk)
+    Serial.printf("  %.1fC  %.0f%%  %.0fhPa\n", telem.tempC, telem.humidity,
+                  telem.pressureHpa);
+  else
+    Serial.println("  BME680 --");
+
+  if (telem.luxOk && !isnan(telem.lux) && telem.lux >= 0.0f)
+    Serial.printf("  %.1f lux\n", telem.lux);
+  else
+    Serial.println("  LUX --");
+
+  Serial.println("DIST");
+  if (telem.tofOk && telem.tofMm > 0)
+    Serial.printf("  %d mm\n", telem.tofMm);
+  else
+    Serial.println("  -- mm");
+
+  Serial.println("GATES");
+  Serial.printf("  C:%s  L:%s  R:%s  P:%s\n", gateSerialLabel(telem.pgC),
+                gateSerialLabel(telem.pgL), gateSerialLabel(telem.pgR),
+                gateSerialLabel(telem.pgP));
+
+  Serial.println("TOUCH");
+  Serial.printf("  L:%lu  C:%lu  R:%lu\n", (unsigned long)telem.touchL,
+                (unsigned long)telem.touchC, (unsigned long)telem.touchR);
+
+  Serial.println("ACCEL");
+  if (telem.accelOk)
+    Serial.printf("  X%+.1f  Y%+.1f  Z%+.1f\n", telem.accelX, telem.accelY,
+                  telem.accelZ);
+  else
+    Serial.println("  LIS2DH --");
+
+  Serial.printf("PIR:%s  INT:%s\n", telem.pirHigh ? "HI" : "LO",
+                telem.intOrLow ? "LO" : "HI");
+  Serial.printf("Backlight %s  |  B1:BL B2:hap B3:tone\n",
+                displayLedOn ? "ON" : "OFF");
 }
 
 void refreshDisplay() {
@@ -1092,6 +1156,7 @@ void loop() {
   if (displayDirty) {
     displayDirty = false;
     drawDashboard();
+    printDashboardSerial();
     refreshDisplay();
   }
 }
