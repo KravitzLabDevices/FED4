@@ -3,7 +3,8 @@
 ## Notes for v1.7.1
 
 - Re-think SD card and display power rails; sharing 3.3V2 means a lot of other stuff becomes active w/ SD card
-- New RTC chip, consider removing I2C isolator, review switched I2C port
+- **MAX98357A on 3.3V2:** ~2.4 mA Iq even when idle — consider dedicated amp rail or PSV2 off whenever audio not needed (v1.7.1)
+- **TCA4307 on 3.3V2:** ~2.5 mA `I_CC` typ to isolate RTC I2C — primary motivation to drop isolator or gate EN in v1.7.1 (RTC on main bus or new chip)
 - Add more separation between RESET/BOOT buttons
 
 ## Power Profile
@@ -24,20 +25,52 @@ Ammeter on pack; SleepModes sketch unless noted. Battery life = capacity ÷ curr
 
 ¹ Measured 50/50 duty: (6.82 + 1.38) / 2 ≈ 4.1 mA; excludes short awake SPI bursts (~52 mA).
 
+**PSV2 light vs deep delta (6.82 − 1.38 ≈ 5.4 mA) — reconciled:**
+
+| 3.3V2 load (PSV2 on) | Typ current | Deep sleep (PSV2 off) |
+| -------------------- | ----------- | --------------------- |
+| **TCA4307** I2C isolator (`I_CC`) | **~2.5 mA** | 0 |
+| **MAX98357A** amp (`I_Q`) | **~2.4 mA** | 0 |
+| DS3231 RTC + PG/SD/sol/haptic leakage | ~0.2–0.5 mA | 0 |
+| **PSV2 subtotal** | **~5.1–5.4 mA** | 0 |
+
+Plus **ESP32-S3** mode change (light sleep + touch ≈ 1–2 mA vs deep sleep ≈ 0.03–0.1 mA) and **always-on 3.3 V** loads (MCP, sensors, MIP ≈ 0.5–1 mA) → **~6.8 mA light sleep** and **~1.4 mA deep sleep** match measured values. The RTC isolation choice keeps **TCA4307 EN active** whenever PSV2 is on, so the isolator runs continuously at ~2.5 mA — not the DS3231 (~100–200 µA).
+
+### TCA4307DGKR — datasheet (§5.5 POWER SUPPLY, typ @ 25 °C)
+
+Isolates main I2C from **SDA_2/SCL_2** (RTC on isolated segment). On **3.3V2** with PSV2.
+
+| Parameter | Symbol | Typ | Max | SleepModes mapping |
+| --------- | ------ | --- | --- | ------------------ |
+| Supply current | `I_CC` | **2.5 mA** | 4.5 mA | EN enabled, bus idle (PSV2 on) |
+| Shutdown current | `I_SD` | **10 µA** | 30 µA | EN = 0 (not used while RTC isolation required) |
+
+### Kyocera TN0216 LCD — datasheet (§6-1, 25 °C)
+
+Panel logic on **3.3 V** (`V_DD` typ 3.3 V). Backlight (`EXP_DISPLAY_LED`) is separate MCP drive.
+
+| Parameter | Symbol | Typ | Max | SleepModes mapping |
+| --------- | ------ | --- | --- | ------------------ |
+| Operating current | `I_DD_opr` | **22 µA** | 45 µA | RST LOW — panel ON (light sleep, awake between refreshes) |
+| Standby current | `I_DD_stb` | **1.5 µA** | 5.5 µA | RST HIGH — panel blanked (deep sleep) |
+| Input leak | `I_IN` | 5 nA | 20 nA | GPIO/SPI idle |
+
+**Implication:** Panel silicon is negligible (`I_DD` ≈ 22 µA). The **~5.4 mA** PSV2-on penalty is almost entirely **TCA4307 (~2.5 mA) + MAX98357A (~2.4 mA)** — architectural, not firmware. Deep sleep savings come from **`PSV2_OFF()`** removing both.
+
 ### Total current by mode (est.)
 
 
 | Mode                                       | Low    | Typical      | High   | Dominant loads                                         |
 | ------------------------------------------ | ------ | ------------ | ------ | ------------------------------------------------------ |
 | **Awake** (active — SPI refresh, I2C init) | 45 mA  | **~65 mA**   | 90 mA  | ESP32-S3 CPU + SPI display; 3.3V2 idle bias            |
-| **Light sleep** (5 s, VCOM keepalive)      | 3 mA   | **~5 mA**    | 8 mA   | ESP32 light sleep + touch FSM; MIP static; **PSV2 on** |
-| **Deep sleep** (5 s, panel blanked)        | 0.1 mA | **~0.3 mA**  | 0.6 mA | ESP32 deep sleep; MIP blanked; **PSV2 off**            |
+| **Light sleep** (5 s, VCOM keepalive)      | 3 mA   | **~5 mA**    | 8 mA   | ESP32 light sleep + touch; **PSV2 on** — **TCA4307 ~2.5 mA + MAX98357A ~2.4 mA** |
+| **Deep sleep** (5 s, panel blanked)        | 0.1 mA | **~0.3 mA**  | 0.6 mA | ESP32 deep sleep; **PSV2 off** (panel `I_DD_stb` ≈ 1.5 µA)        |
 | **SleepModes avg**¹                        | 2 mA   | **~5–10 mA** | 15 mA  | ~50 % light / ~50 % deep + short awake bursts          |
 
 
 ¹ Time-weighted over one cycle (≈1 s awake @ 65 mA, 5 s light @ 5 mA, 5 s deep @ 0.3 mA) → **~7–9 mA** average pack draw. Dominated by light-sleep phase unless PSV2 is cut or display maintenance is reduced.
 
-**Assumptions:** ESP32-S3 @ 240 MHz, WiFi/BT off, USB unplugged. ToF `stopRanging()` ≈ 50–100 µA (not full HW standby). DS3231 ≈ 100–200 µA when PSV2 on. 3.3V2 idle (RTC + TCA4307 + photogate/amp/sol leakage) ≈ **1–3 mA** — largest uncertainty; measure on board.
+**Assumptions:** ESP32-S3 @ 240 MHz, WiFi/BT off, USB unplugged. **TCA4307** `I_CC` ≈ **2.5 mA** + **MAX98357A** Iq ≈ **2.4 mA** on 3.3V2 when PSV2 on (independent of `EXP_AMP_SD`). DS3231 ≈ 100–200 µA. Kyocera `I_DD` ≈ 22 µA.
 
 ### SleepModes cycle (one iteration)
 
@@ -61,14 +94,16 @@ Effective duty cycle ≈ **50 % light sleep / 50 % deep sleep**, plus short acti
 | **3.3V2 `EXP_PSV2_EN`**                              | ON (LOW)                        | ON                           | **OFF** (HIGH)            | —                                     |
 | **3.3V3 `EXP_PSV3_EN`**                              | ON at boot; OFF before sleep    | OFF                          | OFF                       | —                                     |
 | **MCP23017T** (I2C `0x20`)                           | I2C active                      | Idle; outputs LOW            | Idle; holds PSV2/PSV3 OFF | 0.3–1 mA / 1–50 µA / 1 µA             |
-| **Kyocera MIP**                                      | RST LOW; SPI refresh; BL OFF    | RST LOW; **VCOM 500 ms**     | RST HIGH; blanked         | 2–5 mA / 0.5–2 mA / 50–500 µA         |
+| **Kyocera MIP** (panel `I_DD` only)                  | RST LOW; operating             | RST LOW; operating           | RST HIGH; standby         | 22 µA / 22 µA / 1.5 µA (typ)          |
 | **LIS2DH12TR**                                       | 50 Hz HR mode                   | Power-down                   | Power-down                | 0.1–0.2 mA / 2 µA / 2 µA              |
 | **BME680**                                           | Idle (heater off between reads) | Sleep                        | Sleep                     | 0.9 mA / 0.2 µA / 0.2 µA              |
 | **VEML7700**                                         | Enabled                         | `enable(false)`              | `enable(false)`           | 60–100 µA / 0.5 µA / 0.5 µA           |
 | **VL53L1X**                                          | `stopRanging()` after use       | `stopRanging()`              | `stopRanging()`           | 50 µA–1.4 mA² / 50–100 µA / 50–100 µA |
 | **EKMB1107112 PIR**                                  | GPIO input                      | GPIO input                   | GPIO input                | ~6 µA (all phases)                    |
-| **DS3231 RTC**                                       | Powered (PSV2 on)               | Powered                      | **Unpowered**             | 0.1–0.2 mA / 0.1–0.2 mA / 0           |
-| **3.3V2 domain** (TCA4307, PG, SD, amp, haptic, sol) | Rail on; MCP outputs LOW        | Rail on                      | **Rail off**              | 1–3 mA / 1–3 mA / 0                   |
+| **TCA4307** I2C isolator (RTC segment)               | EN on; PSV2 on                  | EN on; PSV2 on               | **PSV2 off**              | ~2.5 mA / ~2.5 mA / 0                 |
+| **MAX98357A amp** (I2S, `EXP_AMP_SD`)                | PSV2 on; SD per MCP            | PSV2 on; SD LOW              | **PSV2 off**              | ~2.4 mA / ~2.4 mA / 0                 |
+| **DS3231 RTC**                                       | On isolated I2C                 | On isolated I2C              | **Unpowered**             | ~0.1–0.2 mA / ~0.1–0.2 mA / 0         |
+| **3.3V2 domain** (PG, SD, haptic, sol)               | Rail on; MCP outputs LOW        | Rail on                      | **Rail off**              | ~0.1–0.3 mA / ~0.1–0.3 mA / 0         |
 | **RGB strip + STATUS_LED**                           | OFF                             | OFF                          | OFF                       | 0                                     |
 | **Motor ULN2003LV**                                  | Pins LOW                        | Pins LOW                     | Pins LOW                  | <10 µA                                |
 | **MAX17048**                                         | Active on VBATT                 | Active on VBATT              | Active on VBATT           | ~50 µA (all phases)                   |
@@ -85,8 +120,8 @@ Effective duty cycle ≈ **50 % light sleep / 50 % deep sleep**, plus short acti
 | **Measured SleepModes totals** | Done — see **Measured (VBATT)** table above |
 | **CPU 80 MHz**                 | `setCpuFrequencyMhz(80)` in awake windows only? Estimate savings vs display + I2C dominate                                                                      |
 | **USB detection**              | No `USB.connected()` on ESP32 core 3.2.1; options: `Serial` DTR (bench only), VBUS GPIO if routed, or skip Serial wait on battery (current SleepModes approach) |
-| **Display in deep sleep**      | Panel stays on 3.3V; blanked via RST — measure residual MIP current vs light-sleep VCOM maintenance                                                             |
-| **PSV2 on during light sleep** | SleepModes keeps PSV2 on for RTC/photogate rail; optional PSV2 off in light sleep for lower average                                                             |
+| **Display in deep sleep**      | Datasheet `I_DD_stb` ≈ 1.5 µA — measured 1.38 mA pack is almost entirely non-panel loads |
+| **PSV2 on during light sleep** | ~4.9 mA from TCA4307 + MAX98357A alone; cut PSV2 or redesign 3.3V2 segmentation for light-sleep display |
 | **MCP23017T baseline**         | On always-on 3.3V in all phases — measure quiescent I2C expander draw; holds rail enables during deep sleep                                                     |
 
 
@@ -114,7 +149,7 @@ TPS22917 load switches: **LOW = rail ON**, **HIGH = rail OFF** (`EXP_PSV2_EN` = 
 | EKMB1107112 PIR (GPIO 10)                            | Always powered; GPIO input                                                                      |
 | BME680 (I2C `0x76`)                                  | Sleep mode + gas heater off                                                                     |
 | LIS2DH12TR accel (I2C `0x19`)                        | Power-down data rate                                                                            |
-| Kyocera MIP display (SPI, MCP RST/LED, GPIO VCOM/CS) | Always powered; VCOM toggle when panel ON                                                       |
+| Kyocera MIP display (SPI, MCP RST/LED, GPIO VCOM/CS) | Always on 3.3 V; `I_DD_opr` 22 µA typ / `I_DD_stb` 1.5 µA typ (§6-1); VCOM toggle when ON |
 
 
 ### 3.3V2 — `EXP_PSV2_EN`
@@ -123,9 +158,9 @@ TPS22917 load switches: **LOW = rail ON**, **HIGH = rail OFF** (`EXP_PSV2_EN` = 
 | Peripheral                                        | Notes      |
 | ------------------------------------------------- | ---------- |
 | DS3231 RTC (I2C `0x68`)                           | Rail-gated |
-| TCA4307DGKR I2C switch EN (SDA_2/SCL_2 isolation) | Rail-gated |
+| TCA4307DGKR I2C switch (SDA_2/SCL_2 → RTC)        | Rail-gated; **`I_CC` typ 2.5 mA** when EN on (isolator always on with PSV2) |
 | Haptic motor (`EXP_HAPTIC`)                       | MCP + rail |
-| Speaker amplifier (`EXP_AMP_SD`)                  | MCP + rail |
+| Speaker amplifier (`EXP_AMP_SD`)                  | MCP SD + rail; **MAX98357A Iq typ 2.4 mA** |
 | SD card (SPI CS GPIO 48)                          | Rail-gated |
 | Photogate circuitry (GPIO 14/17/18/37)            | Rail-gated |
 | Solenoid driver (`EXP_SOL_1/2`)                   | MCP + rail |
