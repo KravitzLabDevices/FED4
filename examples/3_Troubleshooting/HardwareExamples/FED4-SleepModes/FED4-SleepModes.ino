@@ -2,7 +2,9 @@
  * FED4 Sleep Modes Test
  *
  * Alternates 5 s light sleep (display maintained, VCOM keepalive, touch wake)
- * and 5 s deep sleep (panel blanked, PSV2/PSV3 off, sensors in lowest power).
+ * and 5 s deep sleep (panel blanked, PSV3 off, PSV2 off, sensors in lowest power).
+ * Before PSV2 off: quiesce SDIO, photogate GPIO, and I2S amp lines to limit
+ * back-power into the unpowered 3.3V2 domain.
  *
  * Standalone — no FED4.h. See FED1-7-0_TESTLOG.md for v1.7 power rail map.
  *
@@ -414,6 +416,45 @@ void prepareOutputsIdle(bool deepSleep) {
   }
 }
 
+// Quiesce SDIO on the shared SPI bus before cutting PSV2 (SD VCC).
+void shutdownSdBusForDeepSleep() {
+  SPI.end();
+
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+
+  pinMode(SPI_SCK, OUTPUT);
+  pinMode(SPI_MOSI, OUTPUT);
+  digitalWrite(SPI_SCK, LOW);
+  digitalWrite(SPI_MOSI, LOW);
+
+  pinMode(SPI_MISO, INPUT_PULLDOWN);
+
+  pinMode(DISPLAY_CS, OUTPUT);
+  digitalWrite(DISPLAY_CS, LOW);
+}
+
+// Quiesce ESP32 pins into the PSV2 domain before rail off.
+// Photogate front-ends and MAX98357A I2S live on 3.3V2; biased GPIO can
+// back-power unpowered circuitry (measured ~+10 mA vs PSV2-on deep sleep).
+void shutdownPsv2DomainForDeepSleep() {
+  pinMode(PHOTOGATE_1, OUTPUT);
+  pinMode(PHOTOGATE_2, OUTPUT);
+  pinMode(PHOTOGATE_3, OUTPUT);
+  pinMode(PHOTOGATE_4, OUTPUT);
+  digitalWrite(PHOTOGATE_1, LOW);
+  digitalWrite(PHOTOGATE_2, LOW);
+  digitalWrite(PHOTOGATE_3, LOW);
+  digitalWrite(PHOTOGATE_4, LOW);
+
+  pinMode(AMP_BCLK, OUTPUT);
+  pinMode(AMP_LRCLK, OUTPUT);
+  pinMode(AMP_DIN, OUTPUT);
+  digitalWrite(AMP_BCLK, LOW);
+  digitalWrite(AMP_LRCLK, LOW);
+  digitalWrite(AMP_DIN, LOW);
+}
+
 // ---------------------------------------------------------------------------
 // Sleep entry
 // ---------------------------------------------------------------------------
@@ -451,10 +492,12 @@ void enterLightSleep5s() {
 }
 
 void enterDeepSleep5s() {
-  Serial.println("Entering deep sleep (5 s)...");
+  Serial.println("Entering deep sleep (5 s, PSV2 OFF)...");
 
   shutdownSensors();
   displayBlank();
+  shutdownSdBusForDeepSleep();
+  shutdownPsv2DomainForDeepSleep();
   prepareOutputsIdle(true);
 
   // Touch wake already disabled at end of enterLightSleep5s().

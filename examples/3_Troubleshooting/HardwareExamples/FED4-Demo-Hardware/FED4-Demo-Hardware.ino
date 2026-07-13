@@ -190,7 +190,7 @@ I2SClass i2s;
 Adafruit_NeoPixel strip(NUM_STRIP_LEDS, RGB_STRIP, NEO_GRB + NEO_KHZ800);
 
 struct Telemetry {
-  bool rtcOk = false, batOk = false, bmeOk = false, luxOk = false;
+  bool rtcOk = false, batOk = false, batReady = false, bmeOk = false, luxOk = false;
   bool tofOk = false, accelOk = false;
   uint8_t hour = 0, minute = 0, second = 0;
   float voltage = NAN, percent = NAN;
@@ -302,13 +302,13 @@ void drawDashboard() {
     display.print("--:--:--");
 
   display.setCursor(92, 13);
-  if (telem.batOk && !isnan(telem.voltage) && telem.voltage > 0.0f)
+  if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f)
     display.printf("%.2fV", telem.voltage);
   else
     display.print("--V");
 
   display.setCursor(138, 13);
-  if (telem.batOk && !isnan(telem.percent) && telem.percent >= 0.0f)
+  if (telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f)
     display.printf("%.0f%%", telem.percent);
   else
     display.print("--%");
@@ -855,9 +855,13 @@ void pollSensors() {
     telem.second = now.second();
   }
 
-  if (telem.batOk && maxlipo.isDeviceReady()) {
+  telem.batReady = telem.batOk && maxlipo.isDeviceReady();
+  if (telem.batReady) {
     telem.voltage = maxlipo.cellVoltage();
     telem.percent = maxlipo.cellPercent();
+  } else {
+    telem.voltage = NAN;
+    telem.percent = NAN;
   }
 
   if (telem.bmeOk && !bmePending) {
@@ -936,8 +940,17 @@ bool initSensors() {
     Serial.println("WARN: RTC");
   }
 
+  // MAX17048 is on VBATT only. begin() issues a POR reset that NACKs by design;
+  // ESP32 core 3.x may log one i2c.master error — harmless if init succeeds.
   telem.batOk = maxlipo.begin();
-  Serial.println(telem.batOk ? "OK: MAX17048" : "WARN: MAX17048");
+  telem.batReady = telem.batOk && maxlipo.isDeviceReady();
+  if (!telem.batOk) {
+    Serial.println("WARN: MAX17048 (no I2C — check VBATT power)");
+  } else if (!telem.batReady) {
+    Serial.println("OK: MAX17048 (chip only — gauge not ready, no pack?)");
+  } else {
+    Serial.println("OK: MAX17048");
+  }
 
   telem.accelOk = accel.begin(I2C_ADDR_ACCEL);
   if (telem.accelOk) {
