@@ -59,7 +59,7 @@ public:
       return false;
     }
     memset(frameBuffer, 0x00, bufferSize); // dark theme default
-    setRotation(1); // logical 176 wide × 320 tall
+    setRotation(3); // match FED4.h DISPLAY_ROTATION (180° from rotation 1)
     return true;
   }
 

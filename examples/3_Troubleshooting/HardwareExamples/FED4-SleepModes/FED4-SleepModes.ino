@@ -86,7 +86,7 @@ public:
     frameBuffer = (uint8_t *)malloc(bufferSize);
     if (!frameBuffer) return false;
     memset(frameBuffer, 0x00, bufferSize);
-    setRotation(1);
+    setRotation(3); // match FED4.h DISPLAY_ROTATION (180° from rotation 1)
     return true;
   }
 

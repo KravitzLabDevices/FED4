@@ -14,7 +14,7 @@
 | Inertial (optional)   | **LIS3DH**                     | 3-axis accelerometer (hardware present; optional in sketches)                                 |
 | Audio                 | **MAX98357A**                  | I2S audio amplifier (speaker output)                                                          |
 | LEDs                  | **WS2812-family**              | RGB front strip; single red status LED                                                        |
-| Display               | **Kyocera TN0216ANVNANN-GN00** | 320×176 MIP reflective, 3-wire SPI, 1-bit monochrome; logical portrait 176×320 via rotation=1 |
+| Display               | **Kyocera TN0216ANVNANN-GN00** | 320×176 MIP reflective, 3-wire SPI, 1-bit monochrome; logical portrait 176×320 via rotation=3 |
 | Optional wireless     | **Hublink (BLE)**              | Radio chipset not specified in this repo                                                      |
 
 

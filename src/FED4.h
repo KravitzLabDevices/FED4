@@ -51,6 +51,8 @@ static const uint8_t DISPLAY_NORMAL = 3;
 // Common display dimensions
 static const uint16_t DISPLAY_WIDTH = 144;
 static const uint16_t DISPLAY_HEIGHT = 168;
+// Kyocera TN0216 portrait; 3 = 180° from rotation 1 (default mounting)
+static const uint8_t DISPLAY_ROTATION = 3;
 
 static const uint8_t NUM_STRIP_LEDS = 8;
 static const uint16_t MOTOR_STEPS = 512;

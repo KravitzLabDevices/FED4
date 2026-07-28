@@ -419,9 +419,8 @@ bool FED4::initializeDisplay()
     // All-white initial frame (Data 1 = WHITE, section 9-1); clears random pixel memory at power-on
     memset(displayBuffer, 0xFF, bufferSize);
 
-    // Portrait orientation: logical 176 wide × 320 tall
-    // If the display appears rotated, try setRotation(3) as an alternative
-    setRotation(1);
+    // Portrait orientation: logical 176 wide × 320 tall (rotation 3 = 180° flip)
+    setRotation(DISPLAY_ROTATION);
     setFont(&FreeSans9pt7b);
     setTextSize(1);
     setTextColor(DISPLAY_BLACK);
