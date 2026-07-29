@@ -6,39 +6,42 @@
 void FED4::feed()
 {
     initFeeding();
-    dispense(); 
+    dispense();
     handlePelletSettling();
     handlePelletInWell();
     finishFeeding();
 }
 
-void FED4::initFeeding() {
+void FED4::initFeeding()
+{
     pelletPresent = checkForPellet();
     pelletDropped = didPelletDrop();
     pelletReady = false;
     dispenseError = false;
-    //lightsOff();
-    // Serial.println("Feeding!");
+    // lightsOff();
+    //  Serial.println("Feeding!");
 }
 
-void FED4::dispense() {
+void FED4::dispense()
+{
     while (!pelletPresent && !pelletDropped) // while no pellet is present and none has dropped
-    {                     
+    {
         redPix();
         // check if pellet has dropped or is present
         pelletDropped = didPelletDrop();
         pelletPresent = checkForPellet();
         pelletReady = true;
-        
-        // Check if button is pressed - if so, fake pelletPresent to exit dispense
-        if (digitalRead(BUTTON_1) == 1) {
-            hapticDoubleBuzz();
-            marioPipe();
-            pelletPresent = true;
-        }
-        
+
+        // // Check if button is pressed - if so, fake pelletPresent to exit dispense
+        // if (digitalRead(BUTTON_1) == 1) {
+        //     hapticDoubleBuzz();
+        //     marioPipe();
+        //     pelletPresent = true;
+        // }
+
         // Increment block pellet count when pellet drops
-        if (pelletDropped) {
+        if (pelletDropped)
+        {
             blockPelletCount++;
         }
 
@@ -50,50 +53,55 @@ void FED4::dispense() {
         if (motorTurns % 25 == 0)
         {
             Serial.print("Dispensing... ");
-            Serial.println(motorTurns/25);
+            Serial.println(motorTurns / 25);
             releaseMotor();
             delay(1000);
         }
 
-        //handle jam movements
+        // handle jam movements
         handleJams();
     }
 }
 
-void FED4::handleJams() {
-        // if stepper is called too many times without a dispense do a small movement to remove jam
-        if (motorTurns % 100 == 0)
-        {
-            minorJamClear();
-        }
+void FED4::handleJams()
+{
+    // if stepper is called too many times without a dispense do a small movement to remove jam
+    if (motorTurns % 100 == 0)
+    {
+        minorJamClear();
+    }
 
-        if (motorTurns % 200 == 0)
-        {
-            vibrateJamClear();
-        }
+    if (motorTurns % 200 == 0)
+    {
+        vibrateJamClear();
+    }
 
-        if (motorTurns > 2000)  //how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
-        {
-            jammed();
+    if (motorTurns > 2000) // how many motorTurns before FED4 stops trying and shuts off?  Each full rotation of the hopper is ~1000 motorTurns
+    {
+        jammed();
     }
 }
 
-void FED4::handlePelletSettling() {
-        if (pelletReady) {
+void FED4::handlePelletSettling()
+{
+    if (pelletReady)
+    {
         // Serial.println("PelletDrop");
         pelletDropTime = millis();
         pelletCount++;
         logData("PelletDrop");
-        }        
-  
+    }
+
     releaseMotor();
 
     // Wait up to 500ms for pellet to settle in well if 500ms passes without detection, set dispenseError to true
     unsigned long startWait = millis();
     bool pelletDetected = false;
 
-    while (millis() - startWait < 500) {
-        if (checkForPellet()) {
+    while (millis() - startWait < 500)
+    {
+        if (checkForPellet())
+        {
             pelletDetected = true;
             pelletWellTime = millis();
             break; // Exit if pellet is detected
@@ -102,22 +110,24 @@ void FED4::handlePelletSettling() {
     }
 
     // if pellet is not detected, set dispenseError to true
-    if (!pelletDetected) {
+    if (!pelletDetected)
+    {
         dispenseError = true;
     }
 
     // Calculate time since pellet drop
     retrievalTime = (millis() - pelletWellTime) / 1000.0;
     // Serial.println("Pellet in Well");
-}   
+}
 
-void FED4::handlePelletInWell() {
+void FED4::handlePelletInWell()
+{
     pelletPresent = checkForPellet();
     updateDisplay();
-    
+
     // Reset wakePad at start to clear any stale interrupt flags
     wakePad = 0;
-    
+
     while (pelletPresent)
     { // while pellet is in well, monitor for pokes and retrieval time
         redPix();
@@ -128,10 +138,12 @@ void FED4::handlePelletInWell() {
             break;
 
         // Use same majority-vote touch detection as normal pokes (direct L/C/R mapping)
-        if (wakePad != 0) {
+        if (wakePad != 0)
+        {
             interpretTouch();
 
-            if (leftTouch) {
+            if (leftTouch)
+            {
                 retrievalTime = 0.0;
                 dispenseError = false;
                 logData("LeftWithPellet");
@@ -139,7 +151,9 @@ void FED4::handlePelletInWell() {
                 updateDisplay();
                 outputPulse(1, 100);
                 resetTouchFlags();
-            } else if (centerTouch) {
+            }
+            else if (centerTouch)
+            {
                 retrievalTime = 0.0;
                 dispenseError = false;
                 logData("CenterWithPellet");
@@ -148,7 +162,9 @@ void FED4::handlePelletInWell() {
                 redPix();
                 outputPulse(2, 100);
                 resetTouchFlags();
-            } else if (rightTouch) {
+            }
+            else if (rightTouch)
+            {
                 retrievalTime = 0.0;
                 dispenseError = false;
                 logData("RightWithPellet");
@@ -159,22 +175,27 @@ void FED4::handlePelletInWell() {
                 resetTouchFlags();
             }
         }
-        
+
         delay(10); // Small delay to prevent excessive CPU usage
     }
 }
 
-void FED4::finishFeeding() {
-        redPix();
+void FED4::finishFeeding()
+{
+    redPix();
     // Serial.println("Pellet Removed");
 
-    if (pelletReady) {
-        if (dispenseError) {
+    if (pelletReady)
+    {
+        if (dispenseError)
+        {
             retrievalTime = 0.0;
             logData("PelletNotDetected");
-        } else {
+        }
+        else
+        {
             logData("PelletTaken");
-            blockPokeCount = 0;  // Reset block poke count when pellet is taken
+            blockPokeCount = 0; // Reset block poke count when pellet is taken
         }
     }
 
@@ -182,7 +203,7 @@ void FED4::finishFeeding() {
     pelletReady = false;
     retrievalTime = 0.0;
     dispenseError = false;
-    
+
     // Reset touch states after handling the feed
     leftTouch = false;
     centerTouch = false;
@@ -194,12 +215,11 @@ void FED4::finishFeeding() {
     {
         calibrateTouchSensors();
     }
-
 }
 
-/** 
+/**
  * Checks if the pellet is present in the center port
- * 
+ *
  * @return bool - true if pellet is present, false otherwise
  */
 bool FED4::checkForPellet()
@@ -207,34 +227,37 @@ bool FED4::checkForPellet()
     return !digitalRead(PHOTOGATE_1);
 }
 
-/** 
- * Checks if the pellet is present dropped 
- * 
+/**
+ * Checks if the pellet is present dropped
+ *
  * @return bool - true if pellet dropped, false otherwise
  */
 bool FED4::didPelletDrop()
 {
-    if (dropSensorAvailable) {
+    if (dropSensorAvailable)
+    {
         return !digitalRead(PHOTOGATE_4);
-    } else {
-        //Without drop sensor use:
+    }
+    else
+    {
+        // Without drop sensor use:
         return false; // Always return false when sensor is not available
     }
 }
 
 /**
  * Initializes the drop sensor and checks its status
- * 
+ *
  * @return bool - true if drop sensor is working (HIGH), false if broken or not present (LOW)
  */
 bool FED4::initializeDropSensor()
 {
     // Read the drop sensor status (HIGH = sensor present and clear)
     bool sensorStatus = digitalRead(PHOTOGATE_4);
-    
+
     // Set the flag based on sensor status
     dropSensorAvailable = sensorStatus;
-    
+
     // Return true if HIGH (sensor is good), false if LOW (broken or not present)
     return sensorStatus;
 }

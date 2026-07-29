@@ -430,6 +430,19 @@ bool FED4::initializeDisplay()
     return true;
 }
 
+bool FED4::orientScreen()
+{
+    float x, y, z;
+    readAccel(x, y, z);
+    const float xG = x / FED4_GRAVITY_MS2;
+    const uint8_t rot = fed4DisplayRotationForAccelX(xG);
+    if (rotation == rot)
+        return false;
+
+    setRotation(rot);
+    return true;
+}
+
 // Clears the display to white.
 // TN0216 has no hardware clear command — write all-white pixels and refresh.
 void FED4::clearDisplay()

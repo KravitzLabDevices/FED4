@@ -4,17 +4,16 @@
  * Full hardware sweep on Kyocera TN0216 MIP display (standalone, no FED4.h).
  *
  * Architecture (event-driven reference patterns for future FED4 dev):
- *   - Buttons, PIR, INT_OR: GPIO interrupts set volatile flags; loop consumes.
- *     ISRs never touch I2C (MCP23017 writes happen in loop context only).
- *   - Touch: S3 hardware FSM scans continuously; threshold interrupts fire on
- *     press/release. Raw values are polled only for the screen (500 ms) and
- *     for proportional LED brightness while a pad is active.
+ *   - Buttons, INT_OR: GPIO interrupts set volatile flags; loop consumes.
+ *     B1 backlight is polled with debounce (toggle on release). ISRs never touch I2C.
+ *   - Touch: S3 hardware FSM + boot idle baseline. Strip brightness and poke
+ *     both use baseline rise from the boot idle average.
  *   - ToF: continuous ranging, polled non-blocking (checkForDataReady).
  *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
  *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
  *     work and serviceAudio() prefills + feeds ~64 ms per call (3 ms fades).
  *   - Display: redrawn only when displayDirty is set (500 ms telemetry poll
- *     or immediate UI changes). Serial prints the same dashboard at refresh.
+ *     or immediate UI changes).
  *
  * FUTURE DEV NOTES:
  *   - Touch drift: the S3 benchmark auto-tracks slow drift in hardware.
@@ -35,12 +34,20 @@
  *   B2 — hold for haptic (active while pressed)
  *   B3 — play melody (non-blocking)
  *
+ * Pokes: left/right → haptic + tone + dispense (L/R LEDs = touch glow only).
+ * Center poke → haptic + intro audio; full-strip rainbow while center pad held.
+ * STATUS_LED mirrors PIR; PIR does not trigger audio.
+ *
  * Boot: embedded PCM startup clip (sounds/startup_sound.h, ~2.5 s TTS).
  */
+
+// Set to 0 to disable poke tone / dispense (touch strip still active).
+#define ENABLE_FEED 1
 
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <Stepper.h>
 #include <cmath>
 #include <Adafruit_GFX.h>
 #include <Adafruit_MCP23X17.h>
@@ -55,6 +62,7 @@
 #include "RTClib.h"
 #include <Fonts/FreeSans9pt7b.h>
 #include <FED4_Pins.h>
+#include <FED4_DisplayOrient.h>
 #include "driver/touch_sensor.h"
 #include "sounds/startup_sound.h"
 
@@ -79,14 +87,21 @@ static const uint32_t SPI_HZ = 1000000;
 static const uint32_t POLL_MS = 500;
 static const uint32_t STRIP_MS = 8;     // LED fade animation tick
 static const uint32_t TOF_CHECK_MS = 25;
-static const uint32_t BUTTON_DEBOUNCE_MS = 50;
+static const uint32_t BUTTON_DEBOUNCE_MS = 80;
 // ESP32-S3: touch counts RISE when touched (values ~90k-170k idle, uint32_t).
-static const float TOUCH_TRIGGER_RISE = 0.05f; // 5% above idle fires interrupt
-static const float TOUCH_FULL_RISE = 0.25f; // 25% above boot idle = full brightness
-static const float TOUCH_DEADBAND = 0.03f;  // ignore noise within 3% of idle
+static const float TOUCH_TRIGGER_RISE = 0.05f;   // poke — conservative
+static const float TOUCH_LED_FULL_RISE = 0.06f;   // strip full brightness at 6% rise
+static const float TOUCH_DEADBAND = 0.015f;      // ignore noise within 1.5% of idle
+static const uint8_t TOUCH_LED_MIN_BRIGHT = 28;  // WS2812 floor — below ~10% often invisible
+// Motor (28BYJ-48 + ULN2003; match FED4-Motor.ino pin order IN1,IN3,IN2,IN4)
+static const uint16_t MOTOR_STEPS = 2048;
+static const uint8_t MOTOR_SPEED_RPM = 8;
 // S3 touch tuning (see FED4-Touch.ino)
 static const uint16_t TOUCH_MEASURE_CYCLES = 2000;
 static const uint16_t TOUCH_SLEEP_CYCLES = 500;
+static const uint32_t POKE_ARM_MS = 1500; // ignore poke edges until after boot settle
+static const uint32_t PELLET_WIPE_MS = 1000; // full strip wipe duration (~1 s)
+static const uint32_t ORIENT_MS = 100;  // accel-based display rotation poll
 
 // Called from display SPI refresh so audio/buttons stay serviced mid-transfer.
 void cooperativeYield();
@@ -109,7 +124,7 @@ public:
     frameBuffer = (uint8_t *)malloc(bufferSize);
     if (!frameBuffer) return false;
     memset(frameBuffer, 0x00, bufferSize);
-    setRotation(3); // match FED4.h DISPLAY_ROTATION (180° from rotation 1)
+    setRotation(FED4_DISPLAY_ROTATION_NATIVE);
     return true;
   }
 
@@ -188,6 +203,7 @@ I2SClass i2s;
 
 #define NUM_STRIP_LEDS 8
 Adafruit_NeoPixel strip(NUM_STRIP_LEDS, RGB_STRIP, NEO_GRB + NEO_KHZ800);
+Stepper stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_3, MOTOR_PIN_2, MOTOR_PIN_4);
 
 struct Telemetry {
   bool rtcOk = false, batOk = false, batReady = false, bmeOk = false, luxOk = false;
@@ -201,20 +217,31 @@ struct Telemetry {
   bool pgC = false, pgL = false, pgR = false, pgP = false;
   bool pirHigh = false, intOrLow = false;
   bool dispLedOn = true;
+  uint32_t pokeCount = 0, pelletCount = 0;
 };
 
 Telemetry telem;
 uint32_t touchIdleL = 0, touchIdleC = 0, touchIdleR = 0;
+uint32_t touchThreshL = 0, touchThreshC = 0, touchThreshR = 0;
 uint8_t stripBrightRight = 0, stripBrightCenter = 0, stripBrightLeft = 0;
+
+// Pellet / motor state (ported from FED4_Feed.cpp + FED4_Motor.cpp)
+bool dropSensorAvailable = false;
+bool feedBusy = false;
+bool stripAnimBusy = false;
+uint32_t motorTurns = 0;
 
 // ISR-shared state (set in interrupt context, consumed in loop).
 // ISRs must never do I2C — MCP23017 writes happen in loop context only.
-volatile bool pirChirpPending = false;
-volatile bool b1Pressed = false, b3Pressed = false;
-volatile uint32_t b1EdgeMs = 0, b3EdgeMs = 0;
+volatile bool b3Pressed = false;
+volatile uint32_t b3EdgeMs = 0;
 volatile bool b2Level = false;      // BUTTON_2 level, tracked on CHANGE
 volatile bool intOrLevelLow = false; // INT_OR line, tracked on CHANGE
 volatile bool touchActiveL = false, touchActiveC = false, touchActiveR = false;
+
+// Poke edge tracking — software baseline rise (same idle as LEDs), not ISR.
+bool touchPokePrevL = false, touchPokePrevR = false, touchPokePrevC = false;
+unsigned long pokeReadyMs = 0;
 
 bool displayLedOn = true;
 bool displayDirty = true;
@@ -225,6 +252,7 @@ bool bmePending = false;
 unsigned long bmeReadyMs = 0;
 
 unsigned long lastPollMs = 0;
+unsigned long lastOrientMs = 0;
 unsigned long lastStripMs = 0;
 unsigned long lastTofMs = 0;
 unsigned long lastVcomMs = 0;
@@ -377,6 +405,20 @@ void drawDashboard() {
                  (unsigned long)telem.touchC, (unsigned long)telem.touchR);
   y += DATA_LINE_H + SECTION_GAP;
 
+  // POKE
+  drawSectionLabel(y, "POKE");
+  y += LABEL_BLOCK_H;
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(4, y);
+  display.printf("Pokes: %lu", (unsigned long)telem.pokeCount);
+  y += DATA_LINE_H;
+  display.setCursor(4, y);
+  display.printf("Pellets: %lu", (unsigned long)telem.pelletCount);
+  if (feedBusy)
+    display.print(" BUSY");
+  y += DATA_LINE_H + SECTION_GAP;
+
   // ACCEL
   drawSectionLabel(y, "ACCEL");
   y += LABEL_BLOCK_H;
@@ -405,73 +447,31 @@ void drawDashboard() {
   display.drawRect(0, 0, display.width() - 1, display.height() - 1, PIXEL_WHITE);
 }
 
-static const char *gateSerialLabel(bool blocked) {
-  return blocked ? "[*]" : "[ ]";
-}
-
-void printDashboardSerial() {
-  Serial.println();
-  Serial.println("--- Dashboard ---");
-
-  if (telem.rtcOk)
-    Serial.printf("Time  %02u:%02u:%02u", telem.hour, telem.minute, telem.second);
-  else
-    Serial.print("Time  --:--:--");
-
-  if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f)
-    Serial.printf("  %.2fV", telem.voltage);
-  else
-    Serial.print("  --V");
-
-  if (telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f)
-    Serial.printf("  %.0f%%", telem.percent);
-  else
-    Serial.print("  --%");
-  Serial.println();
-
-  Serial.println("ENV");
-  if (telem.bmeOk)
-    Serial.printf("  %.1fC  %.0f%%  %.0fhPa\n", telem.tempC, telem.humidity,
-                  telem.pressureHpa);
-  else
-    Serial.println("  BME680 --");
-
-  if (telem.luxOk && !isnan(telem.lux) && telem.lux >= 0.0f)
-    Serial.printf("  %.1f lux\n", telem.lux);
-  else
-    Serial.println("  LUX --");
-
-  Serial.println("DIST");
-  if (telem.tofOk && telem.tofMm > 0)
-    Serial.printf("  %d mm\n", telem.tofMm);
-  else
-    Serial.println("  -- mm");
-
-  Serial.println("GATES");
-  Serial.printf("  C:%s  L:%s  R:%s  P:%s\n", gateSerialLabel(telem.pgC),
-                gateSerialLabel(telem.pgL), gateSerialLabel(telem.pgR),
-                gateSerialLabel(telem.pgP));
-
-  Serial.println("TOUCH");
-  Serial.printf("  L:%lu  C:%lu  R:%lu\n", (unsigned long)telem.touchL,
-                (unsigned long)telem.touchC, (unsigned long)telem.touchR);
-
-  Serial.println("ACCEL");
-  if (telem.accelOk)
-    Serial.printf("  X%+.1f  Y%+.1f  Z%+.1f\n", telem.accelX, telem.accelY,
-                  telem.accelZ);
-  else
-    Serial.println("  LIS2DH --");
-
-  Serial.printf("PIR:%s  INT:%s\n", telem.pirHigh ? "HI" : "LO",
-                telem.intOrLow ? "LO" : "HI");
-  Serial.printf("Backlight %s  |  B1:BL B2:hap B3:tone\n",
-                displayLedOn ? "ON" : "OFF");
-}
-
 void refreshDisplay() {
   display.refresh();
   lastVcomMs = millis();
+}
+
+// Device X (g) → MIP rotation; native at boot, 180° flip when X < 0.
+bool orientDemoScreen() {
+  if (!telem.accelOk)
+    return false;
+
+  sensors_event_t event;
+  if (!accel.getEvent(&event))
+    return false;
+
+  telem.accelX = fed4DeviceAccelXG(event);
+  telem.accelY = event.acceleration.x / FED4_GRAVITY_MS2;
+  telem.accelZ = event.acceleration.z / FED4_GRAVITY_MS2;
+
+  const uint8_t rot = fed4DisplayRotationForAccelX(telem.accelX);
+  if (display.getRotation() == rot)
+    return false;
+
+  display.setRotation(rot);
+  display.clearBlack();
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -573,15 +573,44 @@ bool initTouchPads() {
                 (unsigned long)touchIdleR, ok ? "OK" : "FAIL");
   if (!ok) return false;
 
-  // Threshold = rise (delta counts) above the hardware benchmark that fires
-  // the press interrupt. Release fires when it falls back below.
-  touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchLeft,
-                       (uint32_t)(touchIdleL * TOUCH_TRIGGER_RISE));
-  touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchCenter,
-                       (uint32_t)(touchIdleC * TOUCH_TRIGGER_RISE));
-  touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchRight,
-                       (uint32_t)(touchIdleR * TOUCH_TRIGGER_RISE));
+  // S3 counts RISE on touch — threshold is idle + rise fraction (not idle * fraction).
+  touchThreshL = touchIdleL + (uint32_t)(touchIdleL * TOUCH_TRIGGER_RISE);
+  touchThreshC = touchIdleC + (uint32_t)(touchIdleC * TOUCH_TRIGGER_RISE);
+  touchThreshR = touchIdleR + (uint32_t)(touchIdleR * TOUCH_TRIGGER_RISE);
+  Serial.printf("Touch thr L:%lu C:%lu R:%lu\n",
+                (unsigned long)touchThreshL, (unsigned long)touchThreshC,
+                (unsigned long)touchThreshR);
+
+  touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchLeft, touchThreshL);
+  touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchCenter, touchThreshC);
+  touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchRight, touchThreshR);
+
+  // Sync ISR flags to hardware (clears spurious press state from attach).
+  touchActiveL = touchInterruptGetLastStatus(TOUCH_PAD_LEFT);
+  touchActiveC = touchInterruptGetLastStatus(TOUCH_PAD_CENTER);
+  touchActiveR = touchInterruptGetLastStatus(TOUCH_PAD_RIGHT);
   return true;
+}
+
+void armPokeDetection() {
+  readTouchPads();
+  touchPokePrevL = touchPadAbovePokeThreshold(telem.touchL, touchIdleL);
+  touchPokePrevR = touchPadAbovePokeThreshold(telem.touchR, touchIdleR);
+  touchPokePrevC = touchPadAbovePokeThreshold(telem.touchC, touchIdleC);
+  pokeReadyMs = millis();
+}
+
+bool pokeDetectionReady() {
+  return millis() - pokeReadyMs >= POKE_ARM_MS;
+}
+
+static float touchRiseFraction(uint32_t raw, uint32_t idle) {
+  if (!idle || raw <= idle) return 0.0f;
+  return (float)(raw - idle) / (float)idle;
+}
+
+bool touchPadAbovePokeThreshold(uint32_t raw, uint32_t idle) {
+  return touchRiseFraction(raw, idle) >= TOUCH_TRIGGER_RISE;
 }
 
 void readTouchPads() {
@@ -592,14 +621,23 @@ void readTouchPads() {
   telem.touchR = touchRead(TOUCH_PAD_RIGHT);
 }
 
-// S3: touch RAISES the count. Rise above idle maps to brightness.
+// S3: touch RAISES the count. Rise above idle maps to strip brightness.
 uint8_t touchRiseToBrightness(uint32_t raw, uint32_t idle) {
   if (!idle || raw <= idle) return 0;
 
-  float rise = (float)(raw - idle) / (float)idle;
+  const float rise = (float)(raw - idle) / (float)idle;
   if (rise < TOUCH_DEADBAND) return 0;
-  if (rise > TOUCH_FULL_RISE) rise = TOUCH_FULL_RISE;
-  return (uint8_t)(rise / TOUCH_FULL_RISE * 255.0f);
+
+  const float span = TOUCH_LED_FULL_RISE - TOUCH_DEADBAND;
+  float t = (rise - TOUCH_DEADBAND) / span;
+  if (t > 1.0f) t = 1.0f;
+  // Slight gamma so mid-range touches feel more responsive.
+  t = powf(t, 0.75f);
+
+  uint8_t bright = (uint8_t)(t * 255.0f);
+  if (bright > 0 && bright < TOUCH_LED_MIN_BRIGHT)
+    bright = TOUCH_LED_MIN_BRIGHT;
+  return bright;
 }
 
 uint8_t emaBrightness(uint8_t current, uint8_t target) {
@@ -612,29 +650,53 @@ uint32_t scaleColor(uint8_t r, uint8_t g, uint8_t b, uint8_t bright) {
   return strip.Color(r * bright / 255, g * bright / 255, b * bright / 255);
 }
 
-// Animation tick: raw reads only happen while the interrupt says a pad is
-// active ("poll only while active" pattern) — idle pads cost nothing.
-void updateTouchStrip() {
-  uint8_t targetL = 0, targetC = 0, targetR = 0;
+uint32_t stripColorWheel(byte wheelPos) {
+  wheelPos = 255 - wheelPos;
+  if (wheelPos < 85)
+    return strip.Color(255 - wheelPos * 3, 0, wheelPos * 3);
+  if (wheelPos < 170) {
+    wheelPos -= 85;
+    return strip.Color(0, wheelPos * 3, 255 - wheelPos * 3);
+  }
+  wheelPos -= 170;
+  return strip.Color(wheelPos * 3, 255 - wheelPos * 3, 0);
+}
 
-  if (touchActiveL) {
-    telem.touchL = touchRead(TOUCH_PAD_LEFT);
-    targetL = touchRiseToBrightness(telem.touchL, touchIdleL);
+// Full-strip rainbow theater chase while the center pad is touched.
+void updateCenterRainbowDemo() {
+  static uint8_t hue = 0;
+  hue += 4;
+  for (int i = 0; i < NUM_STRIP_LEDS; i++)
+    strip.setPixelColor(i, stripColorWheel((uint8_t)(hue + i * 32)));
+  strip.show();
+}
+
+bool centerPadTouched() {
+  return touchRiseFraction(telem.touchC, touchIdleC) >= TOUCH_DEADBAND;
+}
+
+// Animation tick: poll raw rise from boot baseline every STRIP_MS (not ISR-gated).
+void updateTouchStrip() {
+  if (feedBusy || stripAnimBusy) return;
+
+  telem.touchL = touchRead(TOUCH_PAD_LEFT);
+  telem.touchC = touchRead(TOUCH_PAD_CENTER);
+  telem.touchR = touchRead(TOUCH_PAD_RIGHT);
+
+  if (centerPadTouched()) {
+    updateCenterRainbowDemo();
+    return;
   }
-  if (touchActiveC) {
-    telem.touchC = touchRead(TOUCH_PAD_CENTER);
-    targetC = touchRiseToBrightness(telem.touchC, touchIdleC);
-  }
-  if (touchActiveR) {
-    telem.touchR = touchRead(TOUCH_PAD_RIGHT);
-    targetR = touchRiseToBrightness(telem.touchR, touchIdleR);
-  }
+
+  const uint8_t targetL = touchRiseToBrightness(telem.touchL, touchIdleL);
+  const uint8_t targetC = touchRiseToBrightness(telem.touchC, touchIdleC);
+  const uint8_t targetR = touchRiseToBrightness(telem.touchR, touchIdleR);
 
   stripBrightRight = emaBrightness(stripBrightRight, targetR);
   stripBrightCenter = emaBrightness(stripBrightCenter, targetC);
   stripBrightLeft = emaBrightness(stripBrightLeft, targetL);
 
-  // 0-2 right (blue), 3-4 center (green), 5-7 left (red)
+  // 0-2 right (blue), 3-4 center (green), 5-7 left (red) — touch glow only.
   for (int i = 0; i < 3; i++)
     strip.setPixelColor(i, scaleColor(0, 0, 255, stripBrightRight));
   for (int i = 3; i < 5; i++)
@@ -795,6 +857,25 @@ void startChirp() {
   audioStartQueue(freqs, durs, sizeof(freqs) / sizeof(freqs[0]));
 }
 
+static const uint16_t POKE_TONE_LEFT_HZ = 5000;  // high — left poke
+static const uint16_t POKE_TONE_RIGHT_HZ = 2000; // low — right poke
+static const uint16_t POKE_TONE_MS = 100;
+
+void audioWaitUntilDone() {
+  while (audioActive)
+    cooperativeYield();
+}
+
+void playPokeTone(bool leftPoke) {
+  audioWaitUntilDone();
+
+  const uint16_t freq = leftPoke ? POKE_TONE_LEFT_HZ : POKE_TONE_RIGHT_HZ;
+  const uint16_t freqs[] = {0, freq};
+  const uint16_t durs[] = {15, POKE_TONE_MS};
+  audioStartQueue(freqs, durs, 2);
+  audioWaitUntilDone();
+}
+
 // Blocking boot clip — PCM from PROGMEM, same I2S path as runtime audio.
 void playStartupSound() {
   mcp.digitalWrite(EXP_AMP_SD, HIGH);
@@ -814,18 +895,6 @@ void playStartupSound() {
 // ---------------------------------------------------------------------------
 // GPIO ISRs — set flags/levels only; work happens in loop context
 // ---------------------------------------------------------------------------
-
-void IRAM_ATTR onPirMotion() {
-  pirChirpPending = true;
-}
-
-void IRAM_ATTR onButton1() {
-  uint32_t now = millis();
-  if (now - b1EdgeMs > BUTTON_DEBOUNCE_MS) {
-    b1EdgeMs = now;
-    b1Pressed = true;
-  }
-}
 
 void IRAM_ATTR onButton2() {
   b2Level = (digitalRead(BUTTON_2) == HIGH);
@@ -850,13 +919,38 @@ void IRAM_ATTR onIntOr() {
 // Event consumers (loop context — safe for I2C)
 // ---------------------------------------------------------------------------
 
-void serviceButtons() {
-  if (b1Pressed) {
-    b1Pressed = false;
+// B1: polled debounce, toggle backlight on debounced release (one click = one toggle).
+void serviceButton1Backlight() {
+  static bool lastReading = false;
+  static bool stableHigh = false;
+  static uint32_t lastChangeMs = 0;
+
+  const bool reading = (digitalRead(BUTTON_1) == HIGH);
+  const uint32_t now = millis();
+
+  if (reading != lastReading) {
+    lastChangeMs = now;
+    lastReading = reading;
+  }
+
+  if (now - lastChangeMs < BUTTON_DEBOUNCE_MS)
+    return;
+
+  if (reading == stableHigh)
+    return;
+
+  const bool wasHigh = stableHigh;
+  stableHigh = reading;
+
+  if (wasHigh && !stableHigh) {
     displayLedOn = !displayLedOn;
     displayLight(displayLedOn);
     displayDirty = true;
   }
+}
+
+void serviceButtons() {
+  serviceButton1Backlight();
   if (b3Pressed) {
     b3Pressed = false;
     if (!audioActive) startMelody();
@@ -873,10 +967,215 @@ void serviceHaptic() {
   }
 }
 
+void pokeHapticPulse(uint16_t ms = 80) {
+  mcp.digitalWrite(EXP_HAPTIC, HIGH);
+  delayCooperative(ms);
+  mcp.digitalWrite(EXP_HAPTIC, b2Level ? HIGH : LOW);
+}
+
 void cooperativeYield() {
   serviceAudio();
   serviceButtons();
   serviceHaptic();
+}
+
+void delayCooperative(uint32_t ms) {
+  const unsigned long start = millis();
+  while (millis() - start < ms) {
+    cooperativeYield();
+    delay(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Motor + pellet dispense (ported from FED4_Motor.cpp / FED4_Feed.cpp)
+// ---------------------------------------------------------------------------
+
+void releaseMotor() {
+  digitalWrite(MOTOR_PIN_1, LOW);
+  digitalWrite(MOTOR_PIN_2, LOW);
+  digitalWrite(MOTOR_PIN_3, LOW);
+  digitalWrite(MOTOR_PIN_4, LOW);
+}
+
+void minorJamClear() {
+  Serial.println("MinorJam");
+  stepper.step(200);
+  delayCooperative(1000);
+}
+
+void vibrateJamClear() {
+  Serial.println("VibrateJam");
+  for (int i = 0; i < 35; i++) {
+    stepper.step(10);
+    delayCooperative(10);
+    stepper.step(-20);
+    delayCooperative(10);
+  }
+}
+
+void handleDemoJams() {
+  if (motorTurns % 100 == 0)
+    minorJamClear();
+  if (motorTurns % 200 == 0)
+    vibrateJamClear();
+  if (motorTurns > 2000) {
+    Serial.println("Dispense timeout (jam)");
+    releaseMotor();
+  }
+}
+
+bool checkForPellet() {
+  return digitalRead(PHOTOGATE_1) == LOW;
+}
+
+bool didPelletDrop() {
+  if (dropSensorAvailable)
+    return digitalRead(PHOTOGATE_4) == LOW;
+  return false;
+}
+
+bool initializeDropSensor() {
+  dropSensorAvailable = (digitalRead(PHOTOGATE_4) == HIGH);
+  return dropSensorAvailable;
+}
+
+bool initMotor() {
+  pinMode(MOTOR_PIN_1, OUTPUT);
+  pinMode(MOTOR_PIN_2, OUTPUT);
+  pinMode(MOTOR_PIN_3, OUTPUT);
+  pinMode(MOTOR_PIN_4, OUTPUT);
+  releaseMotor();
+  stepper.setSpeed(MOTOR_SPEED_RPM);
+  Serial.println("OK: Motor (28BYJ-48, 2048 steps/rev)");
+  return true;
+}
+
+void demoDispense() {
+  bool pelletPresent = checkForPellet();
+  bool pelletDropped = false;
+
+  while (!pelletPresent && !pelletDropped && motorTurns <= 2000) {
+    pelletDropped = didPelletDrop();
+    pelletPresent = checkForPellet();
+
+    stepper.step(-10);
+    cooperativeYield();
+    delay(2);
+    motorTurns++;
+
+    if (motorTurns % 25 == 0) {
+      Serial.print("Dispensing... ");
+      Serial.println(motorTurns / 25);
+      releaseMotor();
+      delayCooperative(1000);
+    }
+
+    handleDemoJams();
+    pelletPresent = checkForPellet();
+    pelletDropped = didPelletDrop();
+  }
+
+  releaseMotor();
+}
+
+void demoWaitForPelletSettling() {
+  const unsigned long startWait = millis();
+  while (millis() - startWait < 500) {
+    if (checkForPellet())
+      return;
+    delayCooperative(10);
+  }
+}
+
+void stripColorWipe(uint8_t r, uint8_t g, uint8_t b, uint16_t stepMs = 30) {
+  stripAnimBusy = true;
+  for (int i = 0; i < NUM_STRIP_LEDS; i++) {
+    strip.clear();
+    strip.setPixelColor(i, strip.Color(r, g, b));
+    strip.show();
+    delayCooperative(stepMs);
+  }
+  delayCooperative(stepMs * 2);
+  strip.clear();
+  strip.show();
+  stripAnimBusy = false;
+}
+
+void serviceFeed() {
+  if (!pokeDetectionReady() || feedBusy)
+    return;
+
+  readTouchPads();
+
+  const bool lNow = touchPadAbovePokeThreshold(telem.touchL, touchIdleL);
+  const bool rNow = touchPadAbovePokeThreshold(telem.touchR, touchIdleR);
+  const bool lPoke = lNow && !touchPokePrevL;
+  const bool rPoke = rNow && !touchPokePrevR;
+  touchPokePrevL = lNow;
+  touchPokePrevR = rNow;
+
+  if (!lPoke && !rPoke)
+    return;
+
+  bool isLeft;
+  if (lPoke && rPoke) {
+    // Crosstalk — use whichever pad rose more above baseline.
+    isLeft = touchRiseFraction(telem.touchL, touchIdleL) >=
+             touchRiseFraction(telem.touchR, touchIdleR);
+  } else {
+    isLeft = lPoke;
+  }
+
+  telem.pokeCount++;
+  feedBusy = true;
+  displayDirty = true;
+  Serial.println(isLeft ? "Poke LEFT — dispense" : "Poke RIGHT — dispense");
+
+  pokeHapticPulse();
+  playPokeTone(isLeft);
+  demoDispense();
+  demoWaitForPelletSettling();
+
+  // Green wipe only when the center-well photogate sees the pellet.
+  if (checkForPellet()) {
+    telem.pelletCount++;
+    Serial.println("Pellet gate — LED wipe");
+    stripColorWipe(180, 255, 180,
+                   PELLET_WIPE_MS / (NUM_STRIP_LEDS + 2));
+  } else {
+    Serial.println("Pellet not detected in well");
+  }
+
+  motorTurns = 0;
+  feedBusy = false;
+  displayDirty = true;
+}
+
+void serviceCenterPoke() {
+  if (!pokeDetectionReady() || feedBusy || stripAnimBusy || audioActive)
+    return;
+
+  readTouchPads();
+
+  const bool cNow = touchPadAbovePokeThreshold(telem.touchC, touchIdleC);
+  const bool cPoke = cNow && !touchPokePrevC;
+  touchPokePrevC = cNow;
+
+  if (!cPoke)
+    return;
+
+  telem.pokeCount++;
+  feedBusy = true;
+  displayDirty = true;
+  Serial.println("Poke CENTER — intro");
+
+  pokeHapticPulse();
+  audioWaitUntilDone();
+  playStartupSound();
+
+  feedBusy = false;
+  displayDirty = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -928,7 +1227,7 @@ void pollSensors() {
     telem.percent = NAN;
   }
 
-  if (telem.bmeOk && !bmePending) {
+  if (telem.bmeOk && !bmePending && !feedBusy) {
     unsigned long readyAt = bme.beginReading();
     if (readyAt != 0) {
       bmeReadyMs = readyAt;
@@ -951,10 +1250,9 @@ void pollSensors() {
   if (telem.accelOk) {
     sensors_event_t event;
     if (accel.getEvent(&event)) {
-      const float g = 9.80665f;
-      telem.accelX = -event.acceleration.y / g;
-      telem.accelY = event.acceleration.x / g;
-      telem.accelZ = event.acceleration.z / g;
+      telem.accelX = fed4DeviceAccelXG(event);
+      telem.accelY = event.acceleration.x / FED4_GRAVITY_MS2;
+      telem.accelZ = event.acceleration.z / FED4_GRAVITY_MS2;
     }
   }
 
@@ -1084,8 +1382,6 @@ void setup() {
   pinMode(STATUS_LED, OUTPUT);
   analogWrite(STATUS_LED, 0);
 
-  attachInterrupt(digitalPinToInterrupt(PIR_MOTION), onPirMotion, RISING);
-  attachInterrupt(digitalPinToInterrupt(BUTTON_1), onButton1, RISING);
   attachInterrupt(digitalPinToInterrupt(BUTTON_2), onButton2, CHANGE);
   attachInterrupt(digitalPinToInterrupt(BUTTON_3), onButton3, RISING);
   attachInterrupt(digitalPinToInterrupt(INT_OR), onIntOr, CHANGE);
@@ -1097,12 +1393,19 @@ void setup() {
   playStartupSound();
 
   strip.begin();
-  strip.setBrightness(80);
+  strip.setBrightness(120);
   strip.clear();
   strip.show();
 
   if (!initTouchPads())
     Serial.println("WARN: touch init — keep pads clear at boot");
+  armPokeDetection();
+
+  initMotor();
+  if (initializeDropSensor())
+    Serial.println("OK: Drop sensor (PHOTOGATE_4)");
+  else
+    Serial.println("WARN: Drop sensor absent or blocked at boot");
 
   // Start continuous ranging once; serviceToF() harvests results
   if (telem.tofOk) {
@@ -1112,21 +1415,23 @@ void setup() {
 
   lastStripMs = millis();
   lastPollMs = millis();
+  lastOrientMs = millis();
   pollSensors();
+  if (orientDemoScreen())
+    displayDirty = true;
   Serial.println("Demo ready.");
 }
 
 void loop() {
   serviceButtons();
   serviceHaptic();
-
-  if (pirChirpPending) {
-    pirChirpPending = false;
-    if (!audioActive) startChirp();
-  }
+#if ENABLE_FEED
+  serviceFeed();
+  serviceCenterPoke();
+#endif
 
   // While tones play, keep the loop I2S-heavy — display SPI and sensor
-  // polls were starving DMA and causing crackle on the melody / PIR chirp.
+  // polls were starving DMA and causing crackle on the melody.
   if (audioActive) {
     serviceAudio();
     serviceStatusLed();
@@ -1148,6 +1453,12 @@ void loop() {
     updateTouchStrip();
   }
 
+  if (millis() - lastOrientMs >= ORIENT_MS) {
+    lastOrientMs = millis();
+    if (orientDemoScreen())
+      displayDirty = true;
+  }
+
   if (millis() - lastPollMs >= POLL_MS) {
     lastPollMs = millis();
     pollSensors();
@@ -1156,7 +1467,6 @@ void loop() {
   if (displayDirty) {
     displayDirty = false;
     drawDashboard();
-    printDashboardSerial();
     refreshDisplay();
   }
 }

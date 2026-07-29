@@ -38,6 +38,7 @@
 
 // Pin Definitions
 #include "FED4_Pins.h"
+#include "FED4_DisplayOrient.h"
 
 // Board Version: v1.7
 #define FED4_BOARD_VERSION_STR "1.7.0"
@@ -51,8 +52,8 @@ static const uint8_t DISPLAY_NORMAL = 3;
 // Common display dimensions
 static const uint16_t DISPLAY_WIDTH = 144;
 static const uint16_t DISPLAY_HEIGHT = 168;
-// Kyocera TN0216 portrait; 3 = 180° from rotation 1 (default mounting)
-static const uint8_t DISPLAY_ROTATION = 3;
+// Default boot rotation until orientScreen() runs (see FED4_DisplayOrient.h)
+static const uint8_t DISPLAY_ROTATION = FED4_DISPLAY_ROTATION_NATIVE;
 
 static const uint8_t NUM_STRIP_LEDS = 8;
 static const uint16_t MOTOR_STEPS = 512;
@@ -237,6 +238,8 @@ public:
     void displayActivityCounters();
     void displayReset();
     void displayLight(bool on);
+    /** One-shot accel read; sets rotation from device X (g). Returns true if rotation changed. */
+    bool orientScreen();
 
     void serialStatusReport();
 
