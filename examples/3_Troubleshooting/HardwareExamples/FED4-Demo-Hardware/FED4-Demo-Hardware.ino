@@ -1,5 +1,5 @@
 /*
- * FED4 Demo Hardware v1.0.2
+ * FED4 Demo Hardware v1.0.3
  *
  * Full hardware sweep on Kyocera TN0216 MIP display (standalone, no FED4.h).
  * Target board: FED4 v1.7.0 — see FED4_DemoHardwareVersion.h to bump version.
@@ -9,7 +9,7 @@
  *     B1 backlight is polled with debounce (toggle on release). ISRs never touch I2C.
  *   - Touch: S3 hardware FSM + boot idle baseline. Strip brightness and poke
  *     both use baseline rise from the boot idle average.
- *   - ToF: continuous ranging; checkForDataReady + getRangeStatus() == 0.
+ *   - ToF: continuous ranging; getRangeStatus() + optional narrow ROI (TOF_USE_NARROW_ROI).
  *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
  *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
  *     work and serviceAudio() prefills + feeds ~64 ms per call (3 ms fades).
@@ -107,6 +107,11 @@ static const uint32_t PELLET_WIPE_MS = 1000; // full strip wipe duration (~1 s)
 static const uint32_t ORIENT_MS = 100;  // accel-based display rotation poll
 // VL53L1X: short mode for nose-port distances; reject reads when getRangeStatus() != 0.
 static const int16_t TOF_CALIBRATION_MM = 20; // match FED4_Prox.cpp offset
+// Narrow ROI test — 4×4 SPADs centered on die (tune TOF_ROI_CENTER for bore axis).
+static const uint8_t TOF_USE_NARROW_ROI = 1;
+static const uint8_t TOF_ROI_WIDTH = 4;
+static const uint8_t TOF_ROI_HEIGHT = 4;
+static const uint8_t TOF_ROI_CENTER = 199;
 
 // Called from display SPI refresh so audio/buttons stay serviced mid-transfer.
 void cooperativeYield();
@@ -305,6 +310,10 @@ void drawGateDot(int16_t x, int16_t y, bool blocked) {
     display.drawCircle(x, y, 3, PIXEL_WHITE);
 }
 
+uint8_t touchRiseToBrightness(uint32_t raw, uint32_t idle);
+void drawTouchBarRow(int16_t y, char pad, uint32_t raw, uint32_t idle);
+void drawHeaderBattery();
+
 // GFX FreeFont cursor Y is the baseline; default font Y is the top edge.
 static const int16_t HEADER_H = 20;
 static const int16_t HEADER_TEXT_Y = 5; // padding within white header bar (matches footer)
@@ -337,17 +346,7 @@ void drawDashboard() {
   else
     display.print("--:--:--");
 
-  display.setCursor(92, HEADER_TEXT_Y);
-  if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f)
-    display.printf("%.2fV", telem.voltage);
-  else
-    display.print("--V");
-
-  display.setCursor(138, HEADER_TEXT_Y);
-  if (telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f)
-    display.printf("%.0f%%", telem.percent);
-  else
-    display.print("--%");
+  drawHeaderBattery();
 
   int16_t y = CONTENT_TOP;
 
@@ -370,16 +369,14 @@ void drawDashboard() {
     display.print("LUX --");
   y += DATA_LINE_H + SECTION_GAP;
 
-  // DIST
-  drawSectionLabel(y, "DIST");
+  // DISTANCE
+  drawSectionLabel(y, "DISTANCE");
   y += LABEL_BLOCK_H;
   display.setFont(nullptr);
   display.setTextSize(2);
   display.setCursor(4, y);
   if (telem.tofOk && telem.tofValid)
     display.printf("%4d", telem.tofMm);
-  else if (telem.tofOk)
-    display.printf("S%02u", (unsigned)telem.tofRangeStatus);
   else
     display.print("  --");
   display.setTextSize(1);
@@ -408,11 +405,12 @@ void drawDashboard() {
   // TOUCH
   drawSectionLabel(y, "TOUCH");
   y += LABEL_BLOCK_H;
-  display.setFont(nullptr);
-  display.setTextSize(1);
-  display.setCursor(4, y);
-  display.printf("L:%lu C:%lu R:%lu", (unsigned long)telem.touchL,
-                 (unsigned long)telem.touchC, (unsigned long)telem.touchR);
+  display.setTextColor(PIXEL_WHITE);
+  drawTouchBarRow(y, 'L', telem.touchL, touchIdleL);
+  y += DATA_LINE_H;
+  drawTouchBarRow(y, 'C', telem.touchC, touchIdleC);
+  y += DATA_LINE_H;
+  drawTouchBarRow(y, 'R', telem.touchR, touchIdleR);
   y += DATA_LINE_H + SECTION_GAP;
 
   // POKE
@@ -451,10 +449,16 @@ void drawDashboard() {
   display.setTextColor(PIXEL_BLACK);
   display.setCursor(4, FOOTER_TEXT_Y);
   display.printf("v%s", FED4_DEMO_HW_VERSION_STR);
-  display.setCursor(46, FOOTER_TEXT_Y);
-  display.print("B1:BL B2:hap B3:tone");
-  display.setCursor(152, FOOTER_TEXT_Y);
-  display.print(displayLedOn ? "ON" : "OFF");
+  if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f) {
+    char vBuf[12];
+    snprintf(vBuf, sizeof(vBuf), "%.2fV", telem.voltage);
+    display.setCursor(display.width() - 4 - (int16_t)strlen(vBuf) * 6,
+                      FOOTER_TEXT_Y);
+    display.print(vBuf);
+  } else {
+    display.setCursor(display.width() - 22, FOOTER_TEXT_Y);
+    display.print("--V");
+  }
 
   display.drawRect(0, 0, display.width() - 1, display.height() - 1, PIXEL_WHITE);
 }
@@ -650,6 +654,74 @@ uint8_t touchRiseToBrightness(uint32_t raw, uint32_t idle) {
   if (bright > 0 && bright < TOUCH_LED_MIN_BRIGHT)
     bright = TOUCH_LED_MIN_BRIGHT;
   return bright;
+}
+
+void drawTouchBarRow(int16_t y, char pad, uint32_t raw, uint32_t idle) {
+  static const int16_t BAR_X = 64;
+  static const int16_t BAR_W = 252;
+  static const int16_t BAR_H = 6;
+
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(4, y);
+  display.printf("%c:%lu", pad, (unsigned long)raw);
+
+  const int16_t barY = y + 2;
+  display.drawRect(BAR_X, barY, BAR_W, BAR_H, PIXEL_WHITE);
+
+  const uint8_t level = touchRiseToBrightness(raw, idle);
+  if (level == 0)
+    return;
+
+  int16_t fillW = (int16_t)((level * (BAR_W - 2) + 127) / 255);
+  if (fillW < 1)
+    fillW = 1;
+  display.fillRect(BAR_X + 1, barY + 1, fillW, BAR_H - 2, PIXEL_WHITE);
+}
+
+void drawHeaderBattery() {
+  static const int16_t BAR_W = 40;
+  static const int16_t BAR_H = 7;
+  static const int16_t MARGIN = 4;
+  static const int16_t GAP = 4;
+
+  const int16_t w = display.width();
+  const int16_t barX = w - MARGIN - BAR_W;
+  const int16_t barY = (HEADER_H - BAR_H) / 2;
+  const int16_t textY = barY;
+
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setTextColor(PIXEL_BLACK);
+
+  const bool havePct =
+      telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f;
+  char pctBuf[8];
+  if (havePct)
+    snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", telem.percent);
+  else
+    snprintf(pctBuf, sizeof(pctBuf), "--%%");
+
+  const int16_t pctW = (int16_t)strlen(pctBuf) * 6;
+  const int16_t pctX = barX - GAP - pctW;
+
+  display.setCursor(pctX, textY);
+  display.print(pctBuf);
+
+  display.drawRect(barX, barY, BAR_W, BAR_H, PIXEL_BLACK);
+
+  if (havePct) {
+    float level = telem.percent / 100.0f;
+    if (level < 0.0f)
+      level = 0.0f;
+    else if (level > 1.0f)
+      level = 1.0f;
+    int16_t fillW = (int16_t)(level * (BAR_W - 2) + 0.5f);
+    if (fillW < 1 && level > 0.0f)
+      fillW = 1;
+    if (fillW > 0)
+      display.fillRect(barX + 1, barY + 1, fillW, BAR_H - 2, PIXEL_BLACK);
+  }
 }
 
 uint8_t emaBrightness(uint8_t current, uint8_t target) {
@@ -1194,6 +1266,25 @@ void serviceCenterPoke() {
 // Non-blocking sensor services
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ToF helpers
+// ---------------------------------------------------------------------------
+
+bool initToF() {
+  if (tofSensor.begin() != 0)
+    return false;
+
+  tofSensor.setDistanceModeShort();
+  tofSensor.setTimingBudgetInMs(50);
+  tofSensor.setIntermeasurementPeriod(100);
+
+  if (TOF_USE_NARROW_ROI)
+    tofSensor.setROI(TOF_ROI_WIDTH, TOF_ROI_HEIGHT, TOF_ROI_CENTER);
+
+  Serial.println("OK: VL53L1X");
+  return true;
+}
+
 // ToF runs in continuous ranging mode; harvest when ready and validate status.
 // getRangeStatus(): 0 = good; 1 sigma fail; 2 signal fail; 7 wrap (see SparkFun Ex3).
 void serviceToF() {
@@ -1364,16 +1455,9 @@ bool initSensors() {
     Serial.println("WARN: VEML7700");
   }
 
-  telem.tofOk = (tofSensor.begin() == 0);
-  if (telem.tofOk) {
-    tofSensor.setDistanceModeShort();
-    tofSensor.setTimingBudgetInMs(50);
-    tofSensor.setIntermeasurementPeriod(100);
-    Serial.printf("OK: VL53L1X (short mode, %u ms budget)\n",
-                  tofSensor.getTimingBudgetInMs());
-  } else {
+  telem.tofOk = initToF();
+  if (!telem.tofOk)
     Serial.println("WARN: VL53L1X");
-  }
 
   telem.rtcOk = initRtcDemo();
   if (!telem.rtcOk)
