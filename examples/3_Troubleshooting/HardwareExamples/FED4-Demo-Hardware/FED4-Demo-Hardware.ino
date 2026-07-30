@@ -1,14 +1,15 @@
 /*
- * FED4 Demo Hardware
+ * FED4 Demo Hardware v1.0.2
  *
  * Full hardware sweep on Kyocera TN0216 MIP display (standalone, no FED4.h).
+ * Target board: FED4 v1.7.0 — see FED4_DemoHardwareVersion.h to bump version.
  *
  * Architecture (event-driven reference patterns for future FED4 dev):
  *   - Buttons, INT_OR: GPIO interrupts set volatile flags; loop consumes.
  *     B1 backlight is polled with debounce (toggle on release). ISRs never touch I2C.
  *   - Touch: S3 hardware FSM + boot idle baseline. Strip brightness and poke
  *     both use baseline rise from the boot idle average.
- *   - ToF: continuous ranging, polled non-blocking (checkForDataReady).
+ *   - ToF: continuous ranging; checkForDataReady + getRangeStatus() == 0.
  *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
  *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
  *     work and serviceAudio() prefills + feeds ~64 ms per call (3 ms fades).
@@ -57,12 +58,14 @@
 #include <Adafruit_VEML7700.h>
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_MAX1704X.h>
+#include <Preferences.h>
 #include <ESP_I2S.h>
 #include "SparkFun_VL53L1X.h"
 #include "RTClib.h"
 #include <Fonts/FreeSans9pt7b.h>
 #include <FED4_Pins.h>
 #include <FED4_DisplayOrient.h>
+#include "FED4_DemoHardwareVersion.h"
 #include "driver/touch_sensor.h"
 #include "sounds/startup_sound.h"
 
@@ -102,6 +105,8 @@ static const uint16_t TOUCH_SLEEP_CYCLES = 500;
 static const uint32_t POKE_ARM_MS = 1500; // ignore poke edges until after boot settle
 static const uint32_t PELLET_WIPE_MS = 1000; // full strip wipe duration (~1 s)
 static const uint32_t ORIENT_MS = 100;  // accel-based display rotation poll
+// VL53L1X: short mode for nose-port distances; reject reads when getRangeStatus() != 0.
+static const int16_t TOF_CALIBRATION_MM = 20; // match FED4_Prox.cpp offset
 
 // Called from display SPI refresh so audio/buttons stay serviced mid-transfer.
 void cooperativeYield();
@@ -212,6 +217,8 @@ struct Telemetry {
   float voltage = NAN, percent = NAN;
   float tempC = NAN, humidity = NAN, pressureHpa = NAN, gasKOhm = NAN, lux = NAN;
   int tofMm = -1;
+  uint8_t tofRangeStatus = 255;
+  bool tofValid = false;
   float accelX = NAN, accelY = NAN, accelZ = NAN;
   uint32_t touchL = 0, touchC = 0, touchR = 0;
   bool pgC = false, pgL = false, pgR = false, pgP = false;
@@ -300,6 +307,7 @@ void drawGateDot(int16_t x, int16_t y, bool blocked) {
 
 // GFX FreeFont cursor Y is the baseline; default font Y is the top edge.
 static const int16_t HEADER_H = 20;
+static const int16_t HEADER_TEXT_Y = 5; // padding within white header bar (matches footer)
 static const int16_t CONTENT_TOP = 28;
 static const int16_t LABEL_BASELINE = 12; // offset from section top to 9pt baseline
 static const int16_t LABEL_BLOCK_H = 15;
@@ -323,19 +331,19 @@ void drawDashboard() {
   display.setFont(nullptr);
   display.setTextSize(1);
   display.setTextColor(PIXEL_BLACK);
-  display.setCursor(4, 13);
+  display.setCursor(4, HEADER_TEXT_Y);
   if (telem.rtcOk)
     display.printf("%02u:%02u:%02u", telem.hour, telem.minute, telem.second);
   else
     display.print("--:--:--");
 
-  display.setCursor(92, 13);
+  display.setCursor(92, HEADER_TEXT_Y);
   if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f)
     display.printf("%.2fV", telem.voltage);
   else
     display.print("--V");
 
-  display.setCursor(138, 13);
+  display.setCursor(138, HEADER_TEXT_Y);
   if (telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f)
     display.printf("%.0f%%", telem.percent);
   else
@@ -368,10 +376,12 @@ void drawDashboard() {
   display.setFont(nullptr);
   display.setTextSize(2);
   display.setCursor(4, y);
-  if (telem.tofOk && telem.tofMm > 0)
-    display.printf("%d", telem.tofMm);
+  if (telem.tofOk && telem.tofValid)
+    display.printf("%4d", telem.tofMm);
+  else if (telem.tofOk)
+    display.printf("S%02u", (unsigned)telem.tofRangeStatus);
   else
-    display.print("--");
+    display.print("  --");
   display.setTextSize(1);
   display.print(" mm");
   y += 18 + SECTION_GAP;
@@ -440,6 +450,8 @@ void drawDashboard() {
   display.fillRect(0, FOOTER_Y, display.width(), 18, PIXEL_WHITE);
   display.setTextColor(PIXEL_BLACK);
   display.setCursor(4, FOOTER_TEXT_Y);
+  display.printf("v%s", FED4_DEMO_HW_VERSION_STR);
+  display.setCursor(46, FOOTER_TEXT_Y);
   display.print("B1:BL B2:hap B3:tone");
   display.setCursor(152, FOOTER_TEXT_Y);
   display.print(displayLedOn ? "ON" : "OFF");
@@ -1182,15 +1194,29 @@ void serviceCenterPoke() {
 // Non-blocking sensor services
 // ---------------------------------------------------------------------------
 
-// ToF runs in continuous ranging mode; just harvest results when ready
+// ToF runs in continuous ranging mode; harvest when ready and validate status.
+// getRangeStatus(): 0 = good; 1 sigma fail; 2 signal fail; 7 wrap (see SparkFun Ex3).
 void serviceToF() {
   if (!tofRanging) return;
   if (millis() - lastTofMs < TOF_CHECK_MS) return;
   lastTofMs = millis();
 
   if (!tofSensor.checkForDataReady()) return;
-  telem.tofMm = tofSensor.getDistance();
-  tofSensor.clearInterrupt(); // re-arm for the next sample
+
+  telem.tofRangeStatus = tofSensor.getRangeStatus();
+  const int rawMm = (int)tofSensor.getDistance();
+  tofSensor.clearInterrupt();
+
+  if (telem.tofRangeStatus != 0) {
+    telem.tofValid = false;
+    telem.tofMm = -1;
+    return;
+  }
+
+  int mm = rawMm - TOF_CALIBRATION_MM;
+  if (mm < 0) mm = 0;
+  telem.tofValid = true;
+  telem.tofMm = mm;
 }
 
 // BME680 async: beginReading() kicks off the (slow) gas measurement;
@@ -1266,6 +1292,54 @@ void pollSensors() {
 // Init
 // ---------------------------------------------------------------------------
 
+static const char *DEMO_PREFS_NS = "FED4Demo";
+
+static String demoCompileDateTime() {
+  static char buf[25];
+  snprintf(buf, sizeof(buf), "%s %s", __DATE__, __TIME__);
+  return String(buf);
+}
+
+static void demoAdjustRtcFromCompileTime() {
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+}
+
+// DS3231 OSF (lostPower) only set when the oscillator actually stopped.
+// USB-powered runs without a coin cell keep ticking — also sync on new flash.
+bool initRtcDemo() {
+  if (!rtc.begin(&Wire))
+    return false;
+
+  bool setFromCompile = false;
+  if (rtc.lostPower()) {
+    Serial.println("RTC OSF set — oscillator had stopped, using compile time");
+    setFromCompile = true;
+  }
+
+  Preferences prefs;
+  if (prefs.begin(DEMO_PREFS_NS, false)) {
+    const String compileNow = demoCompileDateTime();
+    const String compileStored = prefs.getString("compileTime", "");
+    if (compileStored != compileNow) {
+      Serial.println("New firmware build — syncing RTC to compile time");
+      setFromCompile = true;
+      prefs.putString("compileTime", compileNow);
+    }
+    prefs.end();
+  } else {
+    Serial.println("WARN: RTC prefs unavailable — compile-time sync skipped");
+  }
+
+  if (setFromCompile)
+    demoAdjustRtcFromCompileTime();
+
+  const DateTime now = rtc.now();
+  Serial.printf("RTC %s %04u-%02u-%02u %02u:%02u:%02u\n",
+                setFromCompile ? "set" : "kept", now.year(), now.month(),
+                now.day(), now.hour(), now.minute(), now.second());
+  return true;
+}
+
 bool initSensors() {
   telem.bmeOk = bme.begin(I2C_ADDR_BME680, &Wire);
   if (telem.bmeOk) {
@@ -1291,19 +1365,22 @@ bool initSensors() {
   }
 
   telem.tofOk = (tofSensor.begin() == 0);
-  Serial.println(telem.tofOk ? "OK: VL53L1X" : "WARN: VL53L1X");
-
-  telem.rtcOk = rtc.begin(&Wire);
-  if (telem.rtcOk) {
-    if (rtc.lostPower())
-      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-    Serial.println("OK: RTC");
+  if (telem.tofOk) {
+    tofSensor.setDistanceModeShort();
+    tofSensor.setTimingBudgetInMs(50);
+    tofSensor.setIntermeasurementPeriod(100);
+    Serial.printf("OK: VL53L1X (short mode, %u ms budget)\n",
+                  tofSensor.getTimingBudgetInMs());
   } else {
-    Serial.println("WARN: RTC");
+    Serial.println("WARN: VL53L1X");
   }
 
-  // MAX17048 is on VBATT only. begin() issues a POR reset that NACKs by design;
-  // ESP32 core 3.x may log one i2c.master error — harmless if init succeeds.
+  telem.rtcOk = initRtcDemo();
+  if (!telem.rtcOk)
+    Serial.println("WARN: RTC");
+
+  // MAX17048 is on VBATT only. begin() issues a POR reset that NACKs once;
+  // ESP32 core 3.x logs i2c.master errors here — unrelated to RTC above.
   telem.batOk = maxlipo.begin();
   telem.batReady = telem.batOk && maxlipo.isDeviceReady();
   if (!telem.batOk) {
@@ -1331,7 +1408,8 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  Serial.println("=== FED4 Demo Hardware ===");
+  Serial.printf("FED4 Demo Hardware v%s (board %s)\n", FED4_DEMO_HW_VERSION_STR,
+                FED4_DEMO_HW_TARGET_BOARD_STR);
 
   Wire.begin(SDA, SCL, 100000);
   Wire.setTimeout(1000);
@@ -1420,6 +1498,8 @@ void setup() {
   if (orientDemoScreen())
     displayDirty = true;
   Serial.println("Demo ready.");
+  Serial.printf("  version %s | board %s\n", FED4_DEMO_HW_VERSION_STR,
+                FED4_DEMO_HW_TARGET_BOARD_STR);
 }
 
 void loop() {
