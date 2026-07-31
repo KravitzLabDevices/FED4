@@ -1,65 +1,67 @@
 /*
-Basic code to display text on external display.
+ * FED4 Display Test
+ *
+ * Uses the FED4 library display path for the Kyocera 320x176 MIP panel.
+ * This matches the current architecture:
+ * - SPI display interface
+ * - Display reset/backlight controlled via MCP23017 expander
+ * - Power rails initialized by FED4::begin()
+ */
 
-Main thing needed are the GPIO expander library, then turn on the 3rd LDO via the expander which is what powers the display.
+#include <FED4.h>
 
-*/
+FED4 fed4;
+unsigned long lastToggleMs = 0;
+bool invert = false;
 
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
-#include <Adafruit_MCP23X17.h>
+void drawTestScreen() {
+  fed4.clearDisplay(); // white background
 
-#define SCREEN_WIDTH 128  // OLED display width, in pixels
-#define SCREEN_HEIGHT 128 // OLED display height, in pixels
-#define OLED_RESET -1	  // can set an oled reset pin if desired
-#define SDA_2 20
-#define SCL_2 19
-#define LDO3 14
+  fed4.setTextSize(1);
+  fed4.setTextColor(DISPLAY_BLACK);
+  fed4.setCursor(8, 30);
+  fed4.print("FED4 DISPLAY TEST");
 
-Adafruit_MCP23X17 mcp;
-Adafruit_SH1107 display = Adafruit_SH1107(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET, 1000000, 100000);
+  fed4.setCursor(8, 60);
+  fed4.print("Panel: TN0216 MIP");
 
-void setup()
-{
-	// Initialize serial communication for debugging purposes
-	Serial.begin(115200);
+  fed4.setCursor(8, 90);
+  fed4.print("SPI + MCP control");
 
-	if (!mcp.begin_I2C())
-	{
-		Serial.println("Error.");
-		while (1)
-			;
-	}
+  fed4.setCursor(8, 120);
+  fed4.print("Backlight: ");
+  fed4.print(invert ? "OFF" : "ON");
 
-	mcp.pinMode(LDO3, OUTPUT);
-	mcp.digitalWrite(LDO3, HIGH);
+  // High-contrast box to validate rendering.
+  if (!invert) {
+    fed4.fillRect(8, 145, 120, 20, DISPLAY_BLACK);
+    fed4.setCursor(12, 160);
+    fed4.setTextColor(DISPLAY_WHITE);
+    fed4.print("BLACK BAR TEST");
+  }
 
-	if (!display.begin(0x3D, true))
-	{ // Address 0x3D default for SH1107
-		Serial.println("SSD1306 allocation failed");
-		for (;;)
-			;
-	}
-
-	// Clear the display buffer
-	display.clearDisplay();
-
-	// Set text size and color
-	display.setTextSize(4);				// Normal 1:1 pixel scale
-	display.setTextColor(SH110X_WHITE); // Draw white text
-
-	// Set cursor to top-left corner
-	display.setCursor(19, 60);
-
-	// Display static text
-	display.println("FED4");
-
-	// Update the display with the new text
-	display.display();
+  fed4.refresh();
 }
 
-void loop()
-{
-	// Nothing to do here
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);
+
+  if (!fed4.begin("DisplayTest")) {
+    Serial.println("FED4 begin() failed");
+    while (1) delay(10);
+  }
+
+  fed4.displayLight(true);
+  drawTestScreen();
+}
+
+void loop() {
+  // Toggle backlight every 2 seconds to verify MCP display LED control.
+  if (millis() - lastToggleMs >= 2000) {
+    lastToggleMs = millis();
+    invert = !invert;
+    fed4.displayLight(!invert);
+    drawTestScreen();
+  }
 }

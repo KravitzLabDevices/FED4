@@ -19,7 +19,7 @@
 
 bool FED4::initializeRTC()
 {
-    if (!rtc.begin(&I2C_2))
+    if (!rtc.begin(&Wire))
     {
         Serial.println("Couldn't find RTC");
         return false;

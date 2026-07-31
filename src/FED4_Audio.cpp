@@ -9,12 +9,12 @@ static constexpr uint32_t FED4_AUDIO_SAMPLE_RATE_HZ = 48000;
  */
 bool FED4::initializeSpeaker()
 {
-    // Initialize SD pin first
-    pinMode(AUDIO_SD, OUTPUT);
-    digitalWrite(AUDIO_SD, LOW); // Start with amp disabled
+    // Amp SD line is on GPIO expander (PSV2 rail) - start with amp disabled
+    mcp.pinMode(EXP_AMP_SD, OUTPUT);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 
-    // Configure I2S pins for MAX98357A
-    i2s.setPins(AUDIO_BCLK, AUDIO_LRCLK, AUDIO_DIN);
+    // Configure I2S pins for amplifier (AMP_BCLK, AMP_LRCLK, AMP_DIN)
+    i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
     
     // Initialize I2S with new API
     // Parameters: mode, sample_rate, bits_per_sample, channel_format
@@ -48,7 +48,7 @@ void FED4::enableAmp(bool enable)
         return; // Silently ignore enable requests when silenced
     }
     
-    digitalWrite(AUDIO_SD, enable ? HIGH : LOW);
+    mcp.digitalWrite(EXP_AMP_SD, enable ? HIGH : LOW);
     if (enable)
     {
         delay(1); // stabilize amp
@@ -61,7 +61,7 @@ void FED4::enableAmp(bool enable)
  */
 void FED4::silence()
 {
-    digitalWrite(AUDIO_SD, LOW);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
     audioSilenced = true; // Set flag to prevent re-enabling
     
     // Save silence state to preferences
@@ -102,7 +102,7 @@ void FED4::unsilence()
 void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
 {
     // Bypass audioSilenced check for immediate playback (needed for click feedback)
-    digitalWrite(AUDIO_SD, HIGH);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     delay(1);  // Stabilize amp
     
     // Generate and play tone
@@ -149,7 +149,7 @@ void FED4::playTone(uint32_t frequency, uint32_t duration_ms, float amplitude)
     // Small delay ensures I2S DMA has started transmitting before disabling
     delayMicroseconds(500);
     
-    digitalWrite(AUDIO_SD, LOW);  // Disable amp
+    mcp.digitalWrite(EXP_AMP_SD, LOW);  // Disable amp
 }
 
 /**
@@ -387,7 +387,7 @@ void FED4::marioCoin()
         }
     };
 
-    digitalWrite(AUDIO_SD, HIGH);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     delay(1);
 
     // Classic fast upward "ping" motif (approximation)
@@ -396,7 +396,7 @@ void FED4::marioCoin()
     playSquare(2637, 60, 0.42f); // E7-ish ring
 
     delayMicroseconds(500);
-    digitalWrite(AUDIO_SD, LOW);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 void FED4::marioJump()
@@ -444,7 +444,7 @@ void FED4::marioJump()
         }
     };
 
-    digitalWrite(AUDIO_SD, HIGH);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     delay(1);
 
     // Stepped upward glide (square wave is more "8-bit" than sine)
@@ -454,7 +454,7 @@ void FED4::marioJump()
     playSquare(1760, 26, 0.30f);
 
     delayMicroseconds(500);
-    digitalWrite(AUDIO_SD, LOW);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 void FED4::marioPipe()
@@ -502,7 +502,7 @@ void FED4::marioPipe()
         }
     };
 
-    digitalWrite(AUDIO_SD, HIGH);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     delay(1);
 
     // Downward "bloop" with a low tail
@@ -513,7 +513,7 @@ void FED4::marioPipe()
     playSquare(262,  55, 0.22f);
     
     delayMicroseconds(500);
-    digitalWrite(AUDIO_SD, LOW);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 void FED4::marioFireball()
@@ -561,7 +561,7 @@ void FED4::marioFireball()
         }
     };
 
-    digitalWrite(AUDIO_SD, HIGH);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     delay(1);
 
     // Rapid staccato bursts
@@ -576,7 +576,7 @@ void FED4::marioFireball()
     playSquare(1319, 22, 0.28f);
 
     delayMicroseconds(500);
-    digitalWrite(AUDIO_SD, LOW);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 void FED4::marioMushroom()
@@ -624,7 +624,7 @@ void FED4::marioMushroom()
         }
     };
 
-    digitalWrite(AUDIO_SD, HIGH);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     delay(1);
 
     // Power-up style rising arpeggio (approximation)
@@ -637,5 +637,5 @@ void FED4::marioMushroom()
     playSquare(2093, 70, 0.28f);  // C7
 
     delayMicroseconds(500);
-    digitalWrite(AUDIO_SD, LOW);
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 }

@@ -37,4 +37,31 @@ void FED4::outputPulse(uint8_t trrs, uint8_t duration)
     digitalWrite(pin, HIGH);
     delay(duration);
     digitalWrite(pin, LOW);
-} 
+}
+
+// Initialize solenoids: set MCP expander pins as outputs, both off
+bool FED4::initializeSolenoids()
+{
+    mcp.pinMode(EXP_SOL_1, OUTPUT);
+    mcp.pinMode(EXP_SOL_2, OUTPUT);
+    mcp.digitalWrite(EXP_SOL_1, LOW);
+    mcp.digitalWrite(EXP_SOL_2, LOW);
+    return true;
+}
+
+// Control a solenoid by number (1 or 2)
+// state: true = energize, false = de-energize
+void FED4::solenoid(uint8_t num, bool state)
+{
+    switch (num) {
+        case 1:
+            mcp.digitalWrite(EXP_SOL_1, state ? HIGH : LOW);
+            break;
+        case 2:
+            mcp.digitalWrite(EXP_SOL_2, state ? HIGH : LOW);
+            break;
+        default:
+            Serial.println("*** solenoid() called with invalid number (use 1 or 2)");
+            break;
+    }
+}

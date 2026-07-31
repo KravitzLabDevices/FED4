@@ -1,170 +1,192 @@
+#include <Arduino.h>
+#include <Wire.h>
 #include <FastLED_NeoPixel.h>
 #include <Adafruit_MCP23X17.h>
-#include <Arduino.h>
-#include "Audio.h"
-#include "Wire.h"
-#include "WiFi.h"
-#include "FS.h"
-#include "SD.h"
-#include <SPI.h>
-#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
-Adafruit_MCP23X17 mcp;
-#define DATA_PIN 36
+#include <ESP_I2S.h>
+#include <cmath>
+#include <FED4_Pins.h>
+
+/*
+ * FED4 Color Chase + Touch Pads + Photogate test
+ *
+ * Updated for current hardware:
+ * - Touch pads use ESP32 touch channels (NUM1/NUM2/NUM3)
+ * - Photogates are direct GPIO pins (not MCP pins)
+ * - Front RGB strip is on PSV3 rail (enable via MCP pin 12, ~ON active-low)
+ * - Speaker amp SD is on MCP pin 4, and amp rail is PSV2 (MCP pin 13, ~ON active-low)
+ * - I2S pins: BCLK=41, LRCLK=40, DIN=42, mono @ 48kHz
+ */
+
+// Front RGB strip
 #define NUM_LEDS 8
 #define BRIGHTNESS 50
-CRGB leds[NUM_LEDS];
-FastLED_NeoPixel<NUM_LEDS, DATA_PIN, NEO_GRB> strip;
+FastLED_NeoPixel<NUM_LEDS, RGB_STRIP, NEO_GRB> strip;
 
-#define I2S_DATA_IN_PIN 41
-#define I2S_BIT_CLOCK_PIN 45
-#define I2S_LEFT_RIGHT_CLOCK_PIN 48
-#define I2S_SD_PIN 42
+Adafruit_MCP23X17 mcp;
+I2SClass i2s;
 
-#define TouchPad1 5
-#define TouchPad2 6
-#define TouchPad3 1
-#define PG1 12
-Audio audio;
-I2SClass i2s;  // New I2S object for tone generation
-uint32_t currentColor = 0xFF0000; // Default color (red)
-uint32_t currentFrequency = 1000; // Default frequency for the beep
-bool beepPlayed = false; // Flag to track if beep has been played for the touch
+uint32_t currentColor = 0xFF0000; // Red default
+uint32_t currentFrequency = 1000;
+bool eventTonePlayed = false;
 
-void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
-    const uint32_t sampleRate = 44100;
-    const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
-    const float amplitude = 0.5;
-    const float twoPiF = 2.0 * M_PI * frequency;
-
-    int16_t sampleBuffer[256];
-    size_t samplesInBuffer = 0;
-
-    for (uint32_t i = 0; i < sampleCount; i++) {
-        float sample = amplitude * sin((twoPiF * i) / sampleRate);
-        sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
-
-        if (samplesInBuffer >= 256) {
-            i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
-            samplesInBuffer = 0;
-        }
-    }
-    if (samplesInBuffer > 0) {
-        i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
-    }
-}
+uint16_t baseLeft = 0;
+uint16_t baseCenter = 0;
+uint16_t baseRight = 0;
+static constexpr float TOUCH_THRESHOLD = 0.20f; // 20% deviation from baseline
 
 void setupI2S() {
-    // Configure I2S pins
-    i2s.setPins(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN);
-    
-    // Initialize I2S with new API
-    if (!i2s.begin(I2S_MODE_STD, 44100, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
-        Serial.println("Failed to initialize I2S");
+  i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
+  if (!i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
+    Serial.println("Failed to initialize I2S");
+  }
+}
+
+void calibrateTouch() {
+  delay(50);
+  baseLeft = touchRead(TOUCH_PAD_LEFT);
+  baseCenter = touchRead(TOUCH_PAD_CENTER);
+  baseRight = touchRead(TOUCH_PAD_RIGHT);
+
+  Serial.printf("Touch baselines - L:%u C:%u R:%u\n", baseLeft, baseCenter, baseRight);
+}
+
+bool isTouched(uint16_t current, uint16_t baseline) {
+  if (baseline == 0) return false;
+  float dev = fabs((float)current / (float)baseline - 1.0f);
+  return dev >= TOUCH_THRESHOLD;
+}
+
+void generateSineWave(uint32_t frequency, uint32_t duration_ms, float amplitude = 0.25f) {
+  const uint32_t sampleRate = 48000;
+  const uint32_t originalSamples = (sampleRate * duration_ms) / 1000;
+  const uint32_t sampleCount = (originalSamples < 256) ? 256 : originalSamples;
+  const float twoPiF = 2.0f * (float)M_PI * (float)frequency;
+
+  int16_t sampleBuffer[256];
+  size_t samplesInBuffer = 0;
+
+  for (uint32_t i = 0; i < sampleCount; i++) {
+    if (i < originalSamples) {
+      float sample = amplitude * sinf((twoPiF * (float)i) / (float)sampleRate);
+      sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767.0f);
+    } else {
+      sampleBuffer[samplesInBuffer++] = 0;
     }
+
+    if (samplesInBuffer >= 256) {
+      i2s.write((uint8_t *)sampleBuffer, sizeof(sampleBuffer));
+      samplesInBuffer = 0;
+    }
+  }
+
+  if (samplesInBuffer > 0) {
+    i2s.write((uint8_t *)sampleBuffer, samplesInBuffer * sizeof(int16_t));
+  }
+}
+
+void playBeep(uint32_t frequency, uint32_t duration_ms) {
+  mcp.digitalWrite(EXP_AMP_SD, HIGH);
+  delay(1);
+  generateSineWave(frequency, duration_ms);
+  delayMicroseconds(500);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
+}
+
+void colorChaseWithTrail(uint32_t color) {
+  static int pos = 0;
+
+  strip.clear();
+  strip.setPixelColor(pos, color);
+
+  for (int i = 1; i <= 5; i++) {
+    int trailPos = (pos - i + NUM_LEDS) % NUM_LEDS;
+    uint8_t r = (uint8_t)((((color >> 16) & 0xFF) * (5 - i)) / 20);
+    uint8_t g = (uint8_t)((((color >> 8) & 0xFF) * (5 - i)) / 20);
+    uint8_t b = (uint8_t)(((color & 0xFF) * (5 - i)) / 20);
+    strip.setPixelColor(trailPos, strip.Color(r, g, b));
+  }
+
+  strip.show();
+  pos = (pos + 1) % NUM_LEDS;
+  delay(170);
 }
 
 void setup() {
-    Serial.begin(115200);
-    pinMode(47, OUTPUT);
-    digitalWrite(47, HIGH);
+  Serial.begin(115200);
+  while (!Serial) delay(10);
 
-    if (!mcp.begin_I2C())
-	{
-		Serial.println("Error.");
-		while (1)
-			;
-	}
+  Wire.begin(SDA, SCL, 100000);
 
-	mcp.pinMode(PG1, INPUT_PULLUP);
-    strip.begin();
-    strip.setBrightness(BRIGHTNESS);
+  if (!mcp.begin_I2C()) {
+    Serial.println("MCP23017 init failed");
+    while (1) delay(10);
+  }
 
-    pinMode(I2S_SD_PIN, OUTPUT);
-    digitalWrite(I2S_SD_PIN, HIGH);
-    audio.setPinout(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN, -1);
-    audio.setVolume(30);
-    setupI2S();
-}
+  // Enable rails required by this test.
+  mcp.pinMode(EXP_PSV2_EN, OUTPUT); // amp rail
+  mcp.pinMode(EXP_PSV3_EN, OUTPUT); // front LED strip rail
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
 
-// Function to chase a color with trailing effect
-void colorChaseWithTrail(uint32_t color) {
-    static int pos = 0;
+  // Amp SD via MCP.
+  mcp.pinMode(EXP_AMP_SD, OUTPUT);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
 
-    // Clear all LEDs first to turn off any LEDs not in the trail
-    strip.clear();
+  // Photogate input is direct GPIO on new hardware.
+  pinMode(PHOTOGATE_1, INPUT_PULLUP);
 
-    // Set the current LED to the active color at full brightness
-    strip.setPixelColor(pos, color);
+  strip.begin();
+  strip.setBrightness(BRIGHTNESS);
+  strip.clear();
+  strip.show();
 
-    // Create trailing LEDs with different shades
-    for (int i = 1; i <= 5; i++) {
-        int trailPos = (pos - i + NUM_LEDS) % NUM_LEDS;
-        // Subvariant shade of the main color for trailing effect
-        uint32_t shadeColor = strip.Color(
-            ((color >> 16) * (5 - i)) / 20, // Red channel (darker shade)
-            (((color >> 8) & 0xFF) * (5 - i)) / 20, // Green channel (darker shade)
-            ((color & 0xFF) * (5 - i)) / 20 // Blue channel (darker shade)
-        );
-        strip.setPixelColor(trailPos, shadeColor);
-    }
+  setupI2S();
+  calibrateTouch();
 
-    // Display the LEDs
-    strip.show();
-
-    // Move to the next LED position
-    pos = (pos + 1) % NUM_LEDS;
-    delay(170); // Adjust the speed of the chase
+  Serial.println("FED4 ColorChase+Touch+Photogate test ready");
 }
 
 void loop() {
-    int t1 = touchRead(TouchPad1);
-    int t2 = touchRead(TouchPad2);
-    int t3 = touchRead(TouchPad3);
-    int PG1Read = mcp.digitalRead(PG1);
+  uint16_t tLeft = touchRead(TOUCH_PAD_LEFT);
+  uint16_t tCenter = touchRead(TOUCH_PAD_CENTER);
+  uint16_t tRight = touchRead(TOUCH_PAD_RIGHT);
+  bool pgBlocked = (digitalRead(PHOTOGATE_1) == LOW);
 
-    bool touch1 = t1 >= 50000;
-    bool touch2 = t2 >= 50000;
-    bool touch3 = t3 >= 50000;
+  bool touchLeft = isTouched(tLeft, baseLeft);
+  bool touchCenter = isTouched(tCenter, baseCenter);
+  bool touchRight = isTouched(tRight, baseRight);
 
-    // Update color and frequency based on touchpad input and trigger beep only once
-    if (touch1) {
-        currentColor = 0xFF0000; // Red for TouchPad1
-        currentFrequency = 1000; // 1000 Hz beep for TouchPad1
-        if (!beepPlayed) {
-            generateSineWave(currentFrequency, 200);
-            beepPlayed = true;
-        }
+  if (touchLeft) {
+    currentColor = 0xFF0000;
+    currentFrequency = 1000;
+    if (!eventTonePlayed) {
+      playBeep(currentFrequency, 200);
+      eventTonePlayed = true;
     }
-    else if (touch2) {
-        currentColor = 0x00FF00; // Green for TouchPad2
-        currentFrequency = 1200; // 1200 Hz beep for TouchPad2
-        if (!beepPlayed) {
-            generateSineWave(currentFrequency, 200);
-            beepPlayed = true;
-        }
+  } else if (touchCenter) {
+    currentColor = 0x00FF00;
+    currentFrequency = 1200;
+    if (!eventTonePlayed) {
+      playBeep(currentFrequency, 200);
+      eventTonePlayed = true;
     }
-    else if (touch3) {
-        currentColor = 0x0000FF; // Blue for TouchPad3
-        currentFrequency = 1500; // 1500 Hz beep for TouchPad3
-        if (!beepPlayed) {
-            generateSineWave(currentFrequency, 200);
-            beepPlayed = true;
-        }
+  } else if (touchRight) {
+    currentColor = 0x0000FF;
+    currentFrequency = 1500;
+    if (!eventTonePlayed) {
+      playBeep(currentFrequency, 200);
+      eventTonePlayed = true;
     }
-    else if (PG1Read == LOW) {
-        currentColor = 0xbb0bd3; // Blue for TouchPad3
-        currentFrequency = 800; // 1500 Hz beep for TouchPad3
-        if (!beepPlayed) {
-            generateSineWave(currentFrequency, 200);
-            beepPlayed = true;
-        }
+  } else if (pgBlocked) {
+    currentColor = 0xBB0BD3;
+    currentFrequency = 800;
+    if (!eventTonePlayed) {
+      playBeep(currentFrequency, 200);
+      eventTonePlayed = true;
     }
-    else {
-        beepPlayed = false; // Reset beep flag when no touchpad is pressed
-    }
+  } else {
+    eventTonePlayed = false;
+  }
 
-    // Continuous color chase with trailing effect
-    colorChaseWithTrail(currentColor);
-
-    audio.loop();
+  colorChaseWithTrail(currentColor);
 }

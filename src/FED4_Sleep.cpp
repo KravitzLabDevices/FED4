@@ -32,10 +32,7 @@ void FED4::startSleep() {
   if (program != "ActivityMonitor" && wakeCount % 200 == 0)  {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
-    
-    // Add delay and I2C recovery after touch calibration to prevent I2C bus issues
-    delay(1);  // Give I2C bus time to stabilize (reduced from 100ms)
-    I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C bus
+    delay(1);  // Give I2C bus time to stabilize
   }
 
   // Reset all touch flags before going to sleep
@@ -51,14 +48,10 @@ void FED4::startSleep() {
   // Check if sleepyLEDs flag is enabled
   if (sleepyLEDs) {
     lightsOff(); // clear the front LED strip
-    noPix();  // Turn off the LED when going to sleep
-    LDO3_OFF();  // Turn off LDO3 to power down NeoPixel
+    noPix();  // Turn off status LED when going to sleep
+    PSV3_OFF();  // Turn off PSV3 to power down front RGB strip
   }
-
-  if (program != "ActivityMonitor"){  // Don't turn off LDO2 for ActivityMonitor, it doesn't like it
-    // Serial.println("Turning off LDO2");
-    // LDO2_OFF(); // turn off LDO2 every sleep
-  }
+  // PSV2 remains ON during sleep (RTC, photogates, haptic on PSV2 rail)
 
   enableAmp(false);
 
@@ -84,28 +77,27 @@ void FED4::wakeUp() {
   
   redPix(1); //very dim red pix to indicate when FED4 is awake
 
-  // Reinitialize I2C buses FIRST before any sensor operations
-  LDO2_ON();
+  // Reinitialize I2C bus FIRST before any sensor operations
+  PSV2_ON();
   Wire.begin();  // Reinitialize primary I2C
-  I2C_2.begin(SDA_2, SCL_2);  // Reinitialize secondary I2C 
-  //I2C_2.setClock(400000);  // Restore I2C_2 clock speed to 400kHz
   delay(1);  // Brief delay after I2C init
   
-  // Re-Initialize motion sensor if not already initialized
-  if (!motionSensorInitialized) {
-    if (!initializeMotion()) {
-      Serial.println("Motion sensor init failed after wake");
-    }
-  }
-
   // Reconfigure GPIO expander pins after wake-up
-  mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
   mcp.pinMode(EXP_HAPTIC, OUTPUT);
   mcp.digitalWrite(EXP_HAPTIC, LOW);
-  mcp.pinMode(EXP_LDO3, OUTPUT);
-  
-  LDO3_ON();  // Turn on LDO3 
+
+  PSV3_ON();  // Turn on PSV3 (front RGB strip)
   enableAmp(true);
+
+  // If woken by INT_OR (GPIO wake, line LOW), scan interrupt sources so the
+  // sketch can call getLastInterruptMask() after sleep() returns.
+  // scanAndClearInterrupts() also releases the line so the next sleep is clean.
+  if (wakeCause == ESP_SLEEP_WAKEUP_GPIO && interruptPending()) {
+    lastInterruptMask = scanAndClearInterrupts();
+    Serial.printf("INT_OR wake: sources = 0x%02X\n", lastInterruptMask);
+  } else {
+    lastInterruptMask = INT_SRC_NONE;
+  }
 
   // Only check button and sensor polling if not woken up by touch
   if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {
@@ -151,36 +143,40 @@ void FED4::handleTouch() {
   interpretTouch();
 }
 
-// Initializes LDO (Low-Dropout Regulator) power control pins
-bool FED4::initializeLDOs()
+// Initializes PSV2 and PSV3 power switch rails via MCP expander
+// PSV2 (3.3V2): RTC, amplifier, haptic, photogates (TCA4307 downstream)
+// PSV3 (3.3V3): front RGB LED strip
+bool FED4::initializePower()
 {
-    mcp.pinMode(EXP_LDO3, OUTPUT);
-    LDO3_ON();
+    mcp.pinMode(EXP_PSV2_EN, OUTPUT);
+    mcp.pinMode(EXP_PSV3_EN, OUTPUT);
+    PSV2_ON();
+    PSV3_ON();
     return true;
 }
 
-// Enables LDO2 power rail
-void FED4::LDO2_ON()
+// Enables PSV2 power rail (RTC/amp/haptic/photogate)
+void FED4::PSV2_ON()
 {
-    digitalWrite(LDO2_ENABLE, HIGH);
-    delayMicroseconds(100); // Minimum 50us stabilization time
+    mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON is active LOW
+    delayMicroseconds(100); // Stabilization time
 }
 
-// Disables LDO2 power rail
-void FED4::LDO2_OFF()
+// Disables PSV2 power rail
+void FED4::PSV2_OFF()
 {
-    digitalWrite(LDO2_ENABLE, LOW);
+    mcp.digitalWrite(EXP_PSV2_EN, HIGH);
 }
 
-// Enables LDO3 power rail
-void FED4::LDO3_ON()
+// Enables PSV3 power rail (front RGB strip)
+void FED4::PSV3_ON()
 {
-    mcp.digitalWrite(EXP_LDO3, HIGH);
-    delayMicroseconds(100); // Minimum 50us stabilization time
+    mcp.digitalWrite(EXP_PSV3_EN, LOW); // ~ON is active LOW
+    delayMicroseconds(100); // Stabilization time
 }
 
-// Disables LDO3 power rail
-void FED4::LDO3_OFF()
+// Disables PSV3 power rail (front RGB strip)
+void FED4::PSV3_OFF()
 {
-    mcp.digitalWrite(EXP_LDO3, LOW);
+    mcp.digitalWrite(EXP_PSV3_EN, HIGH);
 }

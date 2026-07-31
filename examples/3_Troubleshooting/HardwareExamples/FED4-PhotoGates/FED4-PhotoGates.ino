@@ -1,59 +1,42 @@
-#include <Adafruit_MCP23X17.h>
+/*
+ * FED4 Photogate Test
+ *
+ * Photogates are direct GPIO inputs
+ * Active LOW when beam is blocked.
+ */
 
-#define PG1 12
-#define PG2 13
-#define PG3 0
-#define PG4 11
+#include <Arduino.h>
+#include <FED4_Pins.h>
 
-Adafruit_MCP23X17 mcp;
+int last1 = HIGH, last2 = HIGH, last3 = HIGH, last4 = HIGH;
 
-void setup()
-{
-	Serial.begin(115200);
-	while (!Serial)
-		;
-	pinMode(47, OUTPUT);
-	digitalWrite(47, HIGH);
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);
 
-	if (!mcp.begin_I2C())
-	{
-		Serial.println("Error.");
-		while (1)
-			;
-	}
+  pinMode(PHOTOGATE_1, INPUT_PULLUP);
+  pinMode(PHOTOGATE_2, INPUT_PULLUP);
+  pinMode(PHOTOGATE_3, INPUT_PULLUP);
+  pinMode(PHOTOGATE_4, INPUT_PULLUP);
 
-	mcp.pinMode(PG1, INPUT_PULLUP);
-	mcp.pinMode(PG2, INPUT_PULLUP);
-	mcp.pinMode(PG3, INPUT_PULLUP);
-	mcp.pinMode(PG4, INPUT_PULLUP);
+  Serial.println("=== FED4 Photogates Test ===");
 }
 
-void loop()
-{
+void loop() {
+  int pg1 = digitalRead(PHOTOGATE_1);
+  int pg2 = digitalRead(PHOTOGATE_2);
+  int pg3 = digitalRead(PHOTOGATE_3);
+  int pg4 = digitalRead(PHOTOGATE_4);
 
-	int PG1Read = mcp.digitalRead(PG1);
-	int PG2Read = mcp.digitalRead(PG2);
-	int PG3Read = mcp.digitalRead(PG3);
-	int PG4Read = mcp.digitalRead(PG4);
+  if (pg1 != last1 && pg1 == LOW) Serial.println("Center nose poke");
+  if (pg2 != last2 && pg2 == LOW) Serial.println("Left nose poke");
+  if (pg3 != last3 && pg3 == LOW) Serial.println("Right nose poke");
+  if (pg4 != last4 && pg4 == LOW) Serial.println("Pellet detector blocked");
 
-	if (PG1Read == LOW)
-	{
-		Serial.println("Center Nose Poke");
-		delay(300);
-	}
-	if (PG2Read == LOW)
-	{
-		Serial.println("Right Nose Poke");
-		delay(300);
-	}
-	if (PG3Read == LOW)
-	{
-		Serial.println("Left Nose Poke");
-		delay(300);
-	}
-	if (PG4Read == LOW)
-	{
-		Serial.println("Pellet Detector");
-		delay(300);
-	}
+  last1 = pg1;
+  last2 = pg2;
+  last3 = pg3;
+  last4 = pg4;
+
+  delay(20);
 }

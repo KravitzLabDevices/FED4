@@ -1,5 +1,5 @@
 #include "FED4.h"
-const char FED4::libraryVer[] = "1.1.1";
+const char FED4::libraryVer[] = "1.7.0";
 
 /*
  (o)(o)--.
@@ -24,9 +24,7 @@ Please support them!
  * Constructor for FED4 class
  */
 FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
-               pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800),
-               stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_2, MOTOR_PIN_3, MOTOR_PIN_4),
-               I2C_2(1)
+               stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_3, MOTOR_PIN_2, MOTOR_PIN_4)
 #ifndef FED4_EXCLUDE_HUBLINK
                ,
                hublink(SD_CS)

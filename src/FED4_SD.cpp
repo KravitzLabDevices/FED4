@@ -430,7 +430,7 @@ bool FED4::logData(const String &newEvent)
 
     File dataFile;
     SPI.setBitOrder(MSBFIRST);
-    cyanPix(1); //dim cyan every time logData is called
+    redPix(1); // dim status LED flash on each logData call
 
     DateTime now = rtc.now();
     float currentSeconds = round((millis() / 1000.000) * 1000) / 1000.0; // Get current seconds rounded to 3 decimals

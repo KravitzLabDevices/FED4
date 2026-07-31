@@ -12,13 +12,6 @@ bool FED4::begin(const char *programName)
 {
     Serial.begin(115200);
     
-    // Initialize state flags
-    motionSensorInitialized = false;
-
-    // Initialize LDO2 to provide power to I2C peripherals
-    pinMode(LDO2_ENABLE, OUTPUT);
-    digitalWrite(LDO2_ENABLE, HIGH);
-    delay(1); // Stabilization time
     Serial.println();
 
     // Structure to track component status
@@ -30,11 +23,10 @@ bool FED4::begin(const char *programName)
 
     // Use map to store status by component name
     std::map<const char *, ComponentStatus, std::less<>> statuses = {
-        {"LDOs", {false, ""}},
-        {"NeoPixel", {false, ""}},
+        {"Power Rails", {false, ""}},
+        {"Status LED", {false, ""}},
         {"LED Strip", {false, ""}},
         {"I2C Primary", {false, ""}},
-        {"I2C Secondary", {false, ""}},
         {"MCP23017", {false, ""}},
         {"RTC", {false, ""}},
         {"Battery Monitor", {false, ""}},
@@ -47,10 +39,10 @@ bool FED4::begin(const char *programName)
         {"Display", {false, ""}},
         {"Speaker", {false, ""}},
         {"Accelerometer", {false, ""}},
-        {"Magnet", {false, ""}},
-        {"Motion", {false, ""}},
         {"ToF Sensor", {false, ""}},
-        {"Drop Sensor", {false, ""}}
+        {"Drop Sensor", {false, ""}},
+        {"Solenoids", {false, ""}},
+        {"INT_OR", {false, ""}}
 #ifndef FED4_EXCLUDE_HUBLINK
         ,
         {"Hublink", {false, ""}}
@@ -60,12 +52,8 @@ bool FED4::begin(const char *programName)
     // Initialize SPI systems
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     SPI.setFrequency(1000000); // Set SPI clock to 1MHz
-    
-    statuses["Display"].initialized = initializeDisplay();
-    Serial.println("Starting up...");
-    startupAnimation();
-    
-    // Initialize I2C buses
+
+    // Initialize primary I2C bus
     displayInitStatus("I2C Primary");
     statuses["I2C Primary"].initialized = Wire.begin(SDA, SCL);
     if (!statuses["I2C Primary"].initialized)
@@ -73,21 +61,10 @@ bool FED4::begin(const char *programName)
         Serial.println("I2C Error - check I2C Address");
         return false;
     }
-
-    displayInitStatus("I2C Secondary");
-    statuses["I2C Secondary"].initialized = I2C_2.begin(SDA_2, SCL_2);
-    if (!statuses["I2C Secondary"].initialized)
-    {
-        Serial.println("I2C_2 Error - check I2C Address");
-        return false;
-    }
-    // Both I2C buses run at 100kHz (ESP32 default) throughout initialization and operation
-    // This provides reliable operation for all sensors (BME680, battery monitor, ToF, light, motion)
-    
-    // Allow I2C buses to stabilize before accessing devices
+    // I2C bus runs at 100kHz (ESP32 default) for reliable operation across all sensors
     delay(2);
 
-    // Initialize MCP expander
+    // Initialize MCP GPIO expander (on always-on 3.3V rail)
     displayInitStatus("GPIO expander");
     statuses["MCP23017"].initialized = mcp.begin_I2C();
     if (!statuses["MCP23017"].initialized)
@@ -98,46 +75,52 @@ bool FED4::begin(const char *programName)
     // Allow MCP to stabilize before accessing other I2C devices
     delay(1);
 
-    // Initialize battery monitor immediately after MCP (library requirement)
-    // Retry logic like the working test script
+    // Enable PSV2 and PSV3 power rails via MCP expander
+    Serial.println("Initializing Power Rails");
+    displayInitStatus("Power management");
+    statuses["Power Rails"].initialized = initializePower();
+
+    // Reset display and turn on backlight before initializing
+    displayReset();
+    displayLight(true);
+
+    // Initialize display now that power rails and MCP are ready
+    statuses["Display"].initialized = initializeDisplay();
+    Serial.println("Starting up...");
+    startupAnimation();
+
+    // Initialize battery monitor (MAX17048 on VBATT rail)
     displayInitStatus("Battery Monitor");
     int maxRetries = 3;
     int retryCount = 0;
     Serial.println("Initializing Battery Monitor");
-    //Serial.println("Note: it is safe to ignore the three I2C warnings below");
     while (!maxlipo.begin() && retryCount < maxRetries)
     {
         retryCount++;
         Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
         delay(10); // Wait before retry
     }
-
     statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
     if (!statuses["Battery Monitor"].initialized)
     {
         Serial.println("Battery monitor initialization failed");
     }
-    
 
-    Serial.println("Initializing LDOs");
-    displayInitStatus("Power management");
-    // Initialize LDOs first
-    statuses["LDOs"].initialized = initializeLDOs();
+    // Initialize status LED (single red LED, always-on 3.3V rail)
+    Serial.println("Initializing Status LED");
+    displayInitStatus("Status LED");
+    statuses["Status LED"].initialized = initializePixel();
+    redPix(1); // very dim red to indicate FED4 is awake
 
-    Serial.println("Initializing Front NeoPixels");
-    displayInitStatus("NeoPixels");
-    // Initialize LEDs
-    statuses["NeoPixel"].initialized = initializePixel();
-    redPix(1); // very dim red pix to indicate when FED4 is awake
-
-    // Initialize RTC
+    // Initialize RTC (behind TCA4307 on PSV2 rail - must be after PSV2_ON)
     Serial.println("Initializing RTC");
+    displayInitStatus("RTC");
     statuses["RTC"].initialized = initializeRTC();
 
     // Initialize temperature/humidity/pressure/gas sensor BME680
     displayInitStatus("Temp/Humidity");
     Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
-    statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
+    statuses["Temp/Humidity"].initialized = bme.begin(I2C_ADDR_BME680, &Wire);
     if (!statuses["Temp/Humidity"].initialized)
     {
         Serial.println("BME680 sensor initialization failed - check wiring on pins 8 & 9!");
@@ -152,23 +135,26 @@ bool FED4::begin(const char *programName)
         Serial.println("Light sensor initialization failed");
     }
 
-    // startup front LEDs
-    Serial.println("Initializing Side LED");
+    // Initialize front LED strip (PSV3 rail)
+    Serial.println("Initializing LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
     stripRainbow(3, 1);
 
-    // Configure all GPIO pins
+    // Configure GPIO pins
     Serial.println("Initializing GPIO pins");
-    mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
-    mcp.pinMode(1, OUTPUT);    // Configure ToF sensor XSHUT pin (pin 1, not EXP_XSHUT_1)
-    mcp.digitalWrite(1, HIGH); // Enable ToF sensor
+    // Photogates are on PSV2 rail - configure direct GPIO
+    pinMode(PHOTOGATE_1, INPUT_PULLUP);
+    pinMode(PHOTOGATE_4, INPUT_PULLUP);
+    // TRRS pins (always-on rail) - pulled up so they read HIGH when nothing is connected
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
-    pinMode(AUDIO_TRRS_2, INPUT);
-    pinMode(AUDIO_TRRS_3, INPUT);
-    pinMode(USER_PIN_18, OUTPUT);
-    digitalWrite(USER_PIN_18, LOW);
+    pinMode(AUDIO_TRRS_2, INPUT_PULLUP);
+    pinMode(AUDIO_TRRS_3, INPUT_PULLUP);
+    // PIR motion sensor (always-on rail) - digital push-pull output, no protocol needed
+    if (useMotionSensor) {
+        pinMode(PIR_MOTION, INPUT_PULLDOWN);
+    }
 
-    // Configure haptic motor pin
+    // Configure haptic motor pin on expander (PSV2 rail)
     mcp.pinMode(EXP_HAPTIC, OUTPUT);
     mcp.digitalWrite(EXP_HAPTIC, LOW);
 
@@ -193,16 +179,9 @@ bool FED4::begin(const char *programName)
     displayInitStatus("Accelerometer");
     statuses["Accelerometer"].initialized = initializeAccel();
 
-    displayInitStatus("Magnet sensor");
-    statuses["Magnet"].initialized = initializeMagnet();
-    if (!statuses["Magnet"].initialized)
-    {
-        Serial.println("Magnet sensor initialization failed");
-    }
-
     stripRainbow(3, 1);
 
-    // Initialize ToF sensor
+    // Initialize ToF sensor (always-on 3.3V, no XSHUT)
     displayInitStatus("Proximity Sensor");
     statuses["ToF Sensor"].initialized = initializeToF();
     if (!statuses["ToF Sensor"].initialized)
@@ -210,20 +189,7 @@ bool FED4::begin(const char *programName)
         Serial.println("ToF sensor initialization failed");
     }
 
-    // Initialize Motion sensor (if enabled)
-    if (useMotionSensor) {
-        displayInitStatus("Motion sensor");
-        statuses["Motion"].initialized = initializeMotion();
-        if (!statuses["Motion"].initialized)
-        {
-            Serial.println("Motion sensor initialization failed");
-        }
-    } else {
-        statuses["Motion"].initialized = true; // Mark as "initialized" (skipped)
-        Serial.println("Motion sensor (STHS34PF80) disabled by flag");
-    }
-
-    // Initialize Drop sensor
+    // Initialize Drop sensor (photogate on PSV2 rail)
     displayInitStatus("Drop Sensor");
     statuses["Drop Sensor"].initialized = initializeDropSensor();
     if (!statuses["Drop Sensor"].initialized)
@@ -231,15 +197,20 @@ bool FED4::begin(const char *programName)
         Serial.println("Drop sensor not detected or not working");
     }
 
+    // Initialize solenoids
+    displayInitStatus("Solenoids");
+    statuses["Solenoids"].initialized = initializeSolenoids();
 
-    // Clear I2C buses to reset any stuck states before sensor polling
+    // Initialize INT_OR interrupt subsystem (active-LOW, scans ToF/RTC/BAT/PIR/Accel)
+    displayInitStatus("Interrupts");
+    statuses["INT_OR"].initialized = initializeInterrupts();
+
+    // Clear I2C bus to reset any stuck states before sensor polling
     Wire.beginTransmission(0x00);
     Wire.endTransmission();
-    I2C_2.beginTransmission(0x00);
-    I2C_2.endTransmission();
     delay(5);
 
-    // check battery and environmental sensors
+    // Check battery and environmental sensors
     startupPollSensors();
 
     // Low battery check and warning
@@ -251,11 +222,11 @@ bool FED4::begin(const char *programName)
         startSleep(); // Enter light sleep
     }
 
-    // Initialize Speaker
+    // Initialize Speaker (amp SD on PSV2 rail via MCP)
     Serial.println("Initializing Speaker");
     displayInitStatus("Audio output");
     statuses["Speaker"].initialized = initializeSpeaker();
-    playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going?
+    playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going
 
     // Prepare SPI bus for SD card initialization
     // Ensure display CS is deselected (display uses LOW when inactive)
@@ -406,8 +377,8 @@ bool FED4::begin(const char *programName)
 
     lightsOff();
     
-    // temporarily unmute audio even if it is silenced
-    digitalWrite(AUDIO_SD, HIGH);
+    // Temporarily unmute audio for startup clicks
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
     click();
     delay (100);
 
@@ -425,7 +396,7 @@ bool FED4::begin(const char *programName)
     // Check if mouseId is 99 - if so, launch Pong game
     if (mouseId == "99" || mouseId == "0099") {
         Serial.println("MouseID 99 detected - launching Pong game!");
-        greenPix(5);
+        redPix(5);
         delay(200);
         
         // Launch Pong game 

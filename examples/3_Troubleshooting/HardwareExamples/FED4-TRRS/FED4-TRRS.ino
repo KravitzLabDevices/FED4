@@ -1,56 +1,85 @@
-#include <Adafruit_NeoPixel.h>
+/*
+ * FED4 TRRS Test
+ *
+ * TRRS inputs (digital, pull-up — LOW when externally pulled down):
+ *   AUDIO_TRRS_1 = 4  -> left strip group (LEDs 0-2), red
+ *   AUDIO_TRRS_2 = 5  -> center strip group (LEDs 3-4), green
+ *   AUDIO_TRRS_3 = 6  -> right strip group (LEDs 5-7), blue
+ *
+ * Visual feedback uses the front WS2812 strip on GPIO 36 (PSV3 rail).
+ */
+
+#include <Arduino.h>
+#include <Wire.h>
 #include <Adafruit_MCP23X17.h>
+#include <FastLED_NeoPixel.h>
+#include <FED4_Pins.h>
+
+#define NUM_LEDS 8
+#define STRIP_BRIGHTNESS 40
+
 Adafruit_MCP23X17 mcp;
-#define PIN 35
-#define LDO3 14
-#define NUMPIXELS 1
-Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+FastLED_NeoPixel<NUM_LEDS, RGB_STRIP, NEO_GRB> strip;
 
-void setup()
-{
-	Serial.begin(115200);
-	pinMode(47, OUTPUT);
-	digitalWrite(47, HIGH); 
-    if (!mcp.begin_I2C())
-	{
-		Serial.println("Error.");
-		while (1)
-			;
-	}
+void showStripForTrrs(int trrs1, int trrs2, int trrs3) {
+  strip.clear();
 
-	mcp.pinMode(LDO3, OUTPUT);
-	mcp.digitalWrite(LDO3, HIGH);
-	pinMode(2, INPUT);
-	pinMode(3, INPUT);
-	pinMode(4, INPUT_PULLUP);
+  if (trrs1 == LOW) {
+    strip.setPixelColor(0, strip.Color(255, 0, 0));
+    strip.setPixelColor(1, strip.Color(255, 0, 0));
+    strip.setPixelColor(2, strip.Color(255, 0, 0));
+  }
+  if (trrs2 == LOW) {
+    strip.setPixelColor(3, strip.Color(0, 255, 0));
+    strip.setPixelColor(4, strip.Color(0, 255, 0));
+  }
+  if (trrs3 == LOW) {
+    strip.setPixelColor(5, strip.Color(0, 0, 255));
+    strip.setPixelColor(6, strip.Color(0, 0, 255));
+    strip.setPixelColor(7, strip.Color(0, 0, 255));
+  }
 
-	pixels.begin();
+  strip.show();
 }
 
-void loop()
-{
-	pixels.clear();
-	float trrs1 = analogRead(2);
-	float trrs2 = analogRead(3);
-	float trrs3 = analogRead(4);
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) delay(10);
 
-	Serial.print(trrs1);
-	Serial.print(" / ");
-	Serial.print(trrs2);
-	Serial.print(" / ");
-	Serial.println(trrs3);
+  pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
+  pinMode(AUDIO_TRRS_2, INPUT_PULLUP);
+  pinMode(AUDIO_TRRS_3, INPUT_PULLUP);
 
-	if (trrs3 == 0)
-	{ // TRRS 3 pulls to ground when plugged in and can be used to detect if there is a cable plugged in.
+  Wire.begin(SDA, SCL, 100000);
+  if (!mcp.begin_I2C()) {
+    Serial.println("MCP23017 init failed — strip may be unpowered.");
+  } else {
+    mcp.pinMode(EXP_PSV3_EN, OUTPUT);
+    mcp.digitalWrite(EXP_PSV3_EN, LOW); // ~ON active-low
+    delay(5);
+  }
 
-		pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+  strip.begin();
+  strip.setBrightness(STRIP_BRIGHTNESS);
+  strip.clear();
+  strip.show();
 
-		pixels.show();
-	}
-	else
-	{
-		pixels.clear();
-		pixels.show();
-	}
-	delay(100);
+  Serial.println("=== FED4 TRRS Test ===");
+  Serial.println("Strip: TRRS1=left/red, TRRS2=center/green, TRRS3=right/blue");
+}
+
+void loop() {
+  int trrs1 = digitalRead(AUDIO_TRRS_1);
+  int trrs2 = digitalRead(AUDIO_TRRS_2);
+  int trrs3 = digitalRead(AUDIO_TRRS_3);
+
+  Serial.print("TRRS1/TRRS2/TRRS3: ");
+  Serial.print(trrs1);
+  Serial.print(" / ");
+  Serial.print(trrs2);
+  Serial.print(" / ");
+  Serial.println(trrs3);
+
+  showStripForTrrs(trrs1, trrs2, trrs3);
+  delay(120);
 }

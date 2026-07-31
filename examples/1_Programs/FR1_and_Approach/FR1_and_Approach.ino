@@ -19,7 +19,7 @@ char task[] = "FR1_Approach";  // give the task a unique name
 
 void setup() {
   fed4.begin(task);  // initialize FED4 hardware
-  fed4.useMotionSensor = false;
+  fed4.useMotionSensor = true;
 }
 
 void loop() {

@@ -1,132 +1,107 @@
-#include <Adafruit_NeoPixel.h>
+/*
+ * FED4 Touch Pads + Beeps
+ */
+
 #include <Arduino.h>
-#include "Audio.h"
-#include "Wire.h"
-#include "WiFi.h"
-#include "FS.h"
-#include "SD.h"
-#include <SPI.h>
-#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
+#include <Wire.h>
+#include <ESP_I2S.h>
 #include <Adafruit_MCP23X17.h>
+#include <Adafruit_NeoPixel.h>
+#include <cmath>
+#include <FED4_Pins.h>
+
 Adafruit_MCP23X17 mcp;
+Adafruit_NeoPixel pixels(1, STATUS_LED, NEO_GRB + NEO_KHZ800);
+I2SClass i2s;
 
-// Define the I2S pins for audio output
-#define I2S_DATA_IN_PIN 41
-#define I2S_BIT_CLOCK_PIN 45
-#define I2S_LEFT_RIGHT_CLOCK_PIN 48
-#define I2S_SD_PIN 42
-// Touchpad pin definitions
-#define TouchPad 5
-#define TouchPad2 6
-#define TouchPad3 1
-#define LDO3 14
-// NeoPixel (RGB LED) setup
-#define PIN 35
-#define NUMPIXELS 1
-Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
+uint16_t baseL = 0, baseC = 0, baseR = 0;
+bool tonePlayed = false;
+static constexpr float TOUCH_THRESHOLD = 0.20f;
 
-// Define debounce delay
-unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 50;
-
-// Audio object
-Audio audio;
-I2SClass i2s;  // New I2S object for tone generation
-
-// Function to generate beep sound
-void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
-  const uint32_t sampleRate = 44100;
-  const uint32_t sampleCount = (sampleRate * duration_ms) / 1000;
-  const float amplitude = 0.5;
-  const float twoPiF = 2.0 * M_PI * frequency;
-
-  // Buffer to store multiple samples before writing
-  int16_t sampleBuffer[256];
-  size_t samplesInBuffer = 0;
-
-  for (uint32_t i = 0; i < sampleCount; i++) {
-    float sample = amplitude * sin((twoPiF * i) / sampleRate);
-    sampleBuffer[samplesInBuffer++] = (int16_t)(sample * 32767);
-
-    if (samplesInBuffer >= 256) {
-      i2s.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
-      samplesInBuffer = 0;
-    }
-  }
-
-  // Write any remaining samples
-  if (samplesInBuffer > 0) {
-    i2s.write((uint8_t*)sampleBuffer, samplesInBuffer * sizeof(int16_t));
-  }
+bool touched(uint16_t value, uint16_t baseline) {
+  if (!baseline) return false;
+  float dev = fabs((float)value / (float)baseline - 1.0f);
+  return dev >= TOUCH_THRESHOLD;
 }
 
-// I2S setup for audio
-void setupI2S() {
-  // Configure I2S pins
-  i2s.setPins(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN);
-  
-  // Initialize I2S with new API
-  if (!i2s.begin(I2S_MODE_STD, 44100, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) {
-    Serial.println("Failed to initialize I2S");
+void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
+  const uint32_t sampleRate = 48000;
+  const uint32_t original = (sampleRate * duration_ms) / 1000;
+  const uint32_t sampleCount = max(original, (uint32_t)256);
+  const float amp = 0.25f;
+  const float twoPiF = 2.0f * (float)M_PI * frequency;
+  int16_t buffer[256];
+  size_t n = 0;
+
+  mcp.digitalWrite(EXP_AMP_SD, HIGH);
+  delay(1);
+
+  for (uint32_t i = 0; i < sampleCount; i++) {
+    float s = (i < original) ? amp * sinf((twoPiF * i) / sampleRate) : 0.0f;
+    buffer[n++] = (int16_t)(s * 32767.0f);
+    if (n >= 256) {
+      i2s.write((uint8_t *)buffer, sizeof(buffer));
+      n = 0;
+    }
   }
+  if (n > 0) i2s.write((uint8_t *)buffer, n * sizeof(int16_t));
+
+  delayMicroseconds(500);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 void setup() {
   Serial.begin(115200);
-  	pinMode(47, OUTPUT);
-	digitalWrite(47, HIGH);
-    if (!mcp.begin_I2C())
-	{
-		Serial.println("Error.");
-		while (1)
-			;
-	}
+  while (!Serial) delay(10);
 
-	mcp.pinMode(LDO3, OUTPUT);
-	mcp.digitalWrite(LDO3, HIGH);
-  // Setup NeoPixel
+  Wire.begin(SDA, SCL, 100000);
+  if (!mcp.begin_I2C()) {
+    Serial.println("MCP init failed");
+    while (1) delay(10);
+  }
+
+  mcp.pinMode(EXP_PSV2_EN, OUTPUT);
+  mcp.pinMode(EXP_PSV3_EN, OUTPUT);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON active-low
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
+  mcp.pinMode(EXP_AMP_SD, OUTPUT);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
+
+  i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
+  i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+
   pixels.begin();
+  pixels.clear();
+  pixels.show();
 
-   pinMode(I2S_SD_PIN, OUTPUT);
-  digitalWrite(I2S_SD_PIN, HIGH);
-    audio.setPinout(I2S_BIT_CLOCK_PIN, I2S_LEFT_RIGHT_CLOCK_PIN, I2S_DATA_IN_PIN, -1);
-  audio.setVolume(100); 
-  setupI2S();
+  delay(50);
+  baseL = touchRead(TOUCH_PAD_LEFT);
+  baseC = touchRead(TOUCH_PAD_CENTER);
+  baseR = touchRead(TOUCH_PAD_RIGHT);
 }
 
 void loop() {
-  // Read touchpad inputs
-  int t = touchRead(TouchPad);
-  int t2 = touchRead(TouchPad2);
-  int t3 = touchRead(TouchPad3);
+  bool left = touched(touchRead(TOUCH_PAD_LEFT), baseL);
+  bool center = touched(touchRead(TOUCH_PAD_CENTER), baseC);
+  bool right = touched(touchRead(TOUCH_PAD_RIGHT), baseR);
 
-  // TouchPad1 (Red)
-  if (t >= 50000 ) {
-    pixels.setPixelColor(0, pixels.Color(150, 0, 0));  // Set RGB to red
-    pixels.show();
-    generateSineWave(1000, 500);  // Generate 1000 Hz beep for 100 ms
-    lastDebounceTime = millis();
+  if (left) {
+    pixels.setPixelColor(0, pixels.Color(150, 0, 0));
+    if (!tonePlayed) generateSineWave(1000, 180);
+    tonePlayed = true;
+  } else if (center) {
+    pixels.setPixelColor(0, pixels.Color(0, 150, 0));
+    if (!tonePlayed) generateSineWave(1200, 180);
+    tonePlayed = true;
+  } else if (right) {
+    pixels.setPixelColor(0, pixels.Color(0, 0, 150));
+    if (!tonePlayed) generateSineWave(1500, 180);
+    tonePlayed = true;
+  } else {
+    pixels.setPixelColor(0, 0);
+    tonePlayed = false;
   }
-
-  // TouchPad2 (Green)
-  else if (t2 >= 50000 ) {
-    pixels.setPixelColor(0, pixels.Color(0, 150, 0));  // Set RGB to green
-    pixels.show();
-    generateSineWave(1200, 500);  // Generate 1200 Hz beep for 100 ms
-    lastDebounceTime = millis();
-  }
-
-  // TouchPad3 (Blue)
-  else if (t3 >= 50000 ) {
-    pixels.setPixelColor(0, pixels.Color(0, 0, 150));  // Set RGB to blue
-    pixels.show();
-    generateSineWave(1500, 500);  // Generate 1500 Hz beep for 100 ms
-    lastDebounceTime = millis();
-  }
-  else{
-    pixels.clear();
-    pixels.show();
-  }
-  audio.loop();
+  pixels.show();
+  delay(30);
 }
 
