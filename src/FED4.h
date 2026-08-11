@@ -36,6 +36,17 @@
 #include <Hublink.h>
 #endif
 
+// FED4 targets the "next generation" ESP32 touch driver, which arduino-esp32
+// 3.3.x selects by bundling IDF 5.5 (see esp32-hal-touch-ng.c). On earlier
+// cores the legacy touch HAL compiles instead: touchRead() returns raw rather
+// than smoothed counts, so every threshold in this library is mis-scaled, and
+// the touch configuration calls used in FED4_Touch.cpp do not exist. Fail loudly
+// rather than silently mis-detecting pokes.
+#include "esp_idf_version.h"
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 5, 0)
+#error "FED4 requires arduino-esp32 3.3.0 or newer (IDF >= 5.5) for the NG touch driver. Update via Boards Manager."
+#endif
+
 // Pin Definitions
 #include "FED4_Pins.h"
 #include "FED4_DisplayOrient.h"
@@ -49,17 +60,57 @@ static const uint8_t DISPLAY_WHITE = 1;
 static const uint8_t DISPLAY_INVERSE = 2;
 static const uint8_t DISPLAY_NORMAL = 3;
 
-// Common display dimensions
-static const uint16_t DISPLAY_WIDTH = 144;
-static const uint16_t DISPLAY_HEIGHT = 168;
+// Panel dimensions for the Kyocera TN0216 MIP display fitted to FED4 v1.7.
+// These are PHYSICAL dimensions: 320 gate lines of 176 pixels each, driven as
+// 40 bytes/line + 4 dummy bytes (see FED4_Display.cpp refresh()). With
+// setRotation(3) the logical Adafruit_GFX canvas is 176 wide x 320 tall.
+static const uint16_t DISPLAY_WIDTH = 320;
+static const uint16_t DISPLAY_HEIGHT = 176;
+
+// Logical canvas after setRotation(3) — use these for laying out screens.
+static const uint16_t SCREEN_WIDTH = 176;
+static const uint16_t SCREEN_HEIGHT = 320;
 // Default boot rotation until orientScreen() runs (see FED4_DisplayOrient.h)
 static const uint8_t DISPLAY_ROTATION = FED4_DISPLAY_ROTATION_NATIVE;
 
 static const uint8_t NUM_STRIP_LEDS = 8;
-static const uint16_t MOTOR_STEPS = 512;
-static const uint8_t MOTOR_SPEED = 24;
+// 28BYJ-48 geared stepper: 2048 steps/revolution in full-step mode, 8 RPM.
+// Matches FED4-Motor.ino; the Stepper() pin order (IN1, IN3, IN2, IN4) is set
+// in the FED4 constructor.
+static const uint16_t MOTOR_STEPS = 2048;
+static const uint8_t MOTOR_SPEED = 8;
 
-static const float TOUCH_THRESHOLD = 0.2; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
+// ── Capacitive touch tuning ───────────────────────────────────────────────────
+// ESP32-S3 counts RISE when a pad is touched, and touch values are uint32_t
+// (idle values comfortably exceed 65535 — never store a reading in uint16_t).
+//
+// Two different quantities live here and must not be confused:
+//   * The HARDWARE threshold passed to touchAttachInterrupt() is a DELTA above
+//     the driver's self-tracking benchmark, not an absolute count. See
+//     touch_sensor_legacy.h ("the original value of the trigger state minus the
+//     benchmark value") and esp32-hal-touch-ng.c, which computes its own default
+//     as benchmark * ratio. A threshold of baseline*(1+rise) never fires.
+//   * The SOFTWARE rise fraction compares a fresh reading against the baseline
+//     captured while the pads were known idle (see touchRiseFraction()).
+//
+// Note that on USB power these pads read far more sensitively than on battery,
+// due to different grounding — tune against battery power.
+static const float TOUCH_TRIGGER_RISE_PCT = 5.0f;    // %, hardware interrupt delta (touchSetDefaultThreshold)
+static const float TOUCH_POKE_RISE = 0.05f;          // software confirmation of a poke
+static const float TOUCH_RELEASE_RISE = 0.02f;       // hysteresis floor: below this the pad is released
+static const float TOUCH_BASELINE_DRIFT_MAX = 0.10f; // re-attach thresholds past this much baseline drift
+static const uint32_t TOUCH_POKE_MAX_MS = 3000;      // cap on a single hold
+static const uint32_t TOUCH_RELEASE_WAIT_MS = 1000;  // bound on the pre-sleep release wait
+static const uint32_t TOUCH_SETTLE_MS = 30;          // post-calibration ISR blanking
+static const uint8_t TOUCH_IDLE_SAMPLES = 16;        // samples per baseline average (min+max trimmed)
+
+// Deprecated: retained for one release so out-of-tree sketches still compile.
+// This was a symmetric ratio deviation; use TOUCH_POKE_RISE instead.
+static const float TOUCH_THRESHOLD = TOUCH_POKE_RISE;
+
+// MIP panel needs an AC VCOM toggle at >= ~1 Hz, including across light sleep.
+static const uint32_t DISPLAY_VCOM_MS = 500;
+
 static const char *META_FILE = "/meta.json";
 
 static const char *PREFS_NAMESPACE = "fed4";
@@ -168,10 +219,15 @@ public:
     bool initializeTouch();
     void calibrateTouchSensors(bool checkStability = false);
     void interpretTouch();
+    /** @deprecated Never attached; retained so older sketches still link. */
     static void IRAM_ATTR onTouchWakeUp();
     void resetTouchFlags(); // Reset all touch flags to false
     void logTouchEvent(); // Log touch events separately from critical path
     static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right
+    // Live press state maintained by the touch ISRs: bit0 = left, bit1 = center,
+    // bit2 = right. Set on the active edge, cleared on the inactive edge.
+    static volatile uint8_t touchActiveMask;
+    void syncTouchActiveMask(); // re-read hardware status into touchActiveMask
 
     // Status LED and Strip control (defined in FED4_LEDs.cpp)
     // (strip - front RGB LEDs on PSV3 rail)
@@ -238,6 +294,8 @@ public:
     void displayActivityCounters();
     void displayReset();
     void displayLight(bool on);
+    /** Flip VCOM without redrawing — keeps the MIP panel AC-driven during sleep. */
+    void toggleVcomKeepAlive();
     /** One-shot accel read; sets rotation from device X (g). Returns true if rotation changed. */
     bool orientScreen();
 
@@ -248,7 +306,6 @@ public:
     void sleep();
     void startSleep();
     void wakeUp();
-    void handleTouch();
     unsigned long pollSensorsTimer = 0;
 
     // Power management (defined in FED4_Sleep.cpp)
@@ -381,11 +438,15 @@ public:
     String event = "";
     float retrievalTime;
     float pokeDuration = 0.0;
-    int touchPadLeftBaseline;
-    int touchPadCenterBaseline;
-    int touchPadRightBaseline;
+    // Idle touch counts captured while the pads were known clear. uint32_t:
+    // ESP32-S3 readings routinely exceed 65535 (see the tuning block above).
+    uint32_t touchPadLeftBaseline = 0;
+    uint32_t touchPadCenterBaseline = 0;
+    uint32_t touchPadRightBaseline = 0;
+    // Rise fraction of the runner-up pad on the last poke. Diagnostic: a value
+    // close to the winner's means crosstalk is marginal and argmax is shaky.
+    float pokeMargin = 0.0;
     int motorTurns;
-    int reBaselineTouches;
     char filename[32];
     bool sdCardAvailable = true; // Track if SD card operations are available
     bool audioSilenced = false; // Track if audio has been silenced
@@ -492,8 +553,6 @@ private:
     String getCompileDateTime();
     bool isNewCompilation();
     void updateCompilationID();
-
-    uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 
     uint8_t *displayBuffer = nullptr;
     bool vcom;
