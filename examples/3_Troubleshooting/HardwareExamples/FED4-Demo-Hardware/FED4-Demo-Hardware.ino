@@ -1,5 +1,5 @@
 /*
- * FED4 Demo Hardware v1.0.3
+ * FED4 Demo Hardware v1.0.4
  *
  * Full hardware sweep on Kyocera TN0216 MIP display (standalone, no FED4.h).
  * Target board: FED4 v1.7.0 — see FED4_DemoHardwareVersion.h to bump version.
@@ -7,8 +7,8 @@
  * Architecture (event-driven reference patterns for future FED4 dev):
  *   - Buttons, INT_OR: GPIO interrupts set volatile flags; loop consumes.
  *     B1 backlight is polled with debounce (toggle on release). ISRs never touch I2C.
- *   - Touch: S3 hardware FSM + boot idle baseline. Strip brightness and poke
- *     both use baseline rise from the boot idle average.
+ *   - Touch: FED4_TouchS3 (IDF 5.5+ NG direct driver). Boot idle baseline +
+ *     rise fraction for strip brightness and poke detection.
  *   - ToF: continuous ranging; getRangeStatus() + optional narrow ROI (TOF_USE_NARROW_ROI).
  *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
  *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
@@ -18,8 +18,7 @@
  *
  * FUTURE DEV NOTES:
  *   - Touch drift: the S3 benchmark auto-tracks slow drift in hardware.
- *     Consider periodically logging touch_pad_read_benchmark() vs the boot
- *     idle average to detect/log drift, and re-baselining on large deviation.
+ *     Consider periodically logging NG benchmark vs boot idle to detect drift.
  *   - INT_OR (GPIO 7) ORs device interrupts. Pattern: one CHANGE interrupt on
  *     INT_OR, then query each source (LIS2DH INT, MCP23017 INTA/B, RTC alarm)
  *     to identify and clear it. This demo only tracks the line state.
@@ -66,7 +65,7 @@
 #include <FED4_Pins.h>
 #include <FED4_DisplayOrient.h>
 #include "FED4_DemoHardwareVersion.h"
-#include "driver/touch_sensor.h"
+#include "../FED4_TouchS3/FED4_TouchS3.h"
 #include "sounds/startup_sound.h"
 
 #ifndef _swap_int16_t
@@ -99,9 +98,7 @@ static const uint8_t TOUCH_LED_MIN_BRIGHT = 28;  // WS2812 floor — below ~10% 
 // Motor (28BYJ-48 + ULN2003; match FED4-Motor.ino pin order IN1,IN3,IN2,IN4)
 static const uint16_t MOTOR_STEPS = 2048;
 static const uint8_t MOTOR_SPEED_RPM = 8;
-// S3 touch tuning (see FED4-Touch.ino)
-static const uint16_t TOUCH_MEASURE_CYCLES = 2000;
-static const uint16_t TOUCH_SLEEP_CYCLES = 500;
+// S3 touch tuning (see FED4_TouchS3 / FED4-Touch-Light-Sleep-Multiple)
 static const uint32_t POKE_ARM_MS = 1500; // ignore poke edges until after boot settle
 static const uint32_t PELLET_WIPE_MS = 1000; // full strip wipe duration (~1 s)
 static const uint32_t ORIENT_MS = 100;  // accel-based display rotation poll
@@ -233,8 +230,6 @@ struct Telemetry {
 };
 
 Telemetry telem;
-uint32_t touchIdleL = 0, touchIdleC = 0, touchIdleR = 0;
-uint32_t touchThreshL = 0, touchThreshC = 0, touchThreshR = 0;
 uint8_t stripBrightRight = 0, stripBrightCenter = 0, stripBrightLeft = 0;
 
 // Pellet / motor state (ported from FED4_Feed.cpp + FED4_Motor.cpp)
@@ -249,7 +244,6 @@ volatile bool b3Pressed = false;
 volatile uint32_t b3EdgeMs = 0;
 volatile bool b2Level = false;      // BUTTON_2 level, tracked on CHANGE
 volatile bool intOrLevelLow = false; // INT_OR line, tracked on CHANGE
-volatile bool touchActiveL = false, touchActiveC = false, touchActiveR = false;
 
 // Poke edge tracking — software baseline rise (same idle as LEDs), not ISR.
 bool touchPokePrevL = false, touchPokePrevR = false, touchPokePrevC = false;
@@ -406,11 +400,11 @@ void drawDashboard() {
   drawSectionLabel(y, "TOUCH");
   y += LABEL_BLOCK_H;
   display.setTextColor(PIXEL_WHITE);
-  drawTouchBarRow(y, 'L', telem.touchL, touchIdleL);
+  drawTouchBarRow(y, 'L', telem.touchL, fed4TouchIdleL);
   y += DATA_LINE_H;
-  drawTouchBarRow(y, 'C', telem.touchC, touchIdleC);
+  drawTouchBarRow(y, 'C', telem.touchC, fed4TouchIdleC);
   y += DATA_LINE_H;
-  drawTouchBarRow(y, 'R', telem.touchR, touchIdleR);
+  drawTouchBarRow(y, 'R', telem.touchR, fed4TouchIdleR);
   y += DATA_LINE_H + SECTION_GAP;
 
   // POKE
@@ -499,120 +493,27 @@ void serviceStatusLed() {
 }
 
 // ---------------------------------------------------------------------------
-// Touch — S3 hardware threshold interrupts + robust boot baseline
-// ESP32-S3: counts RISE when touched; values are uint32_t (idle ~90k-170k).
-// The touch FSM scans continuously in hardware; press/release interrupts set
-// touchActive* flags. Raw values are only polled while a pad is active (for
-// proportional LED brightness) and at the 500 ms telemetry poll (screen).
-//
-// FUTURE DEV (drift): the hardware benchmark auto-tracks slow drift, so the
-// interrupt threshold stays valid. Consider periodically logging
-// touch_pad_read_benchmark() against the boot idle average to detect/log
-// drift, and re-running the baseline + threshold setup on large deviation.
+// Touch — FED4_TouchS3 boot idle baseline + rise fraction polling
 // ---------------------------------------------------------------------------
 
-void IRAM_ATTR onTouchLeft() {
-  touchActiveL = touchInterruptGetLastStatus(TOUCH_PAD_LEFT);
-}
-void IRAM_ATTR onTouchCenter() {
-  touchActiveC = touchInterruptGetLastStatus(TOUCH_PAD_CENTER);
-}
-void IRAM_ATTR onTouchRight() {
-  touchActiveR = touchInterruptGetLastStatus(TOUCH_PAD_RIGHT);
-}
-
-// Average with min/max trimmed — one touched/glitched sample can't skew the
-// baseline captured at reset.
-uint32_t robustIdleAverage(touch_pad_t pad) {
-  const int samples = 16;
-  uint64_t sum = 0;
-  uint32_t lo = UINT32_MAX, hi = 0;
-  for (int i = 0; i < samples; i++) {
-    uint32_t v = touchRead(pad);
-    sum += v;
-    if (v < lo) lo = v;
-    if (v > hi) hi = v;
-    delay(5);
-  }
-  return (uint32_t)((sum - lo - hi) / (samples - 2));
-}
-
 bool initTouchPads() {
-  // First reads auto-initialize the touch peripheral
-  touchRead(TOUCH_PAD_LEFT);
-  touchRead(TOUCH_PAD_CENTER);
-  touchRead(TOUCH_PAD_RIGHT);
-
-  // Longer measurement window = better SNR for weak coupling (mouse nose)
-  touchSetCycles(TOUCH_MEASURE_CYCLES, TOUCH_SLEEP_CYCLES);
-
-  // Wider charge/discharge voltage window = larger swing per measurement
-  touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_0V5);
-
-  // Hardware denoise via internal reference channel (T0)
-  touch_pad_denoise_t denoise = {
-      .grade = TOUCH_PAD_DENOISE_BIT4,
-      .cap_level = TOUCH_PAD_DENOISE_CAP_L4,
-  };
-  touch_pad_denoise_set_config(&denoise);
-  touch_pad_denoise_enable();
-
-  // Hardware IIR filter for stable readings
-  touch_filter_config_t filter = {
-      .mode = TOUCH_PAD_FILTER_IIR_16,
-      .debounce_cnt = 1,
-      .noise_thr = 0,
-      .jitter_step = 4,
-      .smh_lvl = TOUCH_PAD_SMOOTH_IIR_2,
-  };
-  touch_pad_filter_set_config(&filter);
-  touch_pad_filter_enable();
-
-  // Warm up after reconfiguration (first reads settle)
-  for (int i = 0; i < 8; i++) {
-    touchRead(TOUCH_PAD_LEFT);
-    delay(5);
-    touchRead(TOUCH_PAD_CENTER);
-    delay(5);
-    touchRead(TOUCH_PAD_RIGHT);
-    delay(5);
+  if (!fed4TouchS3InitPads()) {
+    Serial.println("Touch idle FAIL");
+    return false;
   }
 
-  // Baseline at reset — keep pads clear during boot
-  touchIdleL = robustIdleAverage(TOUCH_PAD_LEFT);
-  touchIdleC = robustIdleAverage(TOUCH_PAD_CENTER);
-  touchIdleR = robustIdleAverage(TOUCH_PAD_RIGHT);
-
-  bool ok = touchIdleL > 0 && touchIdleC > 0 && touchIdleR > 0;
-  Serial.printf("Touch idle L:%lu C:%lu R:%lu (%s)\n",
-                (unsigned long)touchIdleL, (unsigned long)touchIdleC,
-                (unsigned long)touchIdleR, ok ? "OK" : "FAIL");
-  if (!ok) return false;
-
-  // S3 counts RISE on touch — threshold is idle + rise fraction (not idle * fraction).
-  touchThreshL = touchIdleL + (uint32_t)(touchIdleL * TOUCH_TRIGGER_RISE);
-  touchThreshC = touchIdleC + (uint32_t)(touchIdleC * TOUCH_TRIGGER_RISE);
-  touchThreshR = touchIdleR + (uint32_t)(touchIdleR * TOUCH_TRIGGER_RISE);
-  Serial.printf("Touch thr L:%lu C:%lu R:%lu\n",
-                (unsigned long)touchThreshL, (unsigned long)touchThreshC,
-                (unsigned long)touchThreshR);
-
-  touchAttachInterrupt(TOUCH_PAD_LEFT, onTouchLeft, touchThreshL);
-  touchAttachInterrupt(TOUCH_PAD_CENTER, onTouchCenter, touchThreshC);
-  touchAttachInterrupt(TOUCH_PAD_RIGHT, onTouchRight, touchThreshR);
-
-  // Sync ISR flags to hardware (clears spurious press state from attach).
-  touchActiveL = touchInterruptGetLastStatus(TOUCH_PAD_LEFT);
-  touchActiveC = touchInterruptGetLastStatus(TOUCH_PAD_CENTER);
-  touchActiveR = touchInterruptGetLastStatus(TOUCH_PAD_RIGHT);
+  Serial.printf("Touch idle L:%lu C:%lu R:%lu (OK)\n",
+                (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
+                (unsigned long)fed4TouchIdleR);
+  fed4TouchS3PrintDriverConfig();
   return true;
 }
 
 void armPokeDetection() {
   readTouchPads();
-  touchPokePrevL = touchPadAbovePokeThreshold(telem.touchL, touchIdleL);
-  touchPokePrevR = touchPadAbovePokeThreshold(telem.touchR, touchIdleR);
-  touchPokePrevC = touchPadAbovePokeThreshold(telem.touchC, touchIdleC);
+  touchPokePrevL = touchPadAbovePokeThreshold(telem.touchL, fed4TouchIdleL);
+  touchPokePrevR = touchPadAbovePokeThreshold(telem.touchR, fed4TouchIdleR);
+  touchPokePrevC = touchPadAbovePokeThreshold(telem.touchC, fed4TouchIdleC);
   pokeReadyMs = millis();
 }
 
@@ -620,21 +521,16 @@ bool pokeDetectionReady() {
   return millis() - pokeReadyMs >= POKE_ARM_MS;
 }
 
-static float touchRiseFraction(uint32_t raw, uint32_t idle) {
-  if (!idle || raw <= idle) return 0.0f;
-  return (float)(raw - idle) / (float)idle;
-}
-
 bool touchPadAbovePokeThreshold(uint32_t raw, uint32_t idle) {
-  return touchRiseFraction(raw, idle) >= TOUCH_TRIGGER_RISE;
+  return fed4TouchS3RiseFraction(raw, idle) >= TOUCH_TRIGGER_RISE;
 }
 
 void readTouchPads() {
-  telem.touchL = touchRead(TOUCH_PAD_LEFT);
+  telem.touchL = fed4TouchS3Read(TOUCH_PAD_LEFT);
   delayMicroseconds(800);
-  telem.touchC = touchRead(TOUCH_PAD_CENTER);
+  telem.touchC = fed4TouchS3Read(TOUCH_PAD_CENTER);
   delayMicroseconds(800);
-  telem.touchR = touchRead(TOUCH_PAD_RIGHT);
+  telem.touchR = fed4TouchS3Read(TOUCH_PAD_RIGHT);
 }
 
 // S3: touch RAISES the count. Rise above idle maps to strip brightness.
@@ -756,25 +652,25 @@ void updateCenterRainbowDemo() {
 }
 
 bool centerPadTouched() {
-  return touchRiseFraction(telem.touchC, touchIdleC) >= TOUCH_DEADBAND;
+  return fed4TouchS3RiseFraction(telem.touchC, fed4TouchIdleC) >= TOUCH_DEADBAND;
 }
 
 // Animation tick: poll raw rise from boot baseline every STRIP_MS (not ISR-gated).
 void updateTouchStrip() {
   if (feedBusy || stripAnimBusy) return;
 
-  telem.touchL = touchRead(TOUCH_PAD_LEFT);
-  telem.touchC = touchRead(TOUCH_PAD_CENTER);
-  telem.touchR = touchRead(TOUCH_PAD_RIGHT);
+  telem.touchL = fed4TouchS3Read(TOUCH_PAD_LEFT);
+  telem.touchC = fed4TouchS3Read(TOUCH_PAD_CENTER);
+  telem.touchR = fed4TouchS3Read(TOUCH_PAD_RIGHT);
 
   if (centerPadTouched()) {
     updateCenterRainbowDemo();
     return;
   }
 
-  const uint8_t targetL = touchRiseToBrightness(telem.touchL, touchIdleL);
-  const uint8_t targetC = touchRiseToBrightness(telem.touchC, touchIdleC);
-  const uint8_t targetR = touchRiseToBrightness(telem.touchR, touchIdleR);
+  const uint8_t targetL = touchRiseToBrightness(telem.touchL, fed4TouchIdleL);
+  const uint8_t targetC = touchRiseToBrightness(telem.touchC, fed4TouchIdleC);
+  const uint8_t targetR = touchRiseToBrightness(telem.touchR, fed4TouchIdleR);
 
   stripBrightRight = emaBrightness(stripBrightRight, targetR);
   stripBrightCenter = emaBrightness(stripBrightCenter, targetC);
@@ -1192,8 +1088,8 @@ void serviceFeed() {
 
   readTouchPads();
 
-  const bool lNow = touchPadAbovePokeThreshold(telem.touchL, touchIdleL);
-  const bool rNow = touchPadAbovePokeThreshold(telem.touchR, touchIdleR);
+  const bool lNow = touchPadAbovePokeThreshold(telem.touchL, fed4TouchIdleL);
+  const bool rNow = touchPadAbovePokeThreshold(telem.touchR, fed4TouchIdleR);
   const bool lPoke = lNow && !touchPokePrevL;
   const bool rPoke = rNow && !touchPokePrevR;
   touchPokePrevL = lNow;
@@ -1205,8 +1101,8 @@ void serviceFeed() {
   bool isLeft;
   if (lPoke && rPoke) {
     // Crosstalk — use whichever pad rose more above baseline.
-    isLeft = touchRiseFraction(telem.touchL, touchIdleL) >=
-             touchRiseFraction(telem.touchR, touchIdleR);
+    isLeft = fed4TouchS3RiseFraction(telem.touchL, fed4TouchIdleL) >=
+             fed4TouchS3RiseFraction(telem.touchR, fed4TouchIdleR);
   } else {
     isLeft = lPoke;
   }
@@ -1242,7 +1138,7 @@ void serviceCenterPoke() {
 
   readTouchPads();
 
-  const bool cNow = touchPadAbovePokeThreshold(telem.touchC, touchIdleC);
+  const bool cNow = touchPadAbovePokeThreshold(telem.touchC, fed4TouchIdleC);
   const bool cPoke = cNow && !touchPokePrevC;
   touchPokePrevC = cNow;
 
