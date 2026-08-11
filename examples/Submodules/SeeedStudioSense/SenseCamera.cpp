@@ -8,6 +8,13 @@
 #include <esp_camera.h>
 #include "camera_pins.h"
 
+// --- Camera color / exposure tuning (OV3660) ---
+// White balance mode (set_wb_mode): 0=Auto, 1=Sunny, 2=Cloudy, 3=Office, 4=Home
+static const int SENSE_WB_MODE = 3;
+
+// Discard frames after init so AWB/AEC can settle before the saved JPEG.
+static const int SENSE_WARMUP_FRAMES = 3;
+
 static char g_lastCaptureError[64] = "";
 static bool g_captureDebug = true;
 
@@ -118,6 +125,71 @@ bool senseSdCardReady() {
   return ok;
 }
 
+static void tuneSensor(sensor_t *sensor) {
+  if (sensor == nullptr) {
+    return;
+  }
+
+  logCapturef("CAPTURE: sensor PID 0x%04x", (unsigned)sensor->id.PID);
+
+  if (sensor->id.PID != OV3660_PID) {
+    return;
+  }
+
+  // Orientation (Seeed OV3660 is mounted upside-down)
+  sensor->set_vflip(sensor, 1);
+  // sensor->set_hmirror(sensor, 0);  // 0=off, 1=flip horizontal
+
+  // White balance — office/fluorescent default for FED4 chamber lighting
+  // sensor->set_whitebal(sensor, 1);   // 0=off, 1=auto WB on
+  // sensor->set_awb_gain(sensor, 1);   // 0=off, 1=AWB gain on
+  sensor->set_wb_mode(sensor, SENSE_WB_MODE);
+
+  // Auto exposure
+  sensor->set_exposure_ctrl(sensor, 1);  // 0=manual, 1=auto AEC
+  // sensor->set_aec2(sensor, 0);         // 0=enable AEC DSP, 1=disable
+  // sensor->set_ae_level(sensor, 0);     // -2 .. +2 brightness target
+  // sensor->set_aec_value(sensor, 300);  // manual exposure (when AEC off)
+
+  // Gain
+  sensor->set_gain_ctrl(sensor, 1);  // 0=manual, 1=auto AGC
+  // sensor->set_agc_gain(sensor, 0);   // manual gain 0-30 (when AGC off)
+  // sensor->set_gainceiling(sensor, GAINCEILING_2X);  // max AGC ceiling
+
+  // Color / tone (Espressif OV3660 starting point)
+  sensor->set_brightness(sensor, 1);   // -2 .. +2
+  sensor->set_saturation(sensor, -2);  // -2 .. +2
+  // sensor->set_contrast(sensor, 0);    // -2 .. +2
+  // sensor->set_sharpness(sensor, 0);   // -2 .. +2 (if supported)
+  // sensor->set_denoise(sensor, 0);    // 0 .. 8
+
+  // JPEG quality on sensor (separate from camera_config_t.jpeg_quality)
+  // sensor->set_quality(sensor, 10);  // 0-63, lower = higher quality
+
+  // Special effects (0=none)
+  // sensor->set_special_effect(sensor, 0);
+
+  // Lens correction
+  // sensor->set_lenc(sensor, 1);  // 0=off, 1=on
+
+  logCapturef("CAPTURE: WB mode %d (0=Auto 1=Sunny 2=Cloudy 3=Office 4=Home)",
+                SENSE_WB_MODE);
+}
+
+static void discardWarmupFrames() {
+  for (int i = 0; i < SENSE_WARMUP_FRAMES; i++) {
+    camera_fb_t *fb = esp_camera_fb_get();
+    if (fb == nullptr) {
+      logCapturef("CAPTURE: warmup frame %d failed", i + 1);
+      break;
+    }
+    esp_camera_fb_return(fb);
+  }
+  if (SENSE_WARMUP_FRAMES > 0) {
+    logCapturef("CAPTURE: discarded %d warmup frame(s)", SENSE_WARMUP_FRAMES);
+  }
+}
+
 static bool initCamera() {
   camera_config_t config = {};
   config.ledc_channel = LEDC_CHANNEL_0;
@@ -166,12 +238,8 @@ static bool initCamera() {
 
   sensor_t *sensor = esp_camera_sensor_get();
   if (sensor != nullptr) {
-    logCapturef("CAPTURE: sensor PID 0x%04x", (unsigned)sensor->id.PID);
-    if (sensor->id.PID == OV3660_PID) {
-      sensor->set_vflip(sensor, 1);
-      sensor->set_brightness(sensor, 1);
-      sensor->set_saturation(sensor, -2);
-    }
+    tuneSensor(sensor);
+    discardWarmupFrames();
   } else {
     logCapture("CAPTURE: warning — sensor handle is null");
   }
@@ -252,7 +320,7 @@ static bool captureToFile(const char *path) {
   return ok;
 }
 
-bool senseCaptureImageDatetime(const SenseDateTime *dt) {
+bool senseCaptureImageDatetime(const SubmoduleDateTime *dt) {
   if (dt == nullptr) {
     setCaptureError("invalid datetime");
     return false;

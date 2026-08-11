@@ -8,6 +8,23 @@ The only link between FED4 and submodules is the **I2C wire protocol** defined h
 
 Shared opcode constants and pack helpers: [`SubmoduleProtocol.h`](SubmoduleProtocol.h).
 
+## Module layout
+
+Portable helpers live in `examples/Submodules/` (not FED4 `src/`):
+
+| Module | Role |
+|--------|------|
+| [`SubmoduleProtocol.h`](SubmoduleProtocol.h) | Wire format, status flags, pack/parse helpers (header-only) |
+| [`SubmoduleState.h/.cpp`](SubmoduleState.h) | Slave runtime state + status byte building |
+| [`SubmoduleRtc.h/.cpp`](SubmoduleRtc.h) | Wall-clock validation and `settimeofday()` |
+| [`SubmoduleCommands.h/.cpp`](SubmoduleCommands.h) | Command dispatch; board supplies `SubmoduleCaptureOps` |
+| [`SubmoduleI2cSlaveEsp32.h/.cpp`](SubmoduleI2cSlaveEsp32.h) | ESP32-S3 light sleep, SCL wake, I2C slave transport |
+| [`SubmoduleMaster.h/.cpp`](SubmoduleMaster.h) | FED4-side wake, status read, send |
+
+Board folders (e.g. [`SeeedStudioSense/`](SeeedStudioSense/)) provide pin maps, capture backend, and a thin `.ino`. Each sketch includes a `SubmodulePort.cpp` that `#include`s the shared `.cpp` files (Arduino IDE only compiles sources in the sketch directory).
+
+Future submodules: copy the Seeed `SubmodulePort.cpp` pattern, implement `SubmoduleCaptureOps`, and set `SubmoduleI2cSlaveEsp32Config` pins.
+
 ## Purpose & scope
 
 - Submodule sketches live under `examples/Submodules/<BoardName>/`.
@@ -152,14 +169,14 @@ Wrong-length frames are silently ignored.
 ```
 
 - Ranges: year 2000–2099, month 1–12, day 1–31, hour 0–23, min/sec 0–59
-- Submodule sets internal RTC via `settimeofday()` and caches fields for datetime filenames
+- Submodule sets internal RTC via `settimeofday()` and sets `RTC_VALID`
 - FED4 master reads DS3231 @ `0x68` on main bus and sends wall-clock fields
 
 ### Command 0x02 — CAPTURE_IMAGE
 
 | Frame | Filename | Requirement |
 |-------|----------|-------------|
-| `[0x02]` only | `YYYYMMDDHHMMSS.jpg` (14 digits) | `RTC_VALID` status bit must be set |
+| `[0x02]` only | `YYYYMMDDHHMMSS.jpg` (14 digits) | `RTC_VALID` status bit must be set; timestamp is **live system clock at capture** (not the SET_TIME snapshot) |
 | `[0x02][id_lo][id_hi]` | `%05u.jpg` (e.g. `00042.jpg`) | Always allowed; `imageId` is uint16 (0–65535) |
 
 If datetime mode is requested but RTC was never set: **silent fail** (no file written).
@@ -185,7 +202,7 @@ The Sense expansion **J3 solder pad must be bridged** for onboard SD pull-ups. I
 |--------|-------|-------------|--------|
 | [SeeedStudioSense](SeeedStudioSense/) | Seeed XIAO ESP32-S3 Sense | 0x42 | v0.3 — status read, SET_TIME, CAPTURE, SD SPI |
 
-**FED4 master test:** [`FED4-Submodule-SeeedStudioSense`](../3_Troubleshooting/HardwareExamples/FED4-Submodule-SeeedStudioSense/) — reads status, syncs RTC if needed, sends CAPTURE commands.
+**FED4 master test:** [`FED4-Submodule-SeeedStudioSense`](../3_Troubleshooting/HardwareExamples/FED4-Submodule-SeeedStudioSense/) — enables PSV2 for DS3231, initializes RTC if battery-lost, syncs time each cycle, sends CAPTURE commands.
 
 ## ESP32-S3 slave notes
 
