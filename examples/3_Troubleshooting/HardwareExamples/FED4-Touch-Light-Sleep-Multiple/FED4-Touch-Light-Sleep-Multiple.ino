@@ -21,7 +21,7 @@
  *   Step 2a FED4_TOUCH_NG_FLT_BM_IIR16=1      benchmark IIR-16 (default IIR-4)
  *   Step 2b FED4_TOUCH_NG_FLT_BM_DNOISE4=1   benchmark denoise_lvl 4 (default 1)
  *   Step 2c FED4_TOUCH_NG_FLT_DEBOUNCE1=1     data debounce 1 (default 2)
- *   Step 3  FED4_TOUCH_NG_HW_DENOISE=1        T0 subtractive denoise channel
+ *   Step 3  FED4_TOUCH_NG_HW_DENOISE=1        T0 subtractive denoise (breaks on FED4 — leave 0)
  *
  * Flash with Tools -> "USB CDC On Boot" = ENABLED (GPIO 43/44 are display pins).
  * Serial optional: 500 ms grace delay, then runs without a monitor attached.
@@ -44,7 +44,7 @@
 #define FED4_TOUCH_NG_FLT_BM_IIR16 1      // Step 2a — ON
 #define FED4_TOUCH_NG_FLT_BM_DNOISE4 1     // Step 2b — ON
 #define FED4_TOUCH_NG_FLT_DEBOUNCE1 1       // Step 2c — ON
-#define FED4_TOUCH_NG_HW_DENOISE 0          // Step 3
+#define FED4_TOUCH_NG_HW_DENOISE 0          // Step 3 — OFF (T0 denoise breaks wake/sensitivity here)
 #if FED4_TOUCH_NG_DIRECT_DRIVER
 #include "driver/touch_sens.h"
 #endif
