@@ -2,26 +2,41 @@
  * FED4 I2C Scanner
  *
  * Scans the primary I2C bus (SDA=8, SCL=9).
- * The DS3231 RTC sits behind a TCA4307 isolator on the PSV2 rail,
- * so PSV2 must be enabled via the MCP23017 before the RTC appears (~ON active-low).
+ * RTC (DS3231) and all peripherals are on the main always-on bus (no PSV2 / TCA4307).
  *
- * Expected devices (see src/FED4_Pins.h):
+ * Expected devices (see src/FED4_Pins.h, examples/Submodules/README.md):
  *   0x10  VEML7700 lux sensor
  *   0x19  LIS2DH12TR accelerometer
  *   0x20  MCP23017 GPIO expander
  *   0x29  VL53L1X time-of-flight sensor
  *   0x36  MAX17048 battery monitor
- *   0x68  DS3231 real-time clock (requires PSV2 / TCA4307)
+ *   0x42  SeeedStudio submodule (when connected)
+ *   0x68  DS3231 real-time clock
  *   0x76  BME680 temperature, humidity, pressure, and gas sensor
  */
 
 #include <Wire.h>
-#include <Adafruit_MCP23X17.h>
 #include <FED4_Pins.h>
 
-Adafruit_MCP23X17 mcp;
+static const uint8_t EXPECTED_ADDRS[] = {
+    I2C_ADDR_LIGHT,
+    I2C_ADDR_ACCEL,
+    I2C_ADDR_MCP23017,
+    I2C_ADDR_TOF,
+    I2C_ADDR_MAX17048,
+    0x42,
+    I2C_ADDR_RTC,
+    I2C_ADDR_BME680,
+};
+static const size_t NUM_EXPECTED = sizeof(EXPECTED_ADDRS) / sizeof(EXPECTED_ADDRS[0]);
+
+static const size_t MAX_FOUND = 16;
+static uint8_t foundAddrs[MAX_FOUND];
+static size_t numFound = 0;
 
 void identifyDevice(byte address);
+bool isExpectedAddress(byte address);
+void listOtherAddresses();
 void scanI2C(const char *busName);
 
 void setup() {
@@ -29,32 +44,22 @@ void setup() {
   while (!Serial) delay(10);
 
   Serial.println("=== FED4 I2C Scanner ===");
-  Serial.println("Architecture: single main I2C + TCA4307 isolator for RTC");
+  Serial.println("Main I2C bus (SDA=8, SCL=9) — no PSV2 / isolator required");
   Serial.println();
 
-  // Primary I2C bus (same as FED4::begin)
-  Wire.begin(SDA, SCL, 100000); // 100kHz
+  Wire.begin(SDA, SCL, 100000);
   Wire.setTimeout(1000);
 
   Serial.println("I2C: SDA=8, SCL=9, 100kHz");
-
-  if (!mcp.begin_I2C()) {
-    Serial.println("Error initializing MCP23017 at 0x20.");
-    Serial.println("Cannot enable PSV2 — RTC will not be visible.");
-  } else {
-    // Enable PSV2 so the TCA4307 isolator connects the RTC to the bus
-    mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-    mcp.digitalWrite(EXP_PSV2_EN, LOW);
-    Serial.println("PSV2 enabled (MCP pin 13 LOW, ~ON active-low) — RTC isolator powered");
-  }
-
   Serial.println();
-  delay(100); // Allow PSV2 / I2C isolator to stabilize
 }
 
 void loop() {
+  numFound = 0;
+
   Serial.println("=== Starting I2C Scan ===");
   scanI2C("Main I2C (SDA=8, SCL=9)");
+  listOtherAddresses();
   Serial.println("=== Scan Complete ===");
   Serial.println();
   delay(10000);
@@ -73,6 +78,10 @@ void scanI2C(const char *busName) {
     error = Wire.endTransmission(true);
 
     if (error == 0) {
+      if (numFound < MAX_FOUND) {
+        foundAddrs[numFound++] = address;
+      }
+
       Serial.print("Device found at 0x");
       if (address < 16) Serial.print("0");
       Serial.print(address, HEX);
@@ -91,7 +100,7 @@ void scanI2C(const char *busName) {
   if (nDevices == 0) {
     Serial.print("No I2C devices found on ");
     Serial.println(busName);
-    Serial.println("Check: 1) Wiring 2) Pull-ups 3) Power / PSV2 for RTC");
+    Serial.println("Check: 1) Wiring 2) Pull-ups 3) Power");
   } else {
     Serial.print("Found ");
     Serial.print(nDevices);
@@ -100,31 +109,70 @@ void scanI2C(const char *busName) {
   }
 }
 
+bool isExpectedAddress(byte address) {
+  for (size_t i = 0; i < NUM_EXPECTED; i++) {
+    if (EXPECTED_ADDRS[i] == address) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void listOtherAddresses() {
+  size_t otherCount = 0;
+
+  for (size_t i = 0; i < numFound; i++) {
+    if (!isExpectedAddress(foundAddrs[i])) {
+      otherCount++;
+    }
+  }
+
+  if (otherCount == 0) {
+    Serial.println("Other addresses: none");
+    return;
+  }
+
+  Serial.print("Other addresses (");
+  Serial.print(otherCount);
+  Serial.println("):");
+  for (size_t i = 0; i < numFound; i++) {
+    const byte address = foundAddrs[i];
+    if (!isExpectedAddress(address)) {
+      Serial.print("  0x");
+      if (address < 16) Serial.print("0");
+      Serial.println(address, HEX);
+    }
+  }
+}
+
 void identifyDevice(byte address) {
   switch (address) {
-    case 0x10:    
+    case I2C_ADDR_LIGHT:
       Serial.print(" (VEML7700-TT LUX)");
       break;
-    case 0x19:
+    case I2C_ADDR_ACCEL:
       Serial.print(" (LIS2DH12 Accelerometer)");
       break;
-    case 0x20:
+    case I2C_ADDR_MCP23017:
       Serial.print(" (MCP23017 GPIO Expander)");
       break;
-    case 0x29:
+    case I2C_ADDR_TOF:
       Serial.print(" (VL53L1X ToF)");
       break;
-    case 0x36:
+    case I2C_ADDR_MAX17048:
       Serial.print(" (MAX17048 Battery Monitor)");
       break;
-    case 0x68:
-      Serial.print(" (RTC via TCA4307)");
+    case 0x42:
+      Serial.print(" (SeeedStudio Submodule)");
       break;
-    case 0x76:
+    case I2C_ADDR_RTC:
+      Serial.print(" (DS3231 RTC)");
+      break;
+    case I2C_ADDR_BME680:
       Serial.print(" (BME680 Temp/Humidity/Gas)");
       break;
     default:
-      Serial.print(" (Unknown device)");
+      Serial.print(" (Other device)");
       break;
   }
 }
