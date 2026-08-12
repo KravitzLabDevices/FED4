@@ -1163,10 +1163,73 @@ void serviceCenterPoke() {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
+// I2C helpers — ESP32 uses Wire.setTimeOut() (not Stream setTimeout)
+// ---------------------------------------------------------------------------
+
+bool i2cProbe(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  const uint8_t err = Wire.endTransmission(true);
+  return err == 0;
+}
+
+void i2cRecoverBus() {
+  Wire.end();
+  pinMode(SCL, INPUT_PULLUP);
+  pinMode(SDA, INPUT_PULLUP);
+  delay(1);
+
+  pinMode(SCL, OUTPUT);
+  digitalWrite(SCL, HIGH);
+  for (int i = 0; i < 9 && digitalRead(SDA) == LOW; i++) {
+    digitalWrite(SCL, LOW);
+    delayMicroseconds(5);
+    digitalWrite(SCL, HIGH);
+    delayMicroseconds(5);
+  }
+
+  pinMode(SCL, INPUT_PULLUP);
+  pinMode(SDA, INPUT_PULLUP);
+  Wire.begin(SDA, SCL, 100000);
+  Wire.setTimeOut(50);
+}
+
+// Returns false if SDA still stuck low after clock stretching recovery.
+bool i2cBusHealthy() {
+  pinMode(SDA, INPUT_PULLUP);
+  pinMode(SCL, INPUT_PULLUP);
+  return digitalRead(SDA) == HIGH && digitalRead(SCL) == HIGH;
+}
+
+// Probe then optional begin. On any failure: WARN, recover bus, continue.
+// Returns true only if probe + beginOk both succeed.
+bool initI2cDevice(const char *name, uint8_t addr, bool (*beginFn)()) {
+  Serial.printf("  %s @ 0x%02X... ", name, addr);
+  Serial.flush();
+
+  if (!i2cProbe(addr)) {
+    Serial.println("not on bus");
+    Serial.flush();
+    i2cRecoverBus();
+    return false;
+  }
+
+  if (!beginFn()) {
+    Serial.println("begin failed");
+    Serial.flush();
+    i2cRecoverBus();
+    return false;
+  }
+
+  Serial.println("OK");
+  Serial.flush();
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // ToF helpers
 // ---------------------------------------------------------------------------
 
-bool initToF() {
+static bool beginToFDevice() {
   if (tofSensor.begin() != 0)
     return false;
 
@@ -1177,8 +1240,11 @@ bool initToF() {
   if (TOF_USE_NARROW_ROI)
     tofSensor.setROI(TOF_ROI_WIDTH, TOF_ROI_HEIGHT, TOF_ROI_CENTER);
 
-  Serial.println("OK: VL53L1X");
   return true;
+}
+
+bool initToF() {
+  return beginToFDevice();
 }
 
 // ToF runs in continuous ranging mode; harvest when ready and validate status.
@@ -1293,12 +1359,13 @@ static void demoAdjustRtcFromCompileTime() {
 
 // DS3231 OSF (lostPower) only set when the oscillator actually stopped.
 // USB-powered runs without a coin cell keep ticking — also sync on new flash.
-bool initRtcDemo() {
+static bool beginRtcDevice() {
   if (!rtc.begin(&Wire))
     return false;
 
   bool setFromCompile = false;
   if (rtc.lostPower()) {
+    Serial.println();
     Serial.println("RTC OSF set — oscillator had stopped, using compile time");
     setFromCompile = true;
   }
@@ -1308,12 +1375,14 @@ bool initRtcDemo() {
     const String compileNow = demoCompileDateTime();
     const String compileStored = prefs.getString("compileTime", "");
     if (compileStored != compileNow) {
+      Serial.println();
       Serial.println("New firmware build — syncing RTC to compile time");
       setFromCompile = true;
       prefs.putString("compileTime", compileNow);
     }
     prefs.end();
   } else {
+    Serial.println();
     Serial.println("WARN: RTC prefs unavailable — compile-time sync skipped");
   }
 
@@ -1321,66 +1390,128 @@ bool initRtcDemo() {
     demoAdjustRtcFromCompileTime();
 
   const DateTime now = rtc.now();
-  Serial.printf("RTC %s %04u-%02u-%02u %02u:%02u:%02u\n",
+  Serial.printf(" (%s %04u-%02u-%02u %02u:%02u:%02u)",
                 setFromCompile ? "set" : "kept", now.year(), now.month(),
                 now.day(), now.hour(), now.minute(), now.second());
   return true;
 }
 
+bool initRtcDemo() {
+  return beginRtcDevice();
+}
+
+static bool beginBmeDevice() {
+  if (!bme.begin(I2C_ADDR_BME680, &Wire))
+    return false;
+  bme.setTemperatureOversampling(BME680_OS_8X);
+  bme.setHumidityOversampling(BME680_OS_2X);
+  bme.setPressureOversampling(BME680_OS_4X);
+  bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
+  bme.setGasHeater(320, 150);
+  return true;
+}
+
+static bool beginVemlDevice() {
+  if (!veml.begin(&Wire))
+    return false;
+  veml.setGain(VEML7700_GAIN_2);
+  veml.setIntegrationTime(VEML7700_IT_100MS);
+  veml.powerSaveEnable(false);
+  veml.enable(true);
+  return true;
+}
+
+static bool beginBatteryDevice() {
+  if (!maxlipo.begin())
+    return false;
+  telem.batReady = maxlipo.isDeviceReady();
+  if (!telem.batReady)
+    Serial.print(" (chip only — gauge not ready)");
+  return true;
+}
+
+static bool beginAccelDevice() {
+  if (!accel.begin(I2C_ADDR_ACCEL))
+    return false;
+  accel.setRange(LIS3DH_RANGE_2_G);
+  accel.setDataRate(LIS3DH_DATARATE_50_HZ);
+  accel.setPerformanceMode(LIS3DH_MODE_HIGH_RESOLUTION);
+  return true;
+}
+
 bool initSensors() {
-  telem.bmeOk = bme.begin(I2C_ADDR_BME680, &Wire);
-  if (telem.bmeOk) {
-    bme.setTemperatureOversampling(BME680_OS_8X);
-    bme.setHumidityOversampling(BME680_OS_2X);
-    bme.setPressureOversampling(BME680_OS_4X);
-    bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
-    bme.setGasHeater(320, 150);
-    Serial.println("OK: BME680");
-  } else {
-    Serial.println("WARN: BME680");
+  Wire.setTimeOut(50);
+
+  Serial.println("Init sensors...");
+  Serial.flush();
+
+  if (!i2cBusHealthy()) {
+    Serial.println("WARN: I2C bus not idle at start — recovering");
+    Serial.flush();
+    i2cRecoverBus();
   }
 
-  telem.luxOk = veml.begin(&Wire);
-  if (telem.luxOk) {
-    veml.setGain(VEML7700_GAIN_2);
-    veml.setIntegrationTime(VEML7700_IT_100MS); // 800MS blocked the loop ~500ms+
-    veml.powerSaveEnable(false);
-    veml.enable(true);
-    Serial.println("OK: VEML7700");
+  telem.bmeOk = initI2cDevice("BME680", I2C_ADDR_BME680, beginBmeDevice);
+  telem.luxOk = initI2cDevice("VEML7700", I2C_ADDR_LIGHT, beginVemlDevice);
+
+  Serial.printf("  VL53L1X @ 0x%02X... ", I2C_ADDR_TOF);
+  Serial.flush();
+  if (!i2cProbe(I2C_ADDR_TOF)) {
+    telem.tofOk = false;
+    Serial.println("not on bus");
+    i2cRecoverBus();
+  } else if (!beginToFDevice()) {
+    telem.tofOk = false;
+    Serial.println("begin failed");
+    i2cRecoverBus();
   } else {
-    Serial.println("WARN: VEML7700");
+    telem.tofOk = true;
+    Serial.println("OK");
+  }
+  Serial.flush();
+
+  Serial.printf("  DS3231 @ 0x%02X... ", I2C_ADDR_RTC);
+  Serial.flush();
+  if (!i2cProbe(I2C_ADDR_RTC)) {
+    telem.rtcOk = false;
+    Serial.println("not on bus");
+    i2cRecoverBus();
+  } else if (!beginRtcDevice()) {
+    telem.rtcOk = false;
+    Serial.println("begin failed");
+    i2cRecoverBus();
+  } else {
+    telem.rtcOk = true;
+    Serial.println();
+  }
+  Serial.flush();
+
+  telem.batOk = false;
+  telem.batReady = false;
+  Serial.printf("  MAX17048 @ 0x%02X... ", I2C_ADDR_MAX17048);
+  Serial.flush();
+  if (!i2cProbe(I2C_ADDR_MAX17048)) {
+    Serial.println("not on bus");
+    i2cRecoverBus();
+  } else if (!beginBatteryDevice()) {
+    Serial.println("begin failed");
+    i2cRecoverBus();
+  } else {
+    telem.batOk = true;
+    Serial.println("OK");
+  }
+  Serial.flush();
+
+  telem.accelOk = initI2cDevice("LIS2DH", I2C_ADDR_ACCEL, beginAccelDevice);
+
+  if (!i2cBusHealthy()) {
+    Serial.println("WARN: I2C still stuck after sensor init — recovering once more");
+    Serial.flush();
+    i2cRecoverBus();
   }
 
-  telem.tofOk = initToF();
-  if (!telem.tofOk)
-    Serial.println("WARN: VL53L1X");
-
-  telem.rtcOk = initRtcDemo();
-  if (!telem.rtcOk)
-    Serial.println("WARN: RTC");
-
-  // MAX17048 is on VBATT only. begin() issues a POR reset that NACKs once;
-  // ESP32 core 3.x logs i2c.master errors here — unrelated to RTC above.
-  telem.batOk = maxlipo.begin();
-  telem.batReady = telem.batOk && maxlipo.isDeviceReady();
-  if (!telem.batOk) {
-    Serial.println("WARN: MAX17048 (no I2C — check VBATT power)");
-  } else if (!telem.batReady) {
-    Serial.println("OK: MAX17048 (chip only — gauge not ready, no pack?)");
-  } else {
-    Serial.println("OK: MAX17048");
-  }
-
-  telem.accelOk = accel.begin(I2C_ADDR_ACCEL);
-  if (telem.accelOk) {
-    accel.setRange(LIS3DH_RANGE_2_G);
-    accel.setDataRate(LIS3DH_DATARATE_50_HZ);
-    accel.setPerformanceMode(LIS3DH_MODE_HIGH_RESOLUTION);
-    Serial.println("OK: LIS2DH");
-  } else {
-    Serial.println("WARN: LIS2DH");
-  }
-
+  Serial.println("Init sensors done (continuing regardless of WARNs).");
+  Serial.flush();
   return true;
 }
 
@@ -1392,7 +1523,7 @@ void setup() {
                 FED4_DEMO_HW_TARGET_BOARD_STR);
 
   Wire.begin(SDA, SCL, 100000);
-  Wire.setTimeout(1000);
+  Wire.setTimeOut(50);
 
   if (!mcp.begin_I2C()) {
     Serial.println("FAIL: MCP23017");
