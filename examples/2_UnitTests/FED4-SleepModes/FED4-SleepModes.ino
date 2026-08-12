@@ -26,6 +26,7 @@
 #include "SparkFun_VL53L1X.h"
 #include <Fonts/FreeSans9pt7b.h>
 #include <FED4_Pins.h>
+#include <FED4_TouchHelpers.h>
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) \
@@ -44,7 +45,7 @@ static const uint32_t SPI_HZ = 1000000;
 
 static const uint32_t SLEEP_MS = 5000;
 static const uint32_t VCOM_MS = 500;
-static const float TOUCH_THRESHOLD = 0.20f;
+// Use library TOUCH_THRESHOLD (rise fraction) via fed4Touch* helpers
 
 static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                              clr[] = {(uint8_t)~1,   (uint8_t)~2,   (uint8_t)~4,
@@ -64,10 +65,6 @@ bool accelOk = false;
 bool bmeOk = false;
 bool vemlOk = false;
 bool tofOk = false;
-
-uint16_t baseLeft = 0;
-uint16_t baseCenter = 0;
-uint16_t baseRight = 0;
 
 // ---------------------------------------------------------------------------
 // MIP display (minimal, from FED4-Display-Standalone)
@@ -277,27 +274,20 @@ void printWakeReason() {
 }
 
 void calibrateTouch() {
-  delay(30);
-  baseLeft = touchRead(TOUCH_PAD_LEFT);
-  baseCenter = touchRead(TOUCH_PAD_CENTER);
-  baseRight = touchRead(TOUCH_PAD_RIGHT);
-  Serial.printf("Touch baseline L:%u C:%u R:%u\n", baseLeft, baseCenter, baseRight);
-}
-
-bool touched(uint16_t current, uint16_t baseline) {
-  if (baseline == 0) return false;
-  float dev = fabs((float)current / (float)baseline - 1.0f);
-  return dev >= TOUCH_THRESHOLD;
+  if (!fed4TouchInitPads()) {
+    Serial.println("Touch init failed — keep pads clear");
+    return;
+  }
+  fed4TouchEnableTouchpadWakeup();
+  Serial.printf("Touch idle L:%lu C:%lu R:%lu\n",
+                (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
+                (unsigned long)fed4TouchIdleR);
+  fed4TouchPrintDriverConfig();
 }
 
 void printLikelyTouchWake() {
-  uint16_t l = touchRead(TOUCH_PAD_LEFT);
-  uint16_t c = touchRead(TOUCH_PAD_CENTER);
-  uint16_t r = touchRead(TOUCH_PAD_RIGHT);
-
-  if (touched(l, baseLeft)) Serial.println("Likely touch: LEFT");
-  if (touched(c, baseCenter)) Serial.println("Likely touch: CENTER");
-  if (touched(r, baseRight)) Serial.println("Likely touch: RIGHT");
+  const char *pad = fed4TouchIdentifyWakePad(TOUCH_THRESHOLD);
+  if (pad) Serial.printf("Likely touch: %s\n", pad);
 }
 
 // ---------------------------------------------------------------------------
@@ -467,7 +457,7 @@ void enterLightSleep5s() {
   prepareOutputsIdle(false);
   displayEnsureOn();
 
-  esp_sleep_enable_touchpad_wakeup();
+  fed4TouchEnableTouchpadWakeup();
 
   uint32_t deadline = millis() + SLEEP_MS;
   while ((int32_t)(deadline - millis()) > 0) {

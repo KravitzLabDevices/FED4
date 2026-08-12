@@ -5,12 +5,13 @@
 #include <ESP_I2S.h>
 #include <cmath>
 #include <FED4_Pins.h>
+#include <FED4_TouchHelpers.h>
 
 /*
  * FED4 Color Chase + Touch Pads + Photogate test
  *
  * Updated for current hardware:
- * - Touch pads use ESP32 touch channels (NUM1/NUM2/NUM3)
+ * - Touch pads via library FED4_TouchHelpers (NG touch_sens)
  * - Photogates are direct GPIO pins (not MCP pins)
  * - Front RGB strip is on PSV3 rail (enable via MCP pin 12, ~ON active-low)
  * - Speaker amp SD is on MCP pin 4, and amp rail is PSV2 (MCP pin 13, ~ON active-low)
@@ -29,11 +30,6 @@ uint32_t currentColor = 0xFF0000; // Red default
 uint32_t currentFrequency = 1000;
 bool eventTonePlayed = false;
 
-uint16_t baseLeft = 0;
-uint16_t baseCenter = 0;
-uint16_t baseRight = 0;
-static constexpr float TOUCH_THRESHOLD = 0.20f; // 20% deviation from baseline
-
 void setupI2S() {
   i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
   if (!i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO)) {
@@ -42,18 +38,14 @@ void setupI2S() {
 }
 
 void calibrateTouch() {
-  delay(50);
-  baseLeft = touchRead(TOUCH_PAD_LEFT);
-  baseCenter = touchRead(TOUCH_PAD_CENTER);
-  baseRight = touchRead(TOUCH_PAD_RIGHT);
-
-  Serial.printf("Touch baselines - L:%u C:%u R:%u\n", baseLeft, baseCenter, baseRight);
-}
-
-bool isTouched(uint16_t current, uint16_t baseline) {
-  if (baseline == 0) return false;
-  float dev = fabs((float)current / (float)baseline - 1.0f);
-  return dev >= TOUCH_THRESHOLD;
+  if (!fed4TouchInitPads()) {
+    Serial.println("Touch init failed — keep pads clear");
+    return;
+  }
+  Serial.printf("Touch idle L:%lu C:%lu R:%lu\n",
+                (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
+                (unsigned long)fed4TouchIdleR);
+  fed4TouchPrintDriverConfig();
 }
 
 void generateSineWave(uint32_t frequency, uint32_t duration_ms, float amplitude = 0.25f) {
@@ -147,14 +139,13 @@ void setup() {
 }
 
 void loop() {
-  uint16_t tLeft = touchRead(TOUCH_PAD_LEFT);
-  uint16_t tCenter = touchRead(TOUCH_PAD_CENTER);
-  uint16_t tRight = touchRead(TOUCH_PAD_RIGHT);
+  const bool touchLeft =
+      fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_LEFT), fed4TouchIdleL) >= TOUCH_THRESHOLD;
+  const bool touchCenter =
+      fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_CENTER), fed4TouchIdleC) >= TOUCH_THRESHOLD;
+  const bool touchRight =
+      fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_RIGHT), fed4TouchIdleR) >= TOUCH_THRESHOLD;
   bool pgBlocked = (digitalRead(PHOTOGATE_1) == LOW);
-
-  bool touchLeft = isTouched(tLeft, baseLeft);
-  bool touchCenter = isTouched(tCenter, baseCenter);
-  bool touchRight = isTouched(tRight, baseRight);
 
   if (touchLeft) {
     currentColor = 0xFF0000;

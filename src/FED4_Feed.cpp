@@ -137,8 +137,8 @@ void FED4::handlePelletInWell()
         if (retrievalTime > 20)
             break;
 
-        // Use same majority-vote touch detection as normal pokes (direct L/C/R mapping)
-        if (wakePad != 0)
+        // Poll rise fraction (no ISR wakePad) — same path as post-sleep interpretTouch
+        if (fed4TouchAnyPadActive(TOUCH_THRESHOLD))
         {
             interpretTouch();
 

@@ -11,10 +11,10 @@
  *   CENTER = TOUCH_PAD_NUM3 (GPIO 3)
  *   RIGHT  = TOUCH_PAD_NUM2 (GPIO 2)
  *
- * ESP32-S3 touch notes (see FED4_TouchS3 / FED4-Touch.ino):
+ * ESP32-S3 touch notes (see FED4_TouchHelpers / FED4-Touch.ino):
  *   - Counts RISE when touched; values are uint32_t (not uint16_t).
  *   - Boot idle baseline + rise fraction for wake identification.
- *   - IDF 5.5+: NG direct touch_sens driver (FED4_TouchS3).
+ *   - IDF 5.5+: NG direct touch_sens driver (FED4_TouchHelpers).
  *
  * Flash with Tools -> "USB CDC On Boot" = ENABLED (GPIO 43/44 are display pins).
  * Serial optional: 500 ms grace delay, then runs without a monitor attached.
@@ -29,7 +29,7 @@
 #include <Adafruit_NeoPixel.h>
 #include <FED4_Pins.h>
 #include <FED4_DisplayOrient.h>
-#include "../FED4_TouchS3/FED4_TouchS3.h"
+#include <FED4_TouchHelpers.h>
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) \
@@ -52,7 +52,7 @@ static const uint32_t STRIP_MS = 8;
 static const uint32_t TOUCH_LED_MIN_MS = 400;
 static const uint32_t TOUCH_LED_MAX_MS = 3000;
 
-// S3 touch tuning (FED4_TouchS3)
+// S3 touch tuning (FED4_TouchHelpers)
 static const float TOUCH_TRIGGER_RISE = 0.03f;  // wake threshold — 3% rise above idle
 // Strip brightness mapping (FED4-Demo-Hardware.ino)
 static const float TOUCH_LED_FULL_RISE = 0.05f;
@@ -229,9 +229,9 @@ uint8_t touchRiseToBrightness(uint32_t raw, uint32_t idle) {
 }
 
 void updateTouchStrip() {
-  const uint32_t l = fed4TouchS3Read(TOUCH_PAD_LEFT);
-  const uint32_t c = fed4TouchS3Read(TOUCH_PAD_CENTER);
-  const uint32_t r = fed4TouchS3Read(TOUCH_PAD_RIGHT);
+  const uint32_t l = fed4TouchRead(TOUCH_PAD_LEFT);
+  const uint32_t c = fed4TouchRead(TOUCH_PAD_CENTER);
+  const uint32_t r = fed4TouchRead(TOUCH_PAD_RIGHT);
 
   const uint8_t brightL = touchRiseToBrightness(l, fed4TouchIdleL);
   const uint8_t brightC = touchRiseToBrightness(c, fed4TouchIdleC);
@@ -247,9 +247,9 @@ void updateTouchStrip() {
 }
 
 bool anyStripTouchActive() {
-  const uint32_t l = fed4TouchS3Read(TOUCH_PAD_LEFT);
-  const uint32_t c = fed4TouchS3Read(TOUCH_PAD_CENTER);
-  const uint32_t r = fed4TouchS3Read(TOUCH_PAD_RIGHT);
+  const uint32_t l = fed4TouchRead(TOUCH_PAD_LEFT);
+  const uint32_t c = fed4TouchRead(TOUCH_PAD_CENTER);
+  const uint32_t r = fed4TouchRead(TOUCH_PAD_RIGHT);
   return touchRiseToBrightness(l, fed4TouchIdleL) ||
          touchRiseToBrightness(c, fed4TouchIdleC) ||
          touchRiseToBrightness(r, fed4TouchIdleR);
@@ -327,11 +327,11 @@ void setup() {
     while (1) delay(10);
   }
 
-  if (!fed4TouchS3InitPads()) {
+  if (!fed4TouchInitPads()) {
     Serial.println("Touch fail — keep pads clear at boot");
     while (1) delay(10);
   }
-  if (!fed4TouchS3EnableTouchpadWakeup()) {
+  if (!fed4TouchEnableTouchpadWakeup()) {
     Serial.println("Touch wake fail");
     while (1) delay(10);
   }
@@ -344,7 +344,7 @@ void setup() {
   Serial.printf("Ready idle L:%lu C:%lu R:%lu\n",
                 (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
                 (unsigned long)fed4TouchIdleR);
-  fed4TouchS3PrintDriverConfig();
+  fed4TouchPrintDriverConfig();
 }
 
 void loop() {
@@ -354,7 +354,7 @@ void loop() {
   lightSleepUntilTouch();
 
   wakeCount++;
-  const char *pad = fed4TouchS3IdentifyWakePad(TOUCH_TRIGGER_RISE);
+  const char *pad = fed4TouchIdentifyWakePad(TOUCH_TRIGGER_RISE);
   if (pad) {
     Serial.printf("Wake: %s\n", pad);
     drawScreen("Wake", pad);

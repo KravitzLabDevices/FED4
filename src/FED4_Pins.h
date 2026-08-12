@@ -12,10 +12,10 @@
 #define BUTTON_2 16 // User Button 2 - middle
 #define BUTTON_3 39 // User Button 3 - top
 
-// Touch Sensor Pins
-#define TOUCH_PAD_CENTER TOUCH_PAD_NUM3 // Touch pad - Center
-#define TOUCH_PAD_RIGHT TOUCH_PAD_NUM2  // Touch pad - Right
-#define TOUCH_PAD_LEFT TOUCH_PAD_NUM1   // Touch pad - Left
+// Touch Sensor Pins (ESP32-S3: GPIO number == touch channel index for pads 1–14)
+#define TOUCH_PAD_LEFT   1 // GPIO1 / touch channel 1
+#define TOUCH_PAD_CENTER 3 // GPIO3 / touch channel 3
+#define TOUCH_PAD_RIGHT  2 // GPIO2 / touch channel 2
 
 // Photogate Pins
 #define PHOTOGATE_1 14 // Center

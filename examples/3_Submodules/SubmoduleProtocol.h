@@ -1,6 +1,6 @@
 /*
  * FED4 Submodule I2C Protocol — shared constants and pack helpers.
- * Spec: examples/Submodules/README.md
+ * Spec: examples/3_Submodules/README.md
  */
 
 #pragma once

@@ -1,16 +1,16 @@
 /*
  * FED4 Submodule Master Test — SeeedStudio Sense (v0.3)
  *
- * Uses shared SubmoduleMaster helpers from examples/Submodules/.
- * Companion: examples/Submodules/SeeedStudioSense/SeeedStudioSense.ino
+ * Uses shared SubmoduleMaster helpers from examples/3_Submodules/.
+ * Companion: examples/3_Submodules/SeeedStudioSense/SeeedStudioSense.ino
  */
 
 #include <Wire.h>
 #include <RTClib.h>
 #include <Adafruit_MCP23X17.h>
 #include <FED4_Pins.h>
-#include "../../../Submodules/SubmoduleMaster.h"
-#include "../../../Submodules/SubmoduleProtocol.h"
+#include "../../3_Submodules/SubmoduleMaster.h"
+#include "../../3_Submodules/SubmoduleProtocol.h"
 
 static const uint32_t TX_INTERVAL_MS = 15000;
 static const uint32_t SERIAL_BOOT_DELAY_MS = 1000;

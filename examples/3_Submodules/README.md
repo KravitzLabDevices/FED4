@@ -10,7 +10,7 @@ Shared opcode constants and pack helpers: [`SubmoduleProtocol.h`](SubmoduleProto
 
 ## Module layout
 
-Portable helpers live in `examples/Submodules/` (not FED4 `src/`):
+Portable helpers live in `examples/3_Submodules/` (not FED4 `src/`):
 
 | Module | Role |
 |--------|------|
@@ -27,7 +27,7 @@ Future submodules: copy the Seeed `SubmodulePort.cpp` pattern, implement `Submod
 
 ## Purpose & scope
 
-- Submodule sketches live under `examples/Submodules/<BoardName>/`.
+- Submodule sketches live under `examples/3_Submodules/<BoardName>/`.
 - Each submodule is distinct hardware with its own pin map, sleep logic, and firmware.
 - FED4 is the intended **I2C bus master** when integration is ready.
 - This README is the evolving contract both sides will follow.
@@ -37,7 +37,7 @@ Future submodules: copy the Seeed `SubmodulePort.cpp` pattern, implement `Submod
 | | FED4 (master) | Submodules (slaves) |
 |---|---|---|
 | Role | I2C bus master (future) | I2C bus slaves |
-| Code location | `src/` + FED4 examples | `examples/Submodules/` only |
+| Code location | `src/` + FED4 examples | `examples/3_Submodules/` only |
 | Hardware | FED4 board | Separate boards |
 | Library dependency | FED4 library | Arduino-ESP32 core only |
 
@@ -202,7 +202,7 @@ The Sense expansion **J3 solder pad must be bridged** for onboard SD pull-ups. I
 |--------|-------|-------------|--------|
 | [SeeedStudioSense](SeeedStudioSense/) | Seeed XIAO ESP32-S3 Sense | 0x42 | v0.3 — status read, SET_TIME, CAPTURE, SD SPI |
 
-**FED4 master test:** [`FED4-Submodule-SeeedStudioSense`](../3_Troubleshooting/HardwareExamples/FED4-Submodule-SeeedStudioSense/) — enables PSV2 for DS3231, initializes RTC if battery-lost, syncs time each cycle, sends CAPTURE commands.
+**FED4 master test:** [`FED4-Submodule-SeeedStudioSense`](../2_UnitTests/FED4-Submodule-SeeedStudioSense/) — enables PSV2 for DS3231, initializes RTC if battery-lost, syncs time each cycle, sends CAPTURE commands.
 
 ## ESP32-S3 slave notes
 

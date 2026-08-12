@@ -22,7 +22,6 @@
 #include <driver/adc.h>
 #include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
 #include <driver/rtc_io.h>
-#include <driver/touch_pad.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <Adafruit_LIS3DH.h> //version 1.3.0
@@ -39,6 +38,7 @@
 // Pin Definitions
 #include "FED4_Pins.h"
 #include "FED4_DisplayOrient.h"
+#include "FED4_TouchHelpers.h"
 
 // Board Version: v1.7
 #define FED4_BOARD_VERSION_STR "1.7.0"
@@ -59,7 +59,7 @@ static const uint8_t NUM_STRIP_LEDS = 8;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 24;
 
-static const float TOUCH_THRESHOLD = 0.2; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
+// TOUCH_THRESHOLD (rise fraction) is defined in FED4_TouchHelpers.h
 static const char *META_FILE = "/meta.json";
 
 static const char *PREFS_NAMESPACE = "fed4";
@@ -164,14 +164,14 @@ public:
     void hapticTripleBuzz(uint8_t duration = 5);
     void hapticRumble(uint16_t duration_ms = 300);
 
-    // Touch sensor management (defined in FED4_Touch.cpp)
+    // Touch sensor management (defined in FED4_Touch.cpp; free helpers in FED4_TouchHelpers.h)
     bool initializeTouch();
     void calibrateTouchSensors(bool checkStability = false);
     void interpretTouch();
     static void IRAM_ATTR onTouchWakeUp();
-    void resetTouchFlags(); // Reset all touch flags to false
-    void logTouchEvent(); // Log touch events separately from critical path
-    static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right
+    void resetTouchFlags();
+    void logTouchEvent();
+    static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right (legacy gate; prefer rise poll)
 
     // Status LED and Strip control (defined in FED4_LEDs.cpp)
     // (strip - front RGB LEDs on PSV3 rail)
@@ -248,7 +248,6 @@ public:
     void sleep();
     void startSleep();
     void wakeUp();
-    void handleTouch();
     unsigned long pollSensorsTimer = 0;
 
     // Power management (defined in FED4_Sleep.cpp)
@@ -381,9 +380,9 @@ public:
     String event = "";
     float retrievalTime;
     float pokeDuration = 0.0;
-    int touchPadLeftBaseline;
-    int touchPadCenterBaseline;
-    int touchPadRightBaseline;
+    uint32_t touchPadLeftBaseline;
+    uint32_t touchPadCenterBaseline;
+    uint32_t touchPadRightBaseline;
     int motorTurns;
     int reBaselineTouches;
     char filename[32];
@@ -492,8 +491,6 @@ private:
     String getCompileDateTime();
     bool isNewCompilation();
     void updateCompilationID();
-
-    uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
 
     uint8_t *displayBuffer = nullptr;
     bool vcom;

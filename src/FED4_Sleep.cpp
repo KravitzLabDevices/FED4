@@ -17,14 +17,7 @@ void FED4::sleep() {
 // Prepares device for sleep mode by disabling components and entering light sleep
 void FED4::startSleep() {
   // Wait for all touch pads to be released before sleeping
-  while (true) {
-    float leftDev = abs((float)touchRead(TOUCH_PAD_LEFT) / touchPadLeftBaseline - 1.0);
-    float centerDev = abs((float)touchRead(TOUCH_PAD_CENTER) / touchPadCenterBaseline - 1.0);
-    float rightDev = abs((float)touchRead(TOUCH_PAD_RIGHT) / touchPadRightBaseline - 1.0);
-    
-    if (leftDev < TOUCH_THRESHOLD && centerDev < TOUCH_THRESHOLD && rightDev < TOUCH_THRESHOLD) {
-      break;
-    }
+  while (!fed4TouchPadsReleased(TOUCH_THRESHOLD)) {
     delay(1);
   }
 
@@ -37,10 +30,6 @@ void FED4::startSleep() {
 
   // Reset all touch flags before going to sleep
   resetTouchFlags();
-  
-  // Clear wakePad to prevent stale interrupt flags from persisting across sleep cycles
-  // This is especially important for timer wake-ups where touch interrupts might fire
-  // during power transitions or wake-up sequences
   wakePad = 0;
 
   Serial.flush();
@@ -55,6 +44,8 @@ void FED4::startSleep() {
 
   enableAmp(false);
 
+  fed4TouchEnableTouchpadWakeup();
+
   if (sleepSeconds > 0) {  //only sleep if sleepSeconds is greater than 0
     esp_light_sleep_start();
   } else {
@@ -65,12 +56,10 @@ void FED4::startSleep() {
 // Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp() {
   wakeCount++;
-  
-  // Check wake-up cause first to determine if we should preserve wakePad for touch interpretation
+
   esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
-  
-  // Clear wakePad for timer/button wake-ups to prevent false triggers from stale interrupt flags
-  // For touch wake-ups, we preserve wakePad so interpretTouch() can read it
+
+  // Clear wakePad for non-touch wake-ups
   if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {
     wakePad = 0;
   }
@@ -115,32 +104,8 @@ void FED4::wakeUp() {
 
   // Only check touch sensors if woken up by touch
   if (wakeCause == ESP_SLEEP_WAKEUP_TOUCHPAD) {
-    interpretTouch();  // interpretTouch() will clear wakePad after reading it
+    interpretTouch();
   }
-}
-
-// Handles touch inputs and only checks them if a button was not pressed
-void FED4::handleTouch() {
-  pinMode(BUTTON_1, INPUT_PULLDOWN);
-  pinMode(BUTTON_2, INPUT_PULLDOWN);
-  pinMode(BUTTON_3, INPUT_PULLDOWN);
-
-  // Check if wake-up was caused by timer
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER) {
-    wakePad = 0;  // Reset wake pad for timer wake-up
-    return;
-  }
-
-  // Check if any buttons are pressed
-  if (digitalRead(BUTTON_1) == 1 || digitalRead(BUTTON_2) == 1 || digitalRead(BUTTON_3) == 1) {
-    // This is a button wake-up, skip touch interpretation
-    Serial.println("Button wake-up");
-    wakePad = 0;  // Reset wake pad for button wake-up
-    return;
-  }
-
-  // If we get here, this is a touch pad wake-up, so interpret the touch
-  interpretTouch();
 }
 
 // Initializes PSV2 and PSV3 power switch rails via MCP expander

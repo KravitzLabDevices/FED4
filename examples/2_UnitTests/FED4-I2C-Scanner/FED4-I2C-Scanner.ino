@@ -4,7 +4,7 @@
  * Scans the primary I2C bus (SDA=8, SCL=9).
  * RTC (DS3231) and all peripherals are on the main always-on bus (no PSV2 / TCA4307).
  *
- * Expected devices (see src/FED4_Pins.h, examples/Submodules/README.md):
+ * Expected devices (see src/FED4_Pins.h, examples/3_Submodules/README.md):
  *   0x10  VEML7700 lux sensor
  *   0x19  LIS2DH12TR accelerometer
  *   0x20  MCP23017 GPIO expander

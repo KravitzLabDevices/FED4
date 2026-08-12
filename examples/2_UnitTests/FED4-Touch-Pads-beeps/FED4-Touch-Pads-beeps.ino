@@ -1,5 +1,7 @@
 /*
  * FED4 Touch Pads + Beeps
+ *
+ * Uses library FED4_TouchHelpers (NG touch_sens).
  */
 
 #include <Arduino.h>
@@ -9,20 +11,13 @@
 #include <Adafruit_NeoPixel.h>
 #include <cmath>
 #include <FED4_Pins.h>
+#include <FED4_TouchHelpers.h>
 
 Adafruit_MCP23X17 mcp;
 Adafruit_NeoPixel pixels(1, STATUS_LED, NEO_GRB + NEO_KHZ800);
 I2SClass i2s;
 
-uint16_t baseL = 0, baseC = 0, baseR = 0;
 bool tonePlayed = false;
-static constexpr float TOUCH_THRESHOLD = 0.20f;
-
-bool touched(uint16_t value, uint16_t baseline) {
-  if (!baseline) return false;
-  float dev = fabs((float)value / (float)baseline - 1.0f);
-  return dev >= TOUCH_THRESHOLD;
-}
 
 void generateSineWave(uint32_t frequency, uint32_t duration_ms) {
   const uint32_t sampleRate = 48000;
@@ -74,16 +69,20 @@ void setup() {
   pixels.clear();
   pixels.show();
 
-  delay(50);
-  baseL = touchRead(TOUCH_PAD_LEFT);
-  baseC = touchRead(TOUCH_PAD_CENTER);
-  baseR = touchRead(TOUCH_PAD_RIGHT);
+  if (!fed4TouchInitPads()) {
+    Serial.println("Touch init failed — keep pads clear");
+    while (1) delay(10);
+  }
+  fed4TouchPrintDriverConfig();
 }
 
 void loop() {
-  bool left = touched(touchRead(TOUCH_PAD_LEFT), baseL);
-  bool center = touched(touchRead(TOUCH_PAD_CENTER), baseC);
-  bool right = touched(touchRead(TOUCH_PAD_RIGHT), baseR);
+  const bool left =
+      fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_LEFT), fed4TouchIdleL) >= TOUCH_THRESHOLD;
+  const bool center =
+      fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_CENTER), fed4TouchIdleC) >= TOUCH_THRESHOLD;
+  const bool right =
+      fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_RIGHT), fed4TouchIdleR) >= TOUCH_THRESHOLD;
 
   if (left) {
     pixels.setPixelColor(0, pixels.Color(150, 0, 0));
@@ -104,4 +103,3 @@ void loop() {
   pixels.show();
   delay(30);
 }
-

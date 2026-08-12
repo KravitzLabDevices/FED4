@@ -2,7 +2,7 @@
  * SeeedStudio Sense — I2C Slave Submodule (v0.3)
  *
  * Board-specific wiring and capture backend. Shared protocol, state, commands,
- * and ESP32-S3 I2C slave transport live in examples/Submodules/.
+ * and ESP32-S3 I2C slave transport live in examples/3_Submodules/.
  * Spec: ../README.md
  *
  * Pins (XIAO ESP32-S3 Sense):

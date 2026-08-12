@@ -7,7 +7,7 @@
  * Architecture (event-driven reference patterns for future FED4 dev):
  *   - Buttons, INT_OR: GPIO interrupts set volatile flags; loop consumes.
  *     B1 backlight is polled with debounce (toggle on release). ISRs never touch I2C.
- *   - Touch: FED4_TouchS3 (IDF 5.5+ NG direct driver). Boot idle baseline +
+ *   - Touch: FED4_TouchHelpers (IDF 5.5+ NG direct driver). Boot idle baseline +
  *     rise fraction for strip brightness and poke detection.
  *   - ToF: continuous ranging; getRangeStatus() + optional narrow ROI (TOF_USE_NARROW_ROI).
  *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
@@ -65,7 +65,7 @@
 #include <FED4_Pins.h>
 #include <FED4_DisplayOrient.h>
 #include "FED4_DemoHardwareVersion.h"
-#include "../FED4_TouchS3/FED4_TouchS3.h"
+#include <FED4_TouchHelpers.h>
 #include "sounds/startup_sound.h"
 
 #ifndef _swap_int16_t
@@ -98,7 +98,7 @@ static const uint8_t TOUCH_LED_MIN_BRIGHT = 28;  // WS2812 floor — below ~10% 
 // Motor (28BYJ-48 + ULN2003; match FED4-Motor.ino pin order IN1,IN3,IN2,IN4)
 static const uint16_t MOTOR_STEPS = 2048;
 static const uint8_t MOTOR_SPEED_RPM = 8;
-// S3 touch tuning (see FED4_TouchS3 / FED4-Touch-Light-Sleep-Multiple)
+// S3 touch tuning (see FED4_TouchHelpers / FED4-Touch-Light-Sleep-Multiple)
 static const uint32_t POKE_ARM_MS = 1500; // ignore poke edges until after boot settle
 static const uint32_t PELLET_WIPE_MS = 1000; // full strip wipe duration (~1 s)
 static const uint32_t ORIENT_MS = 100;  // accel-based display rotation poll
@@ -493,11 +493,11 @@ void serviceStatusLed() {
 }
 
 // ---------------------------------------------------------------------------
-// Touch — FED4_TouchS3 boot idle baseline + rise fraction polling
+// Touch — FED4_TouchHelpers boot idle baseline + rise fraction polling
 // ---------------------------------------------------------------------------
 
 bool initTouchPads() {
-  if (!fed4TouchS3InitPads()) {
+  if (!fed4TouchInitPads()) {
     Serial.println("Touch idle FAIL");
     return false;
   }
@@ -505,7 +505,7 @@ bool initTouchPads() {
   Serial.printf("Touch idle L:%lu C:%lu R:%lu (OK)\n",
                 (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
                 (unsigned long)fed4TouchIdleR);
-  fed4TouchS3PrintDriverConfig();
+  fed4TouchPrintDriverConfig();
   return true;
 }
 
@@ -522,15 +522,15 @@ bool pokeDetectionReady() {
 }
 
 bool touchPadAbovePokeThreshold(uint32_t raw, uint32_t idle) {
-  return fed4TouchS3RiseFraction(raw, idle) >= TOUCH_TRIGGER_RISE;
+  return fed4TouchRiseFraction(raw, idle) >= TOUCH_TRIGGER_RISE;
 }
 
 void readTouchPads() {
-  telem.touchL = fed4TouchS3Read(TOUCH_PAD_LEFT);
+  telem.touchL = fed4TouchRead(TOUCH_PAD_LEFT);
   delayMicroseconds(800);
-  telem.touchC = fed4TouchS3Read(TOUCH_PAD_CENTER);
+  telem.touchC = fed4TouchRead(TOUCH_PAD_CENTER);
   delayMicroseconds(800);
-  telem.touchR = fed4TouchS3Read(TOUCH_PAD_RIGHT);
+  telem.touchR = fed4TouchRead(TOUCH_PAD_RIGHT);
 }
 
 // S3: touch RAISES the count. Rise above idle maps to strip brightness.
@@ -652,16 +652,16 @@ void updateCenterRainbowDemo() {
 }
 
 bool centerPadTouched() {
-  return fed4TouchS3RiseFraction(telem.touchC, fed4TouchIdleC) >= TOUCH_DEADBAND;
+  return fed4TouchRiseFraction(telem.touchC, fed4TouchIdleC) >= TOUCH_DEADBAND;
 }
 
 // Animation tick: poll raw rise from boot baseline every STRIP_MS (not ISR-gated).
 void updateTouchStrip() {
   if (feedBusy || stripAnimBusy) return;
 
-  telem.touchL = fed4TouchS3Read(TOUCH_PAD_LEFT);
-  telem.touchC = fed4TouchS3Read(TOUCH_PAD_CENTER);
-  telem.touchR = fed4TouchS3Read(TOUCH_PAD_RIGHT);
+  telem.touchL = fed4TouchRead(TOUCH_PAD_LEFT);
+  telem.touchC = fed4TouchRead(TOUCH_PAD_CENTER);
+  telem.touchR = fed4TouchRead(TOUCH_PAD_RIGHT);
 
   if (centerPadTouched()) {
     updateCenterRainbowDemo();
@@ -1101,8 +1101,8 @@ void serviceFeed() {
   bool isLeft;
   if (lPoke && rPoke) {
     // Crosstalk — use whichever pad rose more above baseline.
-    isLeft = fed4TouchS3RiseFraction(telem.touchL, fed4TouchIdleL) >=
-             fed4TouchS3RiseFraction(telem.touchR, fed4TouchIdleR);
+    isLeft = fed4TouchRiseFraction(telem.touchL, fed4TouchIdleL) >=
+             fed4TouchRiseFraction(telem.touchR, fed4TouchIdleR);
   } else {
     isLeft = lPoke;
   }
