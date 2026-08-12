@@ -49,9 +49,9 @@ static const uint8_t DISPLAY_WHITE = 1;
 static const uint8_t DISPLAY_INVERSE = 2;
 static const uint8_t DISPLAY_NORMAL = 3;
 
-// Common display dimensions
-static const uint16_t DISPLAY_WIDTH = 144;
-static const uint16_t DISPLAY_HEIGHT = 168;
+// Common display dimensions (Kyocera TN0216 physical: 320 source × 176 gate)
+static const uint16_t DISPLAY_WIDTH = 320;
+static const uint16_t DISPLAY_HEIGHT = 176;
 // Default boot rotation until orientScreen() runs (see FED4_DisplayOrient.h)
 static const uint8_t DISPLAY_ROTATION = FED4_DISPLAY_ROTATION_NATIVE;
 
@@ -65,6 +65,21 @@ static const char *META_FILE = "/meta.json";
 static const char *PREFS_NAMESPACE = "fed4";
 static const bool PREFS_RO_MODE = true;
 static const bool PREFS_RW_MODE = false;
+
+/** Why waitUntil() / startSleep() returned to the sketch. */
+enum class FedWakeSource : uint8_t {
+    None = 0,
+    Touch,
+    Button,
+    Timer,      // housekeeping deadline (wall clock)
+    Interrupt   // INT_OR GPIO (non-button)
+};
+
+struct FedEvent {
+    FedWakeSource source = FedWakeSource::None;
+    uint8_t pad = 0;    // 1=left, 2=center, 3=right when Touch
+    uint8_t button = 0; // 1/2/3 when Button
+};
 
 // current very public-oriented, consider pushing some to private
 class FED4 : public Adafruit_GFX
@@ -97,13 +112,22 @@ public:
 
     // Corefunctions
     void feed();
-    void run();
-    
+    void run(); // legacy: housekeeping + sleep(sleepSeconds)
+    /** Display/time/serial/hublink/motion LED — call after handling a FedEvent. */
+    void serviceHousekeeping();
+    /**
+     * Light-sleep until touch, button, or housekeepingSeconds (wall clock).
+     * VCOM is toggled every ~500 ms inside sleep; spurious GPIO/USB wakes do not
+     * shorten the housekeeping deadline. Sets leftTouch/centerTouch/rightTouch
+     * on touch. Default 60 s — much less aggressive than run()'s 4 s.
+     */
+    FedEvent waitUntil(uint32_t housekeepingSeconds = 60);
+
     // Game functions
     void pong();
 
     // Sleep configuration
-    int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups
+    int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups (run/sleep)
     bool sleepyLEDs = true; // Flag to control whether LEDs stay on during sleep (true = LEDs sleep with sleep, false = LEDs stay on during sleep)
 
     // Menu functions
@@ -248,6 +272,7 @@ public:
     void sleep();
     void startSleep();
     void wakeUp();
+    FedWakeSource lastWakeSource = FedWakeSource::None;
     unsigned long pollSensorsTimer = 0;
 
     // Power management (defined in FED4_Sleep.cpp)
@@ -409,6 +434,7 @@ public:
     // Motion sensor functions (defined in FED4_Motion.cpp) - PIR EKMB1107112
     // PIR pin configured in begin(); no protocol init required
     bool motion();
+    void updateStatusLedFromMotion(); // STATUS_LED mirrors PIR (Demo-Hardware)
     void resetMotionCounters();
 
     // Drop sensor functions
@@ -438,6 +464,8 @@ public:
     uint8_t scanAndClearInterrupts();                // scan + clear + verify line release
     FED4IntSource firstInterruptSource();            // highest-priority single source
     uint8_t getLastInterruptMask();                  // mask captured automatically on GPIO wake
+    /** Serial dump of INT_OR + button wake pins + decoded scanInterrupts() mask. */
+    void printInterruptStatus(const char *tag = nullptr);
 
     // Opt-in per-source interrupt enable helpers
     bool enableAccelInterrupt(float threshold_g = 0.1f, uint8_t duration_count = 0);
@@ -495,6 +523,12 @@ private:
     uint8_t *displayBuffer = nullptr;
     bool vcom;
     void sendDisplayCommand(uint8_t cmd);
+
+    // I2C bus helpers (ESP32 Wire.setTimeOut — not Stream setTimeout)
+    void i2cReinitBus();
+    bool i2cProbe(uint8_t addr);
+    void i2cRecoverBus();
+    bool i2cBusHealthy();
 
     friend class FED4_Display;
     friend class FED4_LED;

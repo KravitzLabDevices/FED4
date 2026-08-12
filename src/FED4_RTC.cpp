@@ -25,32 +25,66 @@ bool FED4::initializeRTC()
         return false;
     }
 
-    // Initialize internal RTC from external RTC
-    DateTime now = rtc.now();
-    Inrtc.setTime(now.unixtime());  
+    // Adafruit_I2CDevice::begin() calls Wire.begin() without pins — caller should
+    // i2cReinitBus(); also rebind here so lostPower/adjust are reliable.
+    i2cReinitBus();
 
-    bool result = false;  // Initialize result variable
-    
-    // Start preferences session
+    // DS3231 OSF (lostPower) only when the oscillator actually stopped.
+    // Also sync on new firmware flash (compile ID) — match Demo-Hardware.
+    bool setFromCompile = false;
+    if (rtc.lostPower())
+    {
+        Serial.println("RTC OSF set — oscillator had stopped, using compile time");
+        setFromCompile = true;
+    }
+
     if (!preferences.begin(PREFS_NAMESPACE, false))
     {
         Serial.println("Failed to initialize preferences");
-        return false;
-    }
-
-    // Try-catch like pattern to ensure preferences.end() is always called
-    do {
-        if (forceRTCUpdate || isNewCompilation())
+        // Still try lostPower recovery without prefs
+        if (setFromCompile || forceRTCUpdate)
         {
             updateRTC();
-            updateCompilationID();
-            forceRTCUpdate = false; // Reset the flag after updating
+            forceRTCUpdate = false;
         }
-        result = true;  // If we get here, everything succeeded
-    } while (false);
+        DateTime now = rtc.now();
+        Inrtc.setTime(now.unixtime());
+        Serial.printf("RTC time: %04u-%02u-%02u %02u:%02u:%02u\n",
+                      now.year(), now.month(), now.day(),
+                      now.hour(), now.minute(), now.second());
+        return !setFromCompile; // prefs failed but RTC may be OK
+    }
 
-    preferences.end();  // Always end the preferences session
-    return result;
+    if (forceRTCUpdate || isNewCompilation())
+    {
+        Serial.println("New firmware build — syncing RTC to compile time");
+        setFromCompile = true;
+        updateCompilationID();
+        forceRTCUpdate = false;
+    }
+
+    // Sanity: unset / epoch-ish clocks (e.g. 2000-01-01) always get compile time
+    DateTime before = rtc.now();
+    if (before.year() < 2020)
+    {
+        Serial.println("RTC year < 2020 — syncing to compile time");
+        setFromCompile = true;
+    }
+
+    if (setFromCompile)
+    {
+        updateRTC();
+    }
+
+    preferences.end();
+
+    DateTime now = rtc.now();
+    Inrtc.setTime(now.unixtime());
+    Serial.printf("RTC %s: %04u-%02u-%02u %02u:%02u:%02u\n",
+                  setFromCompile ? "set" : "kept",
+                  now.year(), now.month(), now.day(),
+                  now.hour(), now.minute(), now.second());
+    return true;
 }
 
 void FED4::updateRTC()

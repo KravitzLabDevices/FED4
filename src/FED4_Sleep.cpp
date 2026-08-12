@@ -3,8 +3,7 @@
 // High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep(int seconds) {
   sleepSeconds = seconds;
-  esp_sleep_enable_timer_wakeup(sleepSeconds * 1000000); // Convert sleepSeconds to microseconds
-  noPix(); 
+  noPix();
   startSleep();
   wakeUp();
 }
@@ -14,43 +13,154 @@ void FED4::sleep() {
   sleep(sleepSeconds);
 }
 
-// Prepares device for sleep mode by disabling components and entering light sleep
+// Light sleep aligned with FED4-Touch-Light-Sleep-Multiple / FED4-SleepModes:
+//   - touchpad + timer only (GPIO wake disabled for the session — UT has no GPIO wake;
+//     INT_OR/USB-level GPIO spam was preventing real sleep so touch never won)
+//   - buttons polled between VCOM chunks
+//   - software touch poll between chunks as backup if pad is held across a timer wake
+//   - wall-clock deadline (millis)
 void FED4::startSleep() {
+  lastWakeSource = FedWakeSource::None;
+
   // Wait for all touch pads to be released before sleeping
   while (!fed4TouchPadsReleased(TOUCH_THRESHOLD)) {
     delay(1);
   }
 
-  // Calibrate touch sensors before sleep on every N wake-ups, unless program is ActivityMonitor
-  if (program != "ActivityMonitor" && wakeCount % 200 == 0)  {
+  // Rare rebaseline (skip wakeCount==0 — first sleep already calibrated at begin)
+  if (program != "ActivityMonitor" && wakeCount > 0 && wakeCount % 200 == 0) {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
-    delay(1);  // Give I2C bus time to stabilize
+    delay(1);
   }
 
-  // Reset all touch flags before going to sleep
+  // Clear poke latches and push to MIP — panel retains pixels until refresh
   resetTouchFlags();
   wakePad = 0;
-
-  Serial.flush();
-  
-  // Check if sleepyLEDs flag is enabled
-  if (sleepyLEDs) {
-    lightsOff(); // clear the front LED strip
-    noPix();  // Turn off status LED when going to sleep
-    PSV3_OFF();  // Turn off PSV3 to power down front RGB strip
+  if (displayBuffer != nullptr) {
+    displayIndicators();
+    refresh();
   }
-  // PSV2 remains ON during sleep (RTC, photogates, haptic on PSV2 rail)
+
+  if (sleepyLEDs) {
+    lightsOff();
+    noPix();
+    PSV3_OFF();
+  }
 
   enableAmp(false);
 
+  if (sleepSeconds <= 0) {
+    lastWakeSource = FedWakeSource::Timer;
+    return;
+  }
+
+  // Match unit tests: do not arm GPIO wake during light sleep. Buttons are polled
+  // between chunks; INT_OR held low would otherwise exit every sleep immediately.
+  if (interruptPending()) {
+    printInterruptStatus("pre-sleep");
+  }
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+
   fed4TouchEnableTouchpadWakeup();
 
-  if (sleepSeconds > 0) {  //only sleep if sleepSeconds is greater than 0
+  const uint32_t vcomMs = 500;
+  const uint32_t deadline = millis() + (uint32_t)sleepSeconds * 1000UL;
+  bool exitedForEvent = false;
+
+  while ((int32_t)(deadline - millis()) > 0) {
+    vcom = !vcom;
+    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
+
+    uint32_t remainingMs = deadline - millis();
+    uint32_t chunkMs = (remainingMs < vcomMs) ? remainingMs : vcomMs;
+    if (chunkMs < 1) {
+      chunkMs = 1;
+    }
+
+    esp_sleep_enable_timer_wakeup((uint64_t)chunkMs * 1000ULL);
+    fed4TouchEnableTouchpadWakeup();
+
+    Serial.flush();
     esp_light_sleep_start();
-  } else {
-    wakeUp();
+
+    const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+
+    if (cause == ESP_SLEEP_WAKEUP_TOUCHPAD) {
+      lastWakeSource = FedWakeSource::Touch;
+      exitedForEvent = true;
+      break;
+    }
+
+    // Software backup: pad active after a timer wake (finger across chunk boundary)
+    if (fed4TouchAnyPadActive(TOUCH_THRESHOLD)) {
+      lastWakeSource = FedWakeSource::Touch;
+      exitedForEvent = true;
+      break;
+    }
+
+    if (digitalRead(BUTTON_1) == HIGH || digitalRead(BUTTON_2) == HIGH ||
+        digitalRead(BUTTON_3) == HIGH) {
+      PSV2_ON();
+      i2cReinitBus();
+      checkButton1();
+      checkButton2();
+      checkButton3();
+      lastWakeSource = FedWakeSource::Button;
+      exitedForEvent = true;
+      break;
+    }
+
+    updateStatusLedFromMotion();
   }
+
+  if (!exitedForEvent) {
+    lastWakeSource = FedWakeSource::Timer;
+  }
+
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+
+  // Restore GPIO wake for buttons / INT_OR outside the sleep session
+  esp_sleep_enable_gpio_wakeup();
+}
+
+FedEvent FED4::waitUntil(uint32_t housekeepingSeconds) {
+  FedEvent event;
+
+  const int savedSeconds = sleepSeconds;
+  sleepSeconds = (housekeepingSeconds > 0) ? (int)housekeepingSeconds : 1;
+
+  noPix();
+  startSleep();
+  wakeUp();
+
+  sleepSeconds = savedSeconds;
+
+  event.source = lastWakeSource;
+
+  if (leftTouch) {
+    event.source = FedWakeSource::Touch;
+    event.pad = 1;
+  } else if (centerTouch) {
+    event.source = FedWakeSource::Touch;
+    event.pad = 2;
+  } else if (rightTouch) {
+    event.source = FedWakeSource::Touch;
+    event.pad = 3;
+  } else if (wakePad >= 1 && wakePad <= 3) {
+    event.source = FedWakeSource::Touch;
+    event.pad = wakePad;
+  } else if (lastWakeSource == FedWakeSource::Button) {
+    if (digitalRead(BUTTON_1) == HIGH) {
+      event.button = 1;
+    } else if (digitalRead(BUTTON_2) == HIGH) {
+      event.button = 2;
+    } else if (digitalRead(BUTTON_3) == HIGH) {
+      event.button = 3;
+    }
+  }
+
+  return event;
 }
 
 // Wakes up device by re-enabling components and initializing I2C/I2S
@@ -59,28 +169,21 @@ void FED4::wakeUp() {
 
   esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
 
-  // Clear wakePad for non-touch wake-ups
-  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD &&
+      lastWakeSource != FedWakeSource::Touch) {
     wakePad = 0;
   }
-  
-  redPix(1); //very dim red pix to indicate when FED4 is awake
 
-  // Reinitialize I2C bus FIRST before any sensor operations
   PSV2_ON();
-  Wire.begin();  // Reinitialize primary I2C
-  delay(1);  // Brief delay after I2C init
-  
-  // Reconfigure GPIO expander pins after wake-up
+  i2cReinitBus();
+  delay(1);
+
   mcp.pinMode(EXP_HAPTIC, OUTPUT);
   mcp.digitalWrite(EXP_HAPTIC, LOW);
 
-  PSV3_ON();  // Turn on PSV3 (front RGB strip)
+  PSV3_ON();
   enableAmp(true);
 
-  // If woken by INT_OR (GPIO wake, line LOW), scan interrupt sources so the
-  // sketch can call getLastInterruptMask() after sleep() returns.
-  // scanAndClearInterrupts() also releases the line so the next sleep is clean.
   if (wakeCause == ESP_SLEEP_WAKEUP_GPIO && interruptPending()) {
     lastInterruptMask = scanAndClearInterrupts();
     Serial.printf("INT_OR wake: sources = 0x%02X\n", lastInterruptMask);
@@ -88,29 +191,34 @@ void FED4::wakeUp() {
     lastInterruptMask = INT_SRC_NONE;
   }
 
-  // Only check button and sensor polling if not woken up by touch
-  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD) {
+  // Touch first (UT identifies pad immediately after touchpad wake)
+  if (wakeCause == ESP_SLEEP_WAKEUP_TOUCHPAD ||
+      lastWakeSource == FedWakeSource::Touch ||
+      fed4TouchAnyPadActive(TOUCH_THRESHOLD)) {
+    interpretTouch();
+  }
+
+  // App-level wake: buttons + sensors (not every VCOM micro-wake)
+  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD &&
+      lastWakeSource != FedWakeSource::Touch) {
     checkButton1();
-    checkButton2(); 
+    checkButton2();
     checkButton3();
 
     if (program == "ActivityMonitor") {
-      pollSensors(1);  //default for activity monitoring is 1 minutes between sensor polling, change this here
+      pollSensors(1);
     } else {
-      pollSensors(10);  //default for all other programs is 10 minutes between sensor polling, change this here
+      pollSensors(10);
     }
-    
   }
 
-  // Only check touch sensors if woken up by touch
-  if (wakeCause == ESP_SLEEP_WAKEUP_TOUCHPAD) {
-    interpretTouch();
+  if (useMotionSensor) {
+    updateStatusLedFromMotion();
+  } else {
+    redPix(1);
   }
 }
 
-// Initializes PSV2 and PSV3 power switch rails via MCP expander
-// PSV2 (3.3V2): RTC, amplifier, haptic, photogates (TCA4307 downstream)
-// PSV3 (3.3V3): front RGB LED strip
 bool FED4::initializePower()
 {
     mcp.pinMode(EXP_PSV2_EN, OUTPUT);
@@ -120,27 +228,21 @@ bool FED4::initializePower()
     return true;
 }
 
-// Enables PSV2 power rail (RTC/amp/haptic/photogate)
 void FED4::PSV2_ON()
 {
-    mcp.digitalWrite(EXP_PSV2_EN, LOW); // ~ON is active LOW
-    delayMicroseconds(100); // Stabilization time
+    mcp.digitalWrite(EXP_PSV2_EN, LOW); // active LOW enable
 }
 
-// Disables PSV2 power rail
 void FED4::PSV2_OFF()
 {
     mcp.digitalWrite(EXP_PSV2_EN, HIGH);
 }
 
-// Enables PSV3 power rail (front RGB strip)
 void FED4::PSV3_ON()
 {
-    mcp.digitalWrite(EXP_PSV3_EN, LOW); // ~ON is active LOW
-    delayMicroseconds(100); // Stabilization time
+    mcp.digitalWrite(EXP_PSV3_EN, LOW); // active LOW enable
 }
 
-// Disables PSV3 power rail (front RGB strip)
 void FED4::PSV3_OFF()
 {
     mcp.digitalWrite(EXP_PSV3_EN, HIGH);

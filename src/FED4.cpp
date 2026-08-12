@@ -61,14 +61,22 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 /********************************************************
  * Core Functions
  ********************************************************/
+void FED4::serviceHousekeeping()
+{
+    updateTime();
+    orientScreen();
+    updateDisplay();
+    serialStatusReport();
+    syncHublink();
+    updateStatusLedFromMotion();
+}
+
 /**
- * Main run loop that updates time, display, prints status and handles sleep
+ * Legacy loop helper: housekeeping then sleep(sleepSeconds).
+ * Prefer waitUntil() + serviceHousekeeping() for event-driven programs.
  */
 void FED4::run()
 {
-    updateTime();
-    updateDisplay();
-    serialStatusReport();
-    syncHublink(); // Sync with Hublink before sleep
+    serviceHousekeeping();
     sleep();
 }

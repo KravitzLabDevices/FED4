@@ -24,7 +24,7 @@ void FED4::initFeeding()
 
 void FED4::dispense()
 {
-    while (!pelletPresent && !pelletDropped) // while no pellet is present and none has dropped
+    while (!pelletPresent && !pelletDropped && !dispenseError) // while no pellet present/dropped and not jammed
     {
         redPix();
         // check if pellet has dropped or is present

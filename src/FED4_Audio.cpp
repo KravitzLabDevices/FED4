@@ -1,5 +1,6 @@
 // src/FED4_Audio.cpp
 #include "FED4.h"
+#include "sounds/startup_sound.h"
 
 static constexpr uint32_t FED4_AUDIO_SAMPLE_RATE_HZ = 48000;
 
@@ -173,21 +174,32 @@ void FED4::playTones(const Tone *tones, size_t count)
 }
 
 /**
- * Plays a startup sequence of tones 
+ * Plays the Demo-Hardware "Welcome to FED4" PCM boot clip (~2.5 s TTS).
+ * Blocking; same I2S path as playTone.
  */
 void FED4::playStartup()
 {
-    const Tone startupSequence[] = {
-        {587, 100},  // D5
-        {784, 100},  // G5
-        {987, 200},  // B5
-        {1175, 300}, // D6
-        {987, 100},  // B5
-        {784, 200},  // G5
-        {1175, 300}  // D6
-    };
+    if (audioSilenced) {
+        return;
+    }
 
-    playTones(startupSequence, 7);
+    mcp.digitalWrite(EXP_AMP_SD, HIGH);
+    delay(5);
+
+    constexpr size_t CHUNK = 256;
+    int16_t buf[CHUNK];
+    for (size_t i = 0; i < STARTUP_PCM_SAMPLES;) {
+        size_t n = STARTUP_PCM_SAMPLES - i;
+        if (n > CHUNK) {
+            n = CHUNK;
+        }
+        memcpy_P(buf, &STARTUP_PCM[i], n * sizeof(int16_t));
+        i2s.write((uint8_t *)buf, n * sizeof(int16_t));
+        i += n;
+    }
+
+    delay(20); // let DMA drain
+    mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 
 /**

@@ -2,6 +2,15 @@
 
 // Motion detection using EKMB1107112 PIR sensor (digital push-pull output on PIR_MOTION pin).
 // The PIR pin is configured in begin() alongside other GPIO pins.
+// STATUS_LED mirrors PIR (same as FED4-Demo-Hardware / FED4-PIR-Sensor).
+
+void FED4::updateStatusLedFromMotion()
+{
+    if (!useMotionSensor) {
+        return;
+    }
+    analogWrite(STATUS_LED, digitalRead(PIR_MOTION) ? 255 : 0);
+}
 
 bool FED4::motion()
 {
@@ -10,6 +19,7 @@ bool FED4::motion()
     }
 
     bool motionFlag = digitalRead(PIR_MOTION);
+    updateStatusLedFromMotion();
 
     Serial.print("PIR: ");
     Serial.print(motionFlag ? "MOTION" : "clear");

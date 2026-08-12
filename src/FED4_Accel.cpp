@@ -78,6 +78,10 @@ bool FED4::initializeAccel()
     accel.setRange(LIS3DH_RANGE_2_G);
     accel.setDataRate(LIS3DH_DATARATE_50_HZ);
     accel.setPerformanceMode(LIS3DH_MODE_HIGH_RESOLUTION);
+
+    // INT1 polarity / OR-gate idle is applied in initializeInterrupts()
+    // (active-LOW so ACCEL_INT1 idles HIGH into the AND gate).
+
     return true;
 }
 

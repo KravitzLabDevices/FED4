@@ -45,43 +45,25 @@ void FED4::vibrateJamClear()
     }
 }
 
-void FED4::jammed(){
+void FED4::jammed()
+{
   fillRect(0, 0, 176, 17, DISPLAY_BLACK);
-  
+
   setFont(&Org_01);
   setTextSize(2);
   setTextColor(DISPLAY_WHITE);
 
   setCursor(0, 9);
-  print("DISPENSE ERR"); 
+  print("DISPENSE ERR");
   refresh();
   releaseMotor();
   logData("DispenseError");
-  //turn lEDS off
   lightsOff();
   noPix();
 
-  while(1) {
-    // Infinite loop to hang the program
-
-    enableAmp(false); 
-    syncHublink(); // Sync with Hublink before sleep
-    // put FED4 to sleep with timer wakeup for sensor polling
-    esp_sleep_enable_timer_wakeup(10 * 1000000); // Wake up every 10 seconds (in microseconds)
-    esp_light_sleep_start();
-    PSV3_ON();
-    enableAmp(true);
-    // Reinitialize primary I2C bus for sensor polling
-    Wire.begin();
-    delay(1);
-
-    // Poll sensors every wakeup (pollSensors checks internally if enough time has passed)
-    if (program == "ActivityMonitor") {
-      pollSensors(1);  // 1 minute interval for ActivityMonitor
-    } else {
-      pollSensors(10);  // 10 minute interval for other programs
-    }
-    checkButton2(); //check this button for resetting the device
-    delay(100);
-  }
+  // Soft-fail: let feed() finish and the program loop continue
+  dispenseError = true;
+  pelletReady = false;
+  motorTurns = 0;
+  Serial.println("Jam: soft-fail — returning to program loop");
 }

@@ -253,9 +253,12 @@ void FED4::calibrateTouchSensors(bool checkStability) {
  * Optional short hold poll for pokeDuration. Sets left/center/rightTouch flags.
  */
 void FED4::interpretTouch() {
-  delay(1);
-
-  const char *pad = fed4TouchIdentifyWakePad(TOUCH_THRESHOLD);
+  // After light sleep, NG smooth filter needs a few samples before rise is valid
+  const char *pad = nullptr;
+  for (int attempt = 0; attempt < 25 && pad == nullptr; attempt++) {
+    delay(2);
+    pad = fed4TouchIdentifyWakePad(TOUCH_THRESHOLD);
+  }
   if (pad == nullptr) {
     wakePad = 0;
     return;
@@ -291,8 +294,6 @@ void FED4::interpretTouch() {
     rightTouch = true;
     wakePad = 3;
   }
-
-  wakePad = 0;
 }
 
 void FED4::resetTouchFlags() {

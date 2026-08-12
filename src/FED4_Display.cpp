@@ -24,10 +24,21 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                                       (uint8_t)~8,   (uint8_t)~16,  (uint8_t)~32,
                                       (uint8_t)~64,  (uint8_t)~128};
 
+// Demo-Hardware header metrics (default GFX font: cursor Y = top edge of glyph)
+static const int16_t HEADER_H = 20;
+static const int16_t HEADER_TEXT_Y = 5;
+static const int16_t CONTENT_TOP = 28;
+static const int16_t DIVIDER_Y = 70;
+static const int16_t COUNTERS_TOP = 88;
+
 void FED4::updateDisplay() {
-  setFont(&FreeSans9pt7b);
+  // Demo ground truth: default GFX font for body; FreeSans reserved for labels
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
+
+  // Full clear each status frame — MIP retains uncleared pixels otherwise
+  memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
 
   // Check if this is ActivityMonitor program
   if (program == "ActivityMonitor") {
@@ -36,7 +47,7 @@ void FED4::updateDisplay() {
     displayTask();
     displayMouseId();
 
-    drawLine(0, 60, 175, 60, DISPLAY_BLACK);  
+    drawLine(0, DIVIDER_Y, 175, DIVIDER_Y, DISPLAY_BLACK);
 
     // draw screen elements
     displayEnvironmental();
@@ -54,13 +65,13 @@ void FED4::displayActivityMonitor() {
   displayTask();
   displayMouseId();
 
-  drawLine(0, 60, 175, 60, DISPLAY_BLACK);  
+  drawLine(0, DIVIDER_Y, 175, DIVIDER_Y, DISPLAY_BLACK);
 
   // draw screen elements (same as normal display)
   displayEnvironmental();
   displayBattery();
   displaySDCardStatus();
-  
+
   // Replace displayCounters() with activity information
   displayActivityCounters();
 
@@ -68,85 +79,73 @@ void FED4::displayActivityMonitor() {
 }
 
 void FED4::displayActivityCounters() {
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  
-  // Clear all counter value areas with one white rectangle (same as displayCounters)
-  fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
-  
-  setCursor(6, 80);
-  print("Activity ");
-  setCursor(90, 80);
-  print(motionCount);
-  
-  setCursor(6, 100);
-  print("Activity% ");
-  setCursor(90, 100);
-  
-  // Display motion percentage (calculated in real-time by motion() and pollSensors())
-  printf("%.1f", motionPercentage);
-  
-  setCursor(6, 120);
-  print("Seconds");
-  setCursor(90, 120);
 
-  // Initialize pollSensorsTimer if it hasn't been set yet
+  fillRect(90, COUNTERS_TOP - 4, 70, 78, DISPLAY_WHITE);
+
+  setCursor(6, COUNTERS_TOP);
+  print("Activity ");
+  setCursor(90, COUNTERS_TOP);
+  print(motionCount);
+
+  setCursor(6, COUNTERS_TOP + 20);
+  print("Activity% ");
+  setCursor(90, COUNTERS_TOP + 20);
+
+  printf("%.1f", motionPercentage);
+
+  setCursor(6, COUNTERS_TOP + 40);
+  print("Seconds");
+  setCursor(90, COUNTERS_TOP + 40);
+
   if (pollSensorsTimer == 0) {
     pollSensorsTimer = millis();
   }
 
-  //print elapsed seconds since pollSensorsTimer was reset
   print((millis() - pollSensorsTimer) / 1000);
-  
-  setCursor(6, 140);
+
+  setCursor(6, COUNTERS_TOP + 60);
   print("Uptime(h)");
-  setCursor(90, 140);
-  // Calculate total uptime in hours with 2 decimal places
+  setCursor(90, COUNTERS_TOP + 60);
   float uptimeHours = millis() / 1000.0 / 3600.0;
   printf("%.2f", uptimeHours);
 }
 
 void FED4::displayTask() {
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  
+
   if (program == "SequenceLearning") {
-    // Display sequence information
-    setCursor(6, 35);
+    setCursor(6, CONTENT_TOP + 8);
     print("Seq:");
-    
-    // Clear area for sequence display
-    fillRect(40, 35, 120, 30, DISPLAY_WHITE);
-    
+
+    fillRect(40, CONTENT_TOP, 120, 30, DISPLAY_WHITE);
+
     if (currentSequence.length() > 0) {
-      setCursor(50, 35);
-      
-      // Display each character in the sequence (show entire required sequence)
+      setCursor(50, CONTENT_TOP + 8);
+
       for (int i = 0; i < currentSequence.length(); i++) {
         char c = currentSequence[i];
-        
-        // Show the entire required sequence for the current level
+
         if (i < currentSequenceLevel) {
-          // Required sequence items - all with black background, white text
-          fillRect(43 + (i * 12), 20, 19, 19, DISPLAY_BLACK);
+          fillRect(43 + (i * 12), CONTENT_TOP, 19, 19, DISPLAY_BLACK);
           setTextColor(DISPLAY_WHITE);
         } else {
-          // Future level items - white background, black text
-          fillRect(43 + (i * 12), 20, 19, 19, DISPLAY_WHITE);
+          fillRect(43 + (i * 12), CONTENT_TOP, 19, 19, DISPLAY_WHITE);
           setTextColor(DISPLAY_BLACK);
         }
-        
-        setCursor(45 + (i * 12), 35);
+
+        setCursor(45 + (i * 12), CONTENT_TOP + 8);
         print(c);
       }
     }
   } else {
-    // Display regular program name (limited to first 8 characters)
-    setCursor(6, 35);
+    setCursor(6, CONTENT_TOP + 8);
     print("Task: ");
-    fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
+    fillRect(70, CONTENT_TOP, 100, 16, DISPLAY_WHITE);
     String shortProgram = program;
     if (shortProgram.length() > 8) {
       shortProgram = shortProgram.substring(0, 8);
@@ -156,99 +155,122 @@ void FED4::displayTask() {
 }
 
 void FED4::displayMouseId() {
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  
+
+  const int16_t mouseY = CONTENT_TOP + 28; // room below Task; gap above divider
+
   if (!sdCardAvailable) {
-    // Show SD card error instead of MouseID
-    setCursor(6, 54);
-    fillRect(6, 41, 120, 16, DISPLAY_WHITE); // Clear area for mouse ID and label
+    setCursor(6, mouseY);
+    fillRect(6, mouseY - 8, 160, 14, DISPLAY_WHITE);
     print("SD Card error!");
   } else {
-    // Show normal MouseID
-    setCursor(6, 54);
+    setCursor(6, mouseY);
     print("MouseID: ");
-    char idStr[6];  
+    char idStr[6];
     int mouseIdNum = mouseId.toInt();
     if (mouseIdNum == 0 && mouseId[0] != '0') {
-      // Handle invalid conversion - just display the original string truncated to 4 chars
       snprintf(idStr, sizeof(idStr), "%.4s", mouseId.c_str());
     } else {
       snprintf(idStr, sizeof(idStr), "%04d", mouseIdNum % 10000);
     }
-    fillRect(82, 41, 80, 16, DISPLAY_WHITE); // Clear area for mouse ID
+    fillRect(100, mouseY - 8, 70, 14, DISPLAY_WHITE);
     print(idStr);
   }
 }
 
 void FED4::displaySex(){
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  setCursor(6, 71);
+  setCursor(6, 82);
   print("Sex: ");
-  fillRect(48, 58, 110, 16, DISPLAY_WHITE); // Clear area for sex name
+  fillRect(48, 74, 120, 14, DISPLAY_WHITE);
   print(sex);
 }
 
 void FED4::displayStrain(){
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  setCursor(6, 89);
+  setCursor(6, 100);
   print("Strain: ");
-  fillRect(60, 76, 160, 16, DISPLAY_WHITE); // Clear area for strain name
+  fillRect(76, 92, 96, 14, DISPLAY_WHITE);
   print(strain);
 }
 
 void FED4::displayAge(){
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  setCursor(6, 107);
+  setCursor(6, 118);
   print("Age:");
-  fillRect(42, 94, 160, 16, DISPLAY_WHITE); // Clear area for age name
+  fillRect(48, 110, 120, 14, DISPLAY_WHITE);
   print(age);
-  print(" months");
+  print(" mo");
 }
 
 void FED4::displayEnvironmental(){
-  fillRect(0, 0, 176, 17, DISPLAY_BLACK);
-  
-  setFont(&Org_01);
-  setTextSize(2);
+  // Demo: HEADER_H=20, default-font text at Y=5 (top edge of glyph)
+  fillRect(0, 0, 176, HEADER_H, DISPLAY_BLACK);
+
+  setFont(nullptr);
+  setTextSize(1);
   setTextColor(DISPLAY_WHITE);
 
-  setCursor(5, 9);
-  print((int)temperature); 
-  drawCircle(30, 3, 2, DISPLAY_WHITE); 
-  drawCircle(31, 3, 2, DISPLAY_WHITE); 
-  setCursor(35, 9);
+  setCursor(4, HEADER_TEXT_Y);
+  print((int)temperature);
   print("C");
-  
-  // Add speaker muted icon if audio is silenced
+
+  if (humidity >= 0) {
+    setCursor(36, HEADER_TEXT_Y);
+    print((int)humidity);
+    print("%");
+  }
+
+  if (lux >= 0) {
+    setCursor(70, HEADER_TEXT_Y);
+    if (lux >= 10000) {
+      print((int)(lux / 1000));
+      print("k");
+    } else {
+      print((int)lux);
+    }
+    // Uppercase L — default font's lowercase 'l' looks like '1' ("18lx" → "181x")
+    print(" L");
+  }
+
   if (audioSilenced) {
-    setCursor(55, 9);
-    print("X"); // X means no audio
+    setCursor(108, HEADER_TEXT_Y);
+    print("X");
   }
 }
 
 void FED4::displayBattery(){
-  //battery graphic
-  fillRect (80, 1, 18, 10, DISPLAY_WHITE); //body
-  fillRect (82, 3, 14, 6, DISPLAY_BLACK); //body
-  
-  fillRect (99, 3, 2, 6, DISPLAY_WHITE);   //terminal
+  // Demo-style header battery: 7px tall, optically centered in HEADER_H
+  static const int16_t BAR_H = 7;
+  static const int16_t BAR_W = 18;
+  static const int16_t INNER_H = 5;
+  const int16_t barY = (HEADER_H - BAR_H) / 2; // 6 in a 20px bar
+  const int16_t barX = 118;
+  const int16_t innerY = barY + (BAR_H - INNER_H) / 2;
 
-  fillRect (82, 2, (int)((cellVoltage)/7), 8, DISPLAY_WHITE);  //fill
+  fillRect(barX, barY, BAR_W, BAR_H, DISPLAY_WHITE);
+  fillRect(barX + 2, innerY, 14, INNER_H, DISPLAY_BLACK);
+  fillRect(barX + BAR_W, innerY, 2, INNER_H, DISPLAY_WHITE); // terminal
+  int fillW = (int)(cellVoltage / 7);
+  if (fillW < 0) fillW = 0;
+  if (fillW > 14) fillW = 14;
+  if (fillW > 0) {
+    fillRect(barX + 2, innerY, fillW, INNER_H, DISPLAY_WHITE);
+  }
 
-  //battery text
-  setFont(&Org_01);
-  setTextSize(2);
+  setFont(nullptr);
+  setTextSize(1);
   setTextColor(DISPLAY_WHITE);
-  
-  setCursor(105, 9);
+
+  setCursor(142, HEADER_TEXT_Y);
   print(cellVoltage, 1);
   print("V");
 }
@@ -259,85 +281,78 @@ void FED4::displaySDCardStatus() {
 
 void FED4::displayCounters()
 {
-  setFont(&FreeSans9pt7b);
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  
-  // Clear all counter value areas with one white rectangle
-  fillRect(90, 68, 50, 78, DISPLAY_WHITE);  // Clear area for all counter values
-  
-  setCursor(30, 80);
+
+  // Row tops shared with displayIndicators() — default font Y is glyph top (~8px tall)
+  fillRect(90, COUNTERS_TOP - 2, 70, 78, DISPLAY_WHITE);
+
+  setCursor(30, COUNTERS_TOP);
   print("Left: ");
-  setCursor(90, 80);
+  setCursor(90, COUNTERS_TOP);
   print(leftCount);
-  setCursor(30, 100);
+  setCursor(30, COUNTERS_TOP + 20);
   print("Center: ");
-  setCursor(90, 100);
+  setCursor(90, COUNTERS_TOP + 20);
   print(centerCount);
-  setCursor(30, 120);
-  print("Right:  ");
-  setCursor(90, 120);
+  setCursor(30, COUNTERS_TOP + 40);
+  print("Right: ");
+  setCursor(90, COUNTERS_TOP + 40);
   print(rightCount);
-  setCursor(30, 140);
+  setCursor(30, COUNTERS_TOP + 60);
   print("Pellets:");
-  setCursor(90, 140);
+  setCursor(90, COUNTERS_TOP + 60);
   print(pelletCount);
 }
 
 void FED4::displayIndicators(){
-  //TODO: add indicators for when touch flags are set
+  // Circle center = text top + 3 → optical middle of 8px default font
+  static const int16_t ROW = 20;
+  static const int16_t DOT_X = 17;
+  static const int16_t DOT_R = 4;
+  static const int16_t DOT_DY = 3;
 
-  //Left 
-  fillCircle(17, 75, 5, DISPLAY_WHITE); 
-  drawCircle(17, 75, 5, DISPLAY_BLACK);
-  if (leftTouch) {
-    fillCircle(17, 75, 5, DISPLAY_BLACK); 
-  }
+  const bool filled[4] = {leftTouch, centerTouch, rightTouch, pelletPresent};
 
-  //Center
-  fillCircle(17, 95, 5, DISPLAY_WHITE); 
-  drawCircle(17, 95, 5, DISPLAY_BLACK);
-  if (centerTouch) {
-    fillCircle(17, 95, 5, DISPLAY_BLACK); 
-  }
-
-  //Right
-  fillCircle(17, 115, 5, DISPLAY_WHITE);
-  drawCircle(17, 115, 5, DISPLAY_BLACK);
-  if (rightTouch) { 
-    fillCircle(17, 115, 5, DISPLAY_BLACK); 
-  }
-
-  //Pellets 
-  fillCircle(17, 135, 5, DISPLAY_WHITE);
-  drawCircle(17, 135, 5, DISPLAY_BLACK);
-  if (pelletPresent) {
-    fillCircle(17, 135, 5, DISPLAY_BLACK); 
+  for (int i = 0; i < 4; i++) {
+    const int16_t cy = COUNTERS_TOP + i * ROW + DOT_DY;
+    fillCircle(DOT_X, cy, DOT_R, DISPLAY_WHITE);
+    drawCircle(DOT_X, cy, DOT_R, DISPLAY_BLACK);
+    if (filled[i]) {
+      fillCircle(DOT_X, cy, DOT_R, DISPLAY_BLACK);
+    }
   }
 }
 
 void FED4::displayDateTime() {
-  setFont(&Org_01);
-  setTextSize(2);
+  setFont(nullptr);
+  setTextSize(1);
   setTextColor(DISPLAY_WHITE);
 
-  // Bottom bar anchored to the base of the 320-pixel tall logical display
-  fillRect(0, 296, 176, 24, DISPLAY_BLACK);
+  // Bottom bar — Demo FOOTER_Y=302, text at +5 (default font top-edge)
+  static const int16_t FOOTER_Y = 302;
+  static const int16_t FOOTER_TEXT_Y = FOOTER_Y + 5;
+  fillRect(0, FOOTER_Y, 176, 320 - FOOTER_Y, DISPLAY_BLACK);
   DateTime current = rtc.now();
 
-  char timeStr[6];  // HH:MM\0
-  char dateStr[9];  // MM.DD.YY\0
-
+  char dateStr[9];
   snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d",
            current.month(), current.day(), current.year() - 2000);
 
-  snprintf(timeStr, sizeof(timeStr), "%02d:%02d",
-           current.hour(), current.minute());
+  int h24 = current.hour();
+  int h12 = h24 % 12;
+  if (h12 == 0) {
+    h12 = 12;
+  }
+  char timeStr[10];
+  snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, current.minute(),
+           (h24 >= 12) ? "PM" : "AM");
 
-  setCursor(5, 312);
+  setCursor(5, FOOTER_TEXT_Y);
   print(dateStr);
 
-  setCursor(100, 312);
+  setCursor(100, FOOTER_TEXT_Y);
   print(timeStr);
 }
 
@@ -447,6 +462,9 @@ bool FED4::orientScreen()
 // TN0216 has no hardware clear command — write all-white pixels and refresh.
 void FED4::clearDisplay()
 {
+    if (!displayBuffer) {
+        return;
+    }
     memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
     refresh();
 }
@@ -456,6 +474,10 @@ void FED4::clearDisplay()
 // All 176 lines are sent within a single SCS=HIGH window (continuous mode).
 void FED4::refresh()
 {
+    if (!displayBuffer) {
+        return;
+    }
+
     SPI.setBitOrder(LSBFIRST);
 
     // Toggle VCOM each refresh — AC drive requirement (section 9-3, ≥ ~1 Hz)
@@ -495,6 +517,10 @@ void FED4::refresh()
 
 void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)
 {
+    if (!displayBuffer) {
+        return;
+    }
+
     // Bounds check against logical (rotation-adjusted) dimensions
     if ((x < 0) || (x >= _width) || (y < 0) || (y >= _height))
         return;
@@ -524,91 +550,111 @@ void FED4::drawPixel(int16_t x, int16_t y, uint16_t color)
 }
 
 void FED4::startupAnimation(){
+  if (!displayBuffer) {
+    return;
+  }
+
+  // Demo ground truth: default GFX font for dense UI; Org_01 only for big logo text
   setTextSize(5);
   setFont(&Org_01);
   setTextColor(DISPLAY_BLACK);
 
-  const char* text = "FED4";  // Text to animate
-  int textWidth = 28;         // Approximate width of each character in pixels
-  int textX = 176;   // Start position off the screen (right side, logical width)
+  const char* text = "FED4";
+  const int textWidth = 28;
+  int textX = 176;
   int mouseX = 0;
-  int centerX = (176 - strlen(text) * textWidth) / 2; // Center X position
-  int textY = 60;        // Vertical height of the text
+  const int centerX = (176 - (int)strlen(text) * textWidth) / 2;
+  const int textY = 60;
+  // ~1s total: fewer frames, full-buffer clear each frame (avoids MIP trails)
+  const int stepPx = 16;
 
   while (textX > centerX) {
-    // Clear only the buffer (not hardware) to prevent flickering
-    // Avoid clearDisplay() (which calls refresh) mid-animation — clear the buffer directly
+    // Full white clear every frame — required on MIP (no auto-erase)
     memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
 
-    //draw FED4
-    fillRect(100, 92, 32, 20, DISPLAY_BLACK);    //FED4
-    fillRect(112, 82, 16, 8, DISPLAY_BLACK);     //hopper
-    fillCircle(108, 98, 3, DISPLAY_WHITE);       //poke 1
-    fillCircle(124, 98, 3, DISPLAY_WHITE);       //poke 2
-    fillCircle(116, 104, 2, DISPLAY_WHITE);       //poke 3
+    fillRect(100, 92, 32, 20, DISPLAY_BLACK);
+    fillRect(112, 82, 16, 8, DISPLAY_BLACK);
+    fillCircle(108, 98, 3, DISPLAY_WHITE);
+    fillCircle(124, 98, 3, DISPLAY_WHITE);
+    fillCircle(116, 104, 2, DISPLAY_WHITE);
 
-    // Draw the text sliding in from the right (single render to reduce flickering)
     setCursor(textX, textY);
     print(text);
 
-    // Move the text to the left
-    textX -= 2;  // Adjust the speed by changing this value
-    mouseX += 1; // Adjust the speed of the mouse
-
-    fillRoundRect (mouseX + 25, 92, 15, 10, 7, DISPLAY_BLACK);    //head
-    fillRoundRect (mouseX + 22, 90, 8, 5, 3, DISPLAY_BLACK);      //ear
-    fillRoundRect (mouseX + 30, 94, 1, 1, 1, DISPLAY_WHITE);      //eye
-
-    //movement of the mouse
-    if ((mouseX  / 10) % 2 == 0) {
-      fillRoundRect (mouseX, 94, 32, 17, 10, DISPLAY_BLACK);      //body
-      drawFastHLine(mouseX  - 8, 95, 18, DISPLAY_BLACK);           //tail
-      drawFastHLine(mouseX  - 8, 96, 18, DISPLAY_BLACK);
-      drawFastHLine(mouseX  - 14, 94, 8, DISPLAY_BLACK);
-      drawFastHLine(mouseX  - 14, 95, 8, DISPLAY_BLACK);
-      fillRoundRect (mouseX  + 22, 109, 8, 4, 3, DISPLAY_BLACK);    //front foot
-      fillRoundRect (mouseX  , 107, 8, 6, 3, DISPLAY_BLACK);        //back foot
+    textX -= stepPx;
+    if (textX < centerX) {
+      textX = centerX;
     }
-    else {
-      fillRoundRect (mouseX + 2, 92, 30, 17, 10, DISPLAY_BLACK);  //body
-      drawFastHLine(mouseX - 6, 101, 18, DISPLAY_BLACK);            //tail
+    mouseX += stepPx / 2;
+
+    fillRoundRect(mouseX + 25, 92, 15, 10, 7, DISPLAY_BLACK);
+    fillRoundRect(mouseX + 22, 90, 8, 5, 3, DISPLAY_BLACK);
+    fillRoundRect(mouseX + 30, 94, 1, 1, 1, DISPLAY_WHITE);
+
+    if ((mouseX / 10) % 2 == 0) {
+      fillRoundRect(mouseX, 94, 32, 17, 10, DISPLAY_BLACK);
+      drawFastHLine(mouseX - 8, 95, 18, DISPLAY_BLACK);
+      drawFastHLine(mouseX - 8, 96, 18, DISPLAY_BLACK);
+      drawFastHLine(mouseX - 14, 94, 8, DISPLAY_BLACK);
+      drawFastHLine(mouseX - 14, 95, 8, DISPLAY_BLACK);
+      fillRoundRect(mouseX + 22, 109, 8, 4, 3, DISPLAY_BLACK);
+      fillRoundRect(mouseX, 107, 8, 6, 3, DISPLAY_BLACK);
+    } else {
+      fillRoundRect(mouseX + 2, 92, 30, 17, 10, DISPLAY_BLACK);
+      drawFastHLine(mouseX - 6, 101, 18, DISPLAY_BLACK);
       drawFastHLine(mouseX - 6, 100, 18, DISPLAY_BLACK);
       drawFastHLine(mouseX - 12, 102, 8, DISPLAY_BLACK);
       drawFastHLine(mouseX - 12, 101, 8, DISPLAY_BLACK);
-      fillRoundRect (mouseX  + 15, 109, 8, 4, 3, DISPLAY_BLACK);    //foot
-      fillRoundRect (mouseX + 8, 107, 8, 6, 3, DISPLAY_BLACK);      //back foot
+      fillRoundRect(mouseX + 15, 109, 8, 4, 3, DISPLAY_BLACK);
+      fillRoundRect(mouseX + 8, 107, 8, 6, 3, DISPLAY_BLACK);
     }
-    // Update the display
     refresh();
-    delay(10);   // Increased delay to reduce flickering (was 1ms, now 10ms)
   }
 
-  // Display the text in the center and hold
-  setCursor(textX, textY);
+  // Final centered frame, then hard clear so init UI has no leftover pixels
+  memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
+  setCursor(centerX, textY);
   print(text);
+  fillRect(100, 92, 32, 20, DISPLAY_BLACK);
+  fillRect(112, 82, 16, 8, DISPLAY_BLACK);
+  fillCircle(108, 98, 3, DISPLAY_WHITE);
+  fillCircle(124, 98, 3, DISPLAY_WHITE);
+  fillCircle(116, 104, 2, DISPLAY_WHITE);
   refresh();
+  delay(200);
+
+  clearDisplay(); // full white — removes any residual animation pixels
+  setFont(nullptr);
   setTextSize(1);
 }
 
 void FED4::displayAudio() {
-  setCursor(6, 125);
+  setFont(nullptr);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  setCursor(6, 136);
   print("Audio: ");
   print(audioSilenced ? "Off" : "On");
 }
 
 // Display initialization status message below startup animation
 void FED4::displayInitStatus(const char* message) {
-  setFont(&FreeSans9pt7b);
+  // Called during begin() before the framebuffer exists — Serial-only until then
+  if (!displayBuffer) {
+    return;
+  }
+
+  // Demo body style
+  setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
-  
-  fillRect(0, 125, 176, 171, DISPLAY_WHITE); // Clear message area (to y=296 bottom bar)
-  
-  // Display the initialization message
-  setCursor(6, 135);
-  print("Initializing: ");
-  setCursor(6, 158);
+
+  fillRect(0, 125, 176, 171, DISPLAY_WHITE);
+
+  setCursor(6, 140);
+  print("Initializing:");
+  setCursor(6, 156);
   print(message);
-  
+
   refresh();
 }

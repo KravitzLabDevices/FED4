@@ -53,6 +53,34 @@ static uint8_t lis3dh_readReg(uint8_t reg) {
     return Wire.available() ? Wire.read() : 0xFF;
 }
 
+// ── configureIntOrSources ────────────────────────────────────────────────────
+// Hardware: open-drain ToF|RTC|BAT (3.3k pull-up) AND ACCEL_INT1 (push-pull),
+// both active-LOW into 74LVC1G08 → INT_OR. Idle must be HIGH on both AND inputs.
+//
+// LIS2DH12 default INT polarity is active-HIGH ⇒ INT1 idles LOW ⇒ INT_OR stuck
+// LOW even with no motion interrupt armed (matches mask=0x08 [ACCEL] pre-sleep).
+
+static void configureAccelInt1ForOrGate()
+{
+    // No events routed to INT1 until enableAccelInterrupt()
+    lis3dh_writeReg(LIS3DH_REG_CTRL3, 0x00);
+    lis3dh_writeReg(LIS3DH_REG_INT1CFG, 0x00);
+
+    // H_LACTIVE (CTRL_REG6 bit1)=1 → active LOW, idle HIGH (required for AND gate)
+    uint8_t ctrl6 = lis3dh_readReg(LIS3DH_REG_CTRL6);
+    if (ctrl6 == 0xFF) {
+        Serial.println("ACCEL: CTRL_REG6 read failed — INT1 polarity not set");
+        return;
+    }
+    ctrl6 |= 0x02;
+    lis3dh_writeReg(LIS3DH_REG_CTRL6, ctrl6);
+
+    // Clear any latched IA
+    lis3dh_readReg(LIS3DH_REG_INT1SRC);
+
+    Serial.println("ACCEL_INT1: active-LOW polarity, sources cleared (idle HIGH)");
+}
+
 // ── initializeInterrupts ─────────────────────────────────────────────────────
 
 bool FED4::initializeInterrupts()
@@ -60,8 +88,30 @@ bool FED4::initializeInterrupts()
     // Configure INT_OR as input (active-LOW, no internal pull — external pull on schematic)
     pinMode(INT_OR, INPUT);
 
+    // --- Per-device polarity / idle for the OR-gate arrangement ---
+
+    // Accel: push-pull INT1 must idle HIGH (see configureAccelInt1ForOrGate)
+    configureAccelInt1ForOrGate();
+
+    // ToF: open-drain GPIO — active LOW so idle releases the shared pull-up
+    distanceSensor.setInterruptPolarityLow();
+    distanceSensor.clearInterrupt();
+
+    // RTC: INT/SQW as interrupt (not 32 kHz square wave), clear alarm latches
+    rtc.writeSqwPinMode(DS3231_OFF);
+    rtc.clearAlarm(1);
+    rtc.clearAlarm(2);
+    rtc.disableAlarm(1);
+    rtc.disableAlarm(2);
+
+    // Battery gauge: clear any ALRT latch (open-drain)
+    if (maxlipo.isActiveAlert()) {
+        maxlipo.clearAlertFlag(maxlipo.getAlertStatus());
+    }
+
     // Register for GPIO light-sleep wake (active LOW).
     // esp_sleep_enable_gpio_wakeup() is already called in initializeButtons().
+    // Note: startSleep() disables GPIO wake during touch waits (UT alignment).
     esp_err_t err = gpio_wakeup_enable((gpio_num_t)INT_OR, GPIO_INTR_LOW_LEVEL);
     if (err != ESP_OK) {
         Serial.println("INT_OR: failed to enable GPIO wakeup");
@@ -69,10 +119,9 @@ bool FED4::initializeInterrupts()
     }
 
     Serial.println("INT_OR interrupt line initialized (active LOW)");
+    printInterruptStatus("int-init");
 
-    // Auto-configure accel INT1 for wake-on-move at a conservative threshold.
-    // Returns true even if accel is absent (non-fatal for interrupt init).
-    enableAccelInterrupt();
+    // Do NOT auto-enable accel motion INT1 here — opt in: enableAccelInterrupt(...).
 
     return true;
 }
@@ -111,8 +160,9 @@ uint8_t FED4::scanInterrupts()
     // Accel (LIS2DH12): read INT1_SRC IA bit (reading the register also clears it
     // when latching is enabled via CTRL_REG5 LIR_INT1=1).
     // Note: this clears the latch as a side effect of the scan.
+    // 0xFF = I2C fail — do not treat as ACCEL (would false-positive every scan).
     uint8_t int1src = lis3dh_readReg(LIS3DH_REG_INT1SRC);
-    if (int1src & 0x40) { // bit 6 = IA (Interrupt Active)
+    if (int1src != 0xFF && (int1src & 0x40)) { // bit 6 = IA (Interrupt Active)
         mask |= INT_SRC_ACCEL;
     }
 
@@ -191,6 +241,65 @@ uint8_t FED4::getLastInterruptMask()
     return lastInterruptMask;
 }
 
+// ── printInterruptStatus ─────────────────────────────────────────────────────
+// GPIO light-sleep wake was armed for INT_OR (active LOW) plus BUTTON_1/2/3
+// (active HIGH). Any stuck assert makes esp_light_sleep_start() return immediately
+// and starves touchpad wake — see startSleep() which disables GPIO wake for the
+// sleep session. Use this to see which hardware source is holding the line.
+
+void FED4::printInterruptStatus(const char *tag)
+{
+    const bool intOrLow = interruptPending();
+    const uint8_t mask = scanInterrupts();
+
+    Serial.print("INT status");
+    if (tag != nullptr && tag[0] != '\0') {
+        Serial.printf(" [%s]", tag);
+    }
+    Serial.printf(": INT_OR=%s mask=0x%02X", intOrLow ? "LOW(asserted)" : "HIGH(idle)", mask);
+
+    if (mask == INT_SRC_NONE) {
+        Serial.print(" (none scanned)");
+    } else {
+        Serial.print(" [");
+        bool first = true;
+        auto sep = [&]() {
+            if (!first) {
+                Serial.print("|");
+            }
+            first = false;
+        };
+        if (mask & INT_SRC_TOF) {
+            sep();
+            Serial.print("TOF");
+        }
+        if (mask & INT_SRC_RTC) {
+            sep();
+            Serial.print("RTC");
+        }
+        if (mask & INT_SRC_BATTERY) {
+            sep();
+            Serial.print("BAT");
+        }
+        if (mask & INT_SRC_ACCEL) {
+            sep();
+            Serial.print("ACCEL");
+        }
+        Serial.print("]");
+    }
+
+    // Also report button wake pins (separate from INT_OR OR-gate)
+    Serial.printf(" btn=%d%d%d",
+                  digitalRead(BUTTON_1) == HIGH,
+                  digitalRead(BUTTON_2) == HIGH,
+                  digitalRead(BUTTON_3) == HIGH);
+
+    if (intOrLow && mask == INT_SRC_NONE) {
+        Serial.print(" WARN: line LOW but no scanned source — check ACCEL_INT1 idle, open-drain pull, or unlisted device");
+    }
+    Serial.println();
+}
+
 // ── enableAccelInterrupt ─────────────────────────────────────────────────────
 // Configures the LIS2DH12TR INT1 pin for inertial wake-on-move and routes it
 // to the AND gate input (ACCEL_INT1).
@@ -215,9 +324,9 @@ bool FED4::enableAccelInterrupt(float threshold_g, uint8_t duration_count)
         return false;
     }
 
-    // INT1 active LOW; route ACCEL_INT1 into AND gate as active-LOW
+    // INT1 active LOW (idle HIGH) for AND-gate — same as configureAccelInt1ForOrGate
     uint8_t ctrl6 = lis3dh_readReg(LIS3DH_REG_CTRL6);
-    ctrl6 |= 0x02; // bit 1 = H_L: 1 = active LOW
+    ctrl6 |= 0x02; // bit 1 = H_LACTIVE: 1 = active LOW
     lis3dh_writeReg(LIS3DH_REG_CTRL6, ctrl6);
 
     // Latch INT1 until INT1_SRC is read (prevents spurious re-assertion)

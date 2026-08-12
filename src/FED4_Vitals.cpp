@@ -247,6 +247,15 @@ void FED4::pollSensors(int minToUpdateSensors) {
   prox();
   motion();
 
+  // Lux is cheap once the VEML is running — refresh every poll so the header stays live.
+  // (BME/battery stay on the slower interval below.)
+  {
+    float luxReading = getLux();
+    if (luxReading >= 0) {
+      lux = luxReading;
+    }
+  }
+
   if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
     lastPollTime = millis();
 
