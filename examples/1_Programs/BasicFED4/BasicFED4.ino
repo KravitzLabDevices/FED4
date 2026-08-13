@@ -11,21 +11,24 @@
 
 FED4 fed4;
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
-  fed4.useMotionSensor = true;  // before begin — GPIO + PIR→LED in begin/run
+  fed4.useMotionSensor = true; // before begin — GPIO + PIR→LED in begin/run
   fed4.begin("BasicFED4");
-  fed4.serviceHousekeeping();   // show main screen before first sleep
+  fed4.serviceHousekeeping(); // show main screen before first sleep
 }
 
-void loop() {
-  FedEvent e = fed4.waitUntil(60);  // touch / button / 60 s housekeeping
+void loop()
+{
+  FedEvent e = fed4.waitUntil(60); // touch / button / 60 s housekeeping
 
   // Refresh while *Touch flags are still set so poke dots show
   fed4.serviceHousekeeping();
 
-  if (e.source == FedWakeSource::Touch && e.pad == 1) {
+  if (e.source == FedWakeSource::Touch && e.pad == 1)
+  {
     fed4.feed();
-    fed4.serviceHousekeeping();  // post-feed counters / pellet state
+    fed4.serviceHousekeeping(); // post-feed counters / pellet state
   }
 }
