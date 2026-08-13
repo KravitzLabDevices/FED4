@@ -8,7 +8,7 @@
  * stay as last written. MCP is used only to hold RST LOW so VCOM may pulse
  * (datasheet: VCOM must be LOW while RST is HIGH).
  *
- * Scope: GPIO 43 (DISPLAY_VCOM) vs GND. Expect ~2 Hz, 50% square, awake
+ * Scope: GPIO 43 (DISPLAY_VCOM) vs GND. Expect ~30 Hz, 50% square, awake
  * and during the 10 s light-sleep window.
  *
  * Flash with Tools -> "USB CDC On Boot" = ENABLED (GPIO 43/44 are display).
@@ -17,7 +17,7 @@
  * Report back:
  *   1. Compile: KEEP_ALIVE available? ledc_timer / channel ESP_OK?
  *   2. Serial: IDF version, measured ledc_get_freq(), sleep return + cause
- *   3. Scope awake: clean ~2 Hz 50% on GPIO 43?
+ *   3. Scope awake: clean ~30 Hz 50% on GPIO 43?
  *   4. Scope in light sleep: PWM continues, or freezes / goes Hi-Z?
  *   5. Wake: cause=TIMER and elapsed ~10 s (not an instant return)?
  */
@@ -42,7 +42,7 @@
 static const uint32_t SERIAL_BOOT_DELAY_MS = 1000;
 static const uint32_t AWAKE_MS = 2000;
 static const uint32_t SLEEP_MS = 10000;
-static const uint32_t VCOM_HZ = 2;
+static const uint32_t VCOM_HZ = 30;
 static const ledc_timer_t VCOM_TIMER = LEDC_TIMER_1;
 static const ledc_channel_t VCOM_CHANNEL = LEDC_CHANNEL_1;
 static const ledc_mode_t VCOM_SPEED = LEDC_LOW_SPEED_MODE;

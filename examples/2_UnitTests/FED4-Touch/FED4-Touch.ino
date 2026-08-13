@@ -1,7 +1,7 @@
 /*
  * FED4 Touch Test (ESP32-S3)
  *
- * Prints raw + smoothed touch values every 100 ms. No LEDs.
+ * Prints smooth touch counts + rise fraction every 100 ms. No LEDs.
  *
  * Touch pads (FED4_Pins.h):
  *   LEFT   = GPIO 1
@@ -30,7 +30,7 @@ void setup() {
                 (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
                 (unsigned long)fed4TouchIdleR);
   fed4TouchPrintDriverConfig();
-  Serial.println("FED4 touch — raw + smooth every 100 ms");
+  Serial.println("FED4 touch — smooth + rise every 100 ms");
 }
 
 void loop() {
@@ -38,13 +38,11 @@ void loop() {
   const uint32_t c = fed4TouchRead(TOUCH_PAD_CENTER);
   const uint32_t r = fed4TouchRead(TOUCH_PAD_RIGHT);
 
-  const uint32_t ls = fed4TouchReadSmooth(TOUCH_PAD_LEFT);
-  const uint32_t cs = fed4TouchReadSmooth(TOUCH_PAD_CENTER);
-  const uint32_t rs = fed4TouchReadSmooth(TOUCH_PAD_RIGHT);
-
-  Serial.printf("raw L:%lu C:%lu R:%lu | smooth L:%lu C:%lu R:%lu\n",
+  Serial.printf("L:%lu C:%lu R:%lu | rise L:%.3f C:%.3f R:%.3f\n",
                 (unsigned long)l, (unsigned long)c, (unsigned long)r,
-                (unsigned long)ls, (unsigned long)cs, (unsigned long)rs);
+                fed4TouchRiseFraction(l, fed4TouchIdleL),
+                fed4TouchRiseFraction(c, fed4TouchIdleC),
+                fed4TouchRiseFraction(r, fed4TouchIdleR));
 
   delay(PRINT_MS);
 }

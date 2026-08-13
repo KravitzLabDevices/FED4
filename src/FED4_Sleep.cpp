@@ -19,7 +19,8 @@ void FED4::sleep()
 
 // Light sleep with LEDC VCOM keepalive (FED4-VCOM-LEDC-Light-Sleep):
 //   - one timer wake for the full sleepSeconds budget (no 500 ms VCOM chunks)
-//   - touchpad wake + button-only GPIO wake (INT_OR disabled for the session)
+//   - touchpad wake + button GPIO wake (INT_OR disabled for the session)
+//   - PHOTOGATE_1 HIGH wake only while pendingRetrieval (pellet still in well)
 //   - software touch poll after wake as backup
 void FED4::startSleep()
 {
@@ -69,11 +70,17 @@ void FED4::startSleep()
   }
 
   // INT_OR must not wake us (held-low spam). Buttons may wake via GPIO.
+  // Well photogate: pellet present = LOW; taken = HIGH — arm only while pending.
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
   gpio_wakeup_disable((gpio_num_t)INT_OR);
+  gpio_wakeup_disable((gpio_num_t)PHOTOGATE_1);
   gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_3, GPIO_INTR_HIGH_LEVEL);
+  if (pendingRetrieval && checkForPellet())
+  {
+    gpio_wakeup_enable((gpio_num_t)PHOTOGATE_1, GPIO_INTR_HIGH_LEVEL);
+  }
   esp_sleep_enable_gpio_wakeup();
 
   fed4TouchEnableTouchpadWakeup();
@@ -83,16 +90,21 @@ void FED4::startSleep()
   esp_light_sleep_start();
 
   const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  const bool buttonHigh = digitalRead(BUTTON_1) == HIGH ||
+                          digitalRead(BUTTON_2) == HIGH ||
+                          digitalRead(BUTTON_3) == HIGH;
 
   if (cause == ESP_SLEEP_WAKEUP_TOUCHPAD || fed4TouchAnyPadActive(TOUCH_THRESHOLD))
   {
     lastWakeSource = FedWakeSource::Touch;
   }
-  else if (cause == ESP_SLEEP_WAKEUP_GPIO ||
-           digitalRead(BUTTON_1) == HIGH || digitalRead(BUTTON_2) == HIGH ||
-           digitalRead(BUTTON_3) == HIGH)
+  else if (buttonHigh)
   {
     lastWakeSource = FedWakeSource::Button;
+  }
+  else if (pendingRetrieval && !checkForPellet())
+  {
+    lastWakeSource = FedWakeSource::Pellet;
   }
   else
   {
@@ -101,7 +113,8 @@ void FED4::startSleep()
 
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
 
-  // Restore INT_OR + button GPIO wake for awake code paths
+  // Restore INT_OR + button GPIO wake for awake code paths; photogate off unless pending
+  gpio_wakeup_disable((gpio_num_t)PHOTOGATE_1);
   gpio_wakeup_enable((gpio_num_t)INT_OR, GPIO_INTR_LOW_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
@@ -119,6 +132,9 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   noPix();
   startSleep();
   wakeUp();
+
+  // Photogate / timer / any wake: close pending late retrieval in-library
+  checkLateRetrieval();
 
   sleepSeconds = savedSeconds;
 
@@ -157,6 +173,23 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
     else if (digitalRead(BUTTON_3) == HIGH)
     {
       event.button = 3;
+    }
+  }
+
+  // Library owns poke SD rows so sketches (e.g. BasicFED4) stay event-only
+  if (event.source == FedWakeSource::Touch)
+  {
+    if (event.pad == FedPad::Left)
+    {
+      logData("Left");
+    }
+    else if (event.pad == FedPad::Center)
+    {
+      logData("Center");
+    }
+    else if (event.pad == FedPad::Right)
+    {
+      logData("Right");
     }
   }
 
@@ -204,7 +237,7 @@ void FED4::wakeUp()
       lastWakeSource == FedWakeSource::Touch ||
       fed4TouchAnyPadActive(TOUCH_THRESHOLD))
   {
-    interpretTouch();
+    capturePoke();
   }
 
   if (lastWakeSource == FedWakeSource::Button ||

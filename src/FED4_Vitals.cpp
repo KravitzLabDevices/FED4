@@ -325,23 +325,6 @@ void FED4::pollSensors(int minToUpdateSensors) {
 }
 
 /**
- * Prints current memory status for debugging memory leaks
- */
-void FED4::printMemoryStatus() {
-    Serial.printf("Memory Status - Free: %d, Size: %d, MinFree: %d, Fragmentation: %.1f%%\n",
-                  ESP.getFreeHeap(),
-                  ESP.getHeapSize(),
-                  ESP.getMinFreeHeap(),
-                  (float)(ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize() * 100.0);
-    
-    // Additional memory info for debugging small leaks
-    Serial.printf("Memory Details - Largest Block: %d, Allocated: %d, Fragments: %d\n",
-                  ESP.getMaxAllocHeap(),
-                  ESP.getHeapSize() - ESP.getFreeHeap(),
-                  ESP.getHeapSize() - ESP.getFreeHeap() - ESP.getMaxAllocHeap());
-}
-
-/**
  * Attempts to reinitialize the light sensor if it's not responding
  */
 bool FED4::reinitializeLightSensor() {

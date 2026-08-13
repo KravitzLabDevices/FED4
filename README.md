@@ -18,11 +18,11 @@
 
 ## Examples
 
-| Sketch | Role |
-|--------|------|
-| [`BasicFED4`](examples/1_Programs/BasicFED4/) | Left poke → feed (starter program) |
-| [`FreeFeeding`](examples/1_Programs/FreeFeeding/) | Replace pellet when taken |
-| [`2_UnitTests/`](examples/2_UnitTests/) | Hardware bring-up / domain checks |
+| Sketch                                            | Role                               |
+| ------------------------------------------------- | ---------------------------------- |
+| [`BasicFED4`](examples/1_Programs/BasicFED4/)     | Left poke → feed (starter program) |
+| [`FreeFeeding`](examples/1_Programs/FreeFeeding/) | Replace pellet when taken          |
+| [`2_UnitTests/`](examples/2_UnitTests/)           | Hardware bring-up / domain checks  |
 
 More programs will return under [`examples/1_Programs/`](examples/1_Programs/) as domains are verified. Deeper API notes live in [`docs/wiki/`](docs/wiki/) and the [GitHub Wiki](https://github.com/KravitzLabDevices/FED4/wiki).
 
@@ -33,6 +33,5 @@ Open work tracked in detail in [`examples/2_UnitTests/SRC_AUDIT.md`](examples/2_
 - [ ] Rebuild menu + silence UX for v1.7 display  
 - [ ] Retest / clean button holds (silence, menu, Mario / jingles)  
 - [ ] Port remaining behavioral programs from archive → [`1_Programs`](examples/1_Programs/)  
-- [ ] Remove ghost Pix / friend declarations and other dead APIs  
 - [ ] PIR / motion idle path (deferred to v1.8 counter IC)  
 - [ ] Revisit ActivityMonitor when that sketch is unarchived  

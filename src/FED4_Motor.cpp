@@ -26,13 +26,6 @@ void FED4::minorJamClear()
     delay(1000);
 }
 
-void FED4::majorJamClear()
-{ // make this function also monitor the pellet well
-    Serial.println("MajorJam");
-    stepper.step(1000);
-    delay(1000);
-}
-
 void FED4::vibrateJamClear()
 { // make this function also monitor the pellet well
     Serial.println("VibrateJam");

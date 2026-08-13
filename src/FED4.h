@@ -74,7 +74,8 @@ enum class FedWakeSource : uint8_t {
     Touch,
     Button,
     Timer,      // UI update interval deadline
-    Interrupt   // INT_OR GPIO (non-button)
+    Interrupt,  // INT_OR GPIO (non-button)
+    Pellet      // well photogate: late retrieval while pendingRetrieval
 };
 
 /** Touch pad identity for FedEvent::pad. */
@@ -167,6 +168,12 @@ public:
     void handlePelletInWell();
     void finishFeeding();
     void dispense();
+    /**
+     * If pendingRetrieval and well is empty, log LatePelletTaken.
+     * Called from waitUntil()/feed(); sketches normally need not call this —
+     * sleep arms PHOTOGATE_1 wake while a pellet is still pending.
+     */
+    bool checkLateRetrieval();
     unsigned long pelletDropTime;
     unsigned long pelletWellTime;
     bool dispenseError = false;
@@ -186,7 +193,6 @@ public:
     bool initializeMotor();
     void releaseMotor();
     void minorJamClear();
-    void majorJamClear();
     void vibrateJamClear();
     void jammed();
 
@@ -202,11 +208,11 @@ public:
     // Touch sensor management (defined in FED4_Touch.cpp; free helpers in FED4_TouchHelpers.h)
     bool initializeTouch();
     void calibrateTouchSensors(bool checkStability = false);
-    void interpretTouch();
-    static void IRAM_ATTR onTouchWakeUp();
+    /** Identify active poke (rise fraction); sets flags/counts/pokeDuration/wakePad. */
+    bool capturePoke();
     void resetTouchFlags();
-    void logTouchEvent();
-    static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right (legacy gate; prefer rise poll)
+    /** 0=none, 1=left, 2=center, 3=right — sync of FedPad after capturePoke; not an ISR latch. */
+    static uint8_t wakePad;
 
     // Status LED and Strip control (defined in FED4_LEDs.cpp)
     // (strip - front RGB LEDs on PSV3 rail)
@@ -234,19 +240,9 @@ public:
     void centerLight(const char *colorName, uint8_t brightness);
     void rightLight(const char *colorName);
     void rightLight(const char *colorName, uint8_t brightness);
-    // (status pixel - single red LED on STATUS_LED pin)
+    // (status LED — digital red on STATUS_LED pin; LEDC VCOM owns the PWM path)
     bool initializePixel();
-    void setPixBrightness(uint8_t brightness);
-    void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 5);
-    void setPixColor(const char *colorName, uint8_t brightness = 5);
-    void bluePix(uint8_t brightness = 5);
-    void greenPix(uint8_t brightness = 5);
     void redPix(uint8_t brightness = 5);
-    void purplePix(uint8_t brightness = 5);
-    void yellowPix(uint8_t brightness = 5);
-    void cyanPix(uint8_t brightness = 5);
-    void whitePix(uint8_t brightness = 5);
-    void orangePix(uint8_t brightness = 5);
     void noPix();
     // (shared)
     uint32_t getColorFromString(const char *colorName);
@@ -275,7 +271,7 @@ public:
     void displayLight(bool on);
     /** One-shot accel read; sets rotation from device X (g). Returns true if rotation changed. */
     bool orientScreen();
-    /** Start ~2 Hz LEDC VCOM (KEEP_ALIVE through light sleep). */
+    /** Start ~30 Hz LEDC VCOM (KEEP_ALIVE through light sleep). */
     bool startVcomLedc();
     /** Stop LEDC VCOM and drive pin LOW (required before RST HIGH). */
     void stopVcomLedc();
@@ -420,9 +416,6 @@ public:
     String event = "";
     float retrievalTime;
     float pokeDuration = 0.0;
-    uint32_t touchPadLeftBaseline;
-    uint32_t touchPadCenterBaseline;
-    uint32_t touchPadRightBaseline;
     int motorTurns;
     int reBaselineTouches;
     char filename[32];
@@ -487,9 +480,6 @@ public:
     bool enableRTCAlarmInterrupt(uint8_t alarmNum = 1);  // arm DS3231 alarm on INT pin
     bool enableBatteryAlert(float minVoltage, float maxVoltage);  // set MAX17048 VALERT window
 
-    // Memory monitoring function
-    void printMemoryStatus();
-
     ~FED4()
     {
         if (displayBuffer)
@@ -528,6 +518,8 @@ private:
     bool dropSensorAvailable; // Flag to store drop sensor availability status
     uint8_t lastInterruptMask = 0; // captured by wakeUp() on INT_OR GPIO wake
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
+    bool pendingRetrieval = false; // pellet still in well after awake 20 s window
+    void monitorPelletInWell(uint32_t retrievalTimeoutSec);
 
     // RTC functions
     Preferences preferences;
@@ -538,30 +530,12 @@ private:
     uint8_t *displayBuffer = nullptr;
     bool vcom;
     bool vcomLedcActive = false;
-    void sendDisplayCommand(uint8_t cmd);
 
     // I2C bus helpers (ESP32 Wire.setTimeOut — not Stream setTimeout)
     void i2cReinitBus();
     bool i2cProbe(uint8_t addr);
     void i2cRecoverBus();
     bool i2cBusHealthy();
-
-    friend class FED4_Display;
-    friend class FED4_LED;
-    friend class FED4_Motor;
-    friend class FED4_RTC;
-    friend class FED4_SD;
-    friend class FED4_Touch;
-    friend class FED4_Vitals;
-    friend class FED4_Feed;
-    friend class FED4_Begin;
-    friend class FED4_Audio;
-    friend class FED4_Accel;
-    friend class FED4_Menu;
-    friend class FED4_Motion;
-    friend class FED4_Sleep;
-    friend class FED4_Timeout;
-    friend class FED4_Prox;
 };
 
 // Standard ASCII 5x7 font

@@ -13,14 +13,14 @@
 // Gate address: linear mapping assumed (address = line number 1–176).
 //   If rows appear interleaved, consult the section 7 address table in the datasheet.
 //
-// VCOM: LEDC ~2 Hz 50% KEEP_ALIVE + RC_FAST (see FED4-VCOM-LEDC-Light-Sleep).
+// VCOM: LEDC ~30 Hz 50% KEEP_ALIVE + RC_FAST (see FED4-VCOM-LEDC-Light-Sleep).
 // Do not use analogWrite() after startVcomLedc() — S3 LEDC timers share one clock.
 
 static const ledc_timer_t VCOM_LEDC_TIMER = LEDC_TIMER_1;
 static const ledc_channel_t VCOM_LEDC_CHANNEL = LEDC_CHANNEL_1;
 static const ledc_mode_t VCOM_LEDC_MODE = LEDC_LOW_SPEED_MODE;
 static const ledc_timer_bit_t VCOM_LEDC_RES = LEDC_TIMER_14_BIT;
-static const uint32_t VCOM_LEDC_HZ = 2;
+static const uint32_t VCOM_LEDC_HZ = 30;
 static const uint32_t VCOM_LEDC_DUTY_50 = 8192; // 50% of 2^14
 
 #ifndef _swap_int16_t
@@ -547,7 +547,7 @@ void FED4::refresh()
 
     SPI.setBitOrder(LSBFIRST);
 
-    // VCOM AC is provided by LEDC (~2 Hz KEEP_ALIVE). Do not digitalWrite the pin
+    // VCOM AC is provided by LEDC (~30 Hz KEEP_ALIVE). Do not digitalWrite the pin
     // while LEDC owns it — that fights the PWM. Fallback toggle only if LEDC failed.
     if (!vcomLedcActive) {
         vcom = !vcom;

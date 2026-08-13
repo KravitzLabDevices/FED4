@@ -1,11 +1,13 @@
 /*
   Feeding Experimentation Device 4 (FED4)
 
-  FreeFeeding — dispense a pellet whenever the well is empty (replace when
-  taken). Useful for quantifying total pellet intake.
+  FreeFeeding — keep a pellet available: when the well is empty, dispense;
+  when a pellet is present, wait until it is taken, then replace.
 
-  Light sleep is not required between pellets: feed() blocks while a pellet
-  is in the well; VCOM stays alive via LEDC whenever the panel is on.
+  feed() watches the well awake for ~20 s (precise retrieval). If the pellet
+  is still there, waitUntil() light-sleeps with photogate wake; LatePelletTaken
+  is logged inside waitUntil() when the well clears. No sketch-side retrieval
+  helper required.
 */
 
 #include <FED4.h>
@@ -14,12 +16,17 @@ FED4 fed4;
 
 void setup()
 {
-  Serial.begin(115200);
   fed4.begin("FreeFeeding");
 }
 
 void loop()
 {
-  fed4.feed();   // dispense, wait until taken (or error/timeout)
-  fed4.update(); // refresh counters / serial after each cycle
+  // Do not start a new dispense while a pellet is still in the well
+  while (fed4.checkForPellet())
+  {
+    fed4.waitUntil(); // photogate wake if pendingRetrieval; UI refresh on timer
+  }
+
+  fed4.feed();   // dispense + awake retrieval window (or settle error)
+  fed4.update(); // counters / ENV / display after each delivery cycle
 }

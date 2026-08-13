@@ -546,57 +546,57 @@ bool FED4::logData(const String &newEvent)
     dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
     dataFile.printf("%d,%d,", blockPelletCount, blockPokeCount);
 
-    // Write motor turns for events where motor has been running
-    if (event == "PelletTaken") {
-        // Write retrievalTime as string to avoid conversion issues
-        if (retrievalTime > 19.9)
+    // Motor / retrieval columns on terminal feed outcomes
+    if (event == "PelletTaken" || event == "LatePelletTaken" ||
+        event == "PelletNotDetected" || event == "DispenseError")
+    {
+        if (event == "PelletTaken" || event == "LatePelletTaken")
         {
-            dataFile.print("TimedOut");
+            // Numeric seconds always (late takes may be >> 20 s; no TimedOut string)
+            dataFile.printf("%.3f,", retrievalTime);
+            dataFile.printf("%.3f,", pokeDuration);
+            dataFile.write(dispenseError ? '1' : '0');
+        }
+        else if (event == "PelletNotDetected")
+        {
+            dataFile.print("0,");
+            dataFile.printf("%.3f,", pokeDuration);
+            dataFile.write('1'); // settle miss
         }
         else
         {
-            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+            // DispenseError — hard jam give-up only (not during jam-clear moves)
+            dataFile.print("0,");
+            dataFile.printf("%.3f,", pokeDuration);
+            dataFile.write('1');
         }
         dataFile.write(',');
-        dataFile.printf("%.3f", pokeDuration); // PokeDuration
+        dataFile.print(int(motorTurns / 25));
         dataFile.write(',');
-        dataFile.write(dispenseError ? '1' : '0'); // Write single character
-        dataFile.write(',');
-        dataFile.print(int(motorTurns/25)); // MotorTurns
-        dataFile.write(',');
-        motorTurns = 0; // Reset after logging
+        motorTurns = 0;
     }
-    else {
+    else
+    {
         dataFile.print(",,,,"); // RetrievalTime, PokeDuration, DispenseError, MotorTurns
     }
 
-    // Write counters and status
-    if (event == "Status" || event == "Startup" || event == "Activity") {
-        // Write Activity% (motionPercentage) with 1 decimal place, or "DISABLED" if motion sensor is disabled
-        if (!useMotionSensor || isnan(motionPercentage)) {
-            dataFile.print("Disabled,");
-        } else {
-            dataFile.printf("%.1f,", motionPercentage);
-        }
-
-        // Write environmental data
-        dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
-                        temperature, humidity, pressure, gasResistance, lux, white);
-
-        // Write system stats
-        dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
-                        ESP.getFreeHeap(),
-                        ESP.getHeapSize(),
-                        ESP.getMinFreeHeap(),
-                        wakeCount,
-                        cellVoltage,
-                        cellPercent);
+    // Cached members — refreshed by refreshSensors() in update(), not polled here.
+    if (!useMotionSensor || isnan(motionPercentage)) {
+        dataFile.print("Disabled,");
     } else {
-        // Fill empty cells for all data fields when Event is not "Status"
-        // Added 2 more commas for pressure and gas resistance
-        dataFile.print(",,,,,,,,,,,,,,,");
-        dataFile.println();
+        dataFile.printf("%.1f,", motionPercentage);
     }
+
+    dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
+                    temperature, humidity, pressure, gasResistance, lux, white);
+
+    dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
+                    ESP.getFreeHeap(),
+                    ESP.getHeapSize(),
+                    ESP.getMinFreeHeap(),
+                    wakeCount,
+                    cellVoltage,
+                    cellPercent);
 
     // Clean up
     dataFile.flush();  // Force write to SD card
