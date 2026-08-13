@@ -166,9 +166,14 @@ bool FED4::begin(const char *programName)
 
     // Speaker as early as possible (needs MCP + PSV2 for amp SD) — Demo welcome clip
     Serial.println("Initializing Speaker");
+    delay(1); // PSV2 settle (FED4-Speaker)
     statuses["Speaker"].initialized = initializeSpeaker();
     if (statuses["Speaker"].initialized) {
-        playStartup(); // "Welcome to FED4" PCM (~2.5 s)
+        Serial.println("Playing startup sound...");
+        playStartup(); // "Welcome to FED4" PCM (~2.5 s); ignores audioSilenced
+        Serial.println("Startup sound done.");
+    } else {
+        Serial.println("Speaker init failed — startup sound skipped");
     }
 
     // Reset display; frontlight off by default (MIP is reflective; sketch can displayLight(true))

@@ -1,4 +1,7 @@
 // src/FED4_Audio.cpp
+// Align with examples/2_UnitTests/FED4-Speaker: I2S mono @ 48 kHz, PSV2 then
+// EXP_AMP_SD HIGH → settle → write (≥256-sample pad for short tones) → SD LOW.
+// Mario / menuJingle / resetJingle are legacy — flagged for refactor in SRC_AUDIT.
 #include "FED4.h"
 #include "sounds/startup_sound.h"
 
@@ -175,16 +178,19 @@ void FED4::playTones(const Tone *tones, size_t count)
 
 /**
  * Plays the Demo-Hardware "Welcome to FED4" PCM boot clip (~2.5 s TTS).
- * Blocking; same I2S path as playTone.
+ * Blocking; amp path matches FED4-Speaker / playTone (SD HIGH → play → SD LOW).
+ * Boot clip ignores audioSilenced so the device still announces on power-up;
+ * runtime tones/jingles continue to honor the silence preference.
  */
 void FED4::playStartup()
 {
     if (audioSilenced) {
-        return;
+        Serial.println("playStartup: NVS audioSilenced=true (boot clip still plays)");
     }
 
+    // Speaker UT: amp on PSV2, SD HIGH, short settle, then I2S
     mcp.digitalWrite(EXP_AMP_SD, HIGH);
-    delay(5);
+    delay(1);
 
     constexpr size_t CHUNK = 256;
     int16_t buf[CHUNK];
@@ -198,7 +204,8 @@ void FED4::playStartup()
         i += n;
     }
 
-    delay(20); // let DMA drain
+    // Drain: clip is long; give DMA time before cutting amp (Speaker uses 500 µs for short tones)
+    delay(20);
     mcp.digitalWrite(EXP_AMP_SD, LOW);
 }
 

@@ -32,7 +32,7 @@ void FED4::startSleep()
   }
 
   // Rare rebaseline (skip wakeCount==0 — first sleep already calibrated at begin)
-  if (program != "ActivityMonitor" && wakeCount > 0 && wakeCount % 200 == 0)
+  if (wakeCount > 0 && wakeCount % 200 == 0)
   {
     calibrateTouchSensors();
     Serial.println("********** Touch sensors calibrated **********");
@@ -215,48 +215,6 @@ void FED4::wakeUp()
     checkButton3();
   }
 
-  // Sensor poll on timer/housekeeping wakes (not every touch)
-  if (lastWakeSource != FedWakeSource::Touch)
-  {
-    if (program == "ActivityMonitor")
-    {
-      pollSensors(1);
-    }
-    else
-    {
-      pollSensors(10);
-    }
-  }
-
-  // STATUS_LED left alone here — digital only via redPix/noPix; not tied to PIR
+  // Sensors refreshed in update() — keep wakeUp to rails / I2C / touch / buttons
   noPix();
-}
-
-bool FED4::initializePower()
-{
-  mcp.pinMode(EXP_PSV2_EN, OUTPUT);
-  mcp.pinMode(EXP_PSV3_EN, OUTPUT);
-  PSV2_ON();
-  PSV3_ON();
-  return true;
-}
-
-void FED4::PSV2_ON()
-{
-  mcp.digitalWrite(EXP_PSV2_EN, LOW); // active LOW enable
-}
-
-void FED4::PSV2_OFF()
-{
-  mcp.digitalWrite(EXP_PSV2_EN, HIGH);
-}
-
-void FED4::PSV3_ON()
-{
-  mcp.digitalWrite(EXP_PSV3_EN, LOW); // active LOW enable
-}
-
-void FED4::PSV3_OFF()
-{
-  mcp.digitalWrite(EXP_PSV3_EN, HIGH);
 }

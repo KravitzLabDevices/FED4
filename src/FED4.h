@@ -151,9 +151,11 @@ public:
     void menuRTC();
     void menuEnd();
 
-    // Sensor polling
-    void pollSensors(int minToUpdateSensors = 10);
+    // Sensor polling (BME/battery/lux for UI — called from update())
+    void refreshSensors();
     void startupPollSensors();
+    /** @deprecated Use refreshSensors(); kept as alias for older sketches. */
+    void pollSensors(int minToUpdateSensors = 10);
 
     // Pellet functions
     bool checkForPellet();
@@ -288,7 +290,7 @@ public:
     FedWakeSource lastWakeSource = FedWakeSource::None;
     unsigned long pollSensorsTimer = 0;
 
-    // Power management (defined in FED4_Sleep.cpp)
+    // Power management (defined in FED4_Power.cpp)
     bool initializePower();
     void PSV2_ON();
     void PSV2_OFF();

@@ -10,16 +10,19 @@
 
 FED4 fed4;
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   fed4.begin("BasicFED4");
 }
 
-void loop() {
-  FedEvent e = fed4.waitUntil();  // default 60 s UI refresh
+void loop()
+{
+  FedEvent e = fed4.waitUntil(); // default 60 s UI refresh
 
-  if (e.source == FedWakeSource::Touch && e.pad == FedPad::Left) {
+  if (e.source == FedWakeSource::Touch && e.pad == FedPad::Left)
+  {
     fed4.feed();
-    fed4.update();  // post-feed counters / pellet state
+    fed4.update(); // post-feed counters / pellet state
   }
 }

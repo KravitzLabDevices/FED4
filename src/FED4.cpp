@@ -65,6 +65,7 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 void FED4::update()
 {
     updateTime();
+    refreshSensors();
     updateDisplay();
     serialStatusReport();
     syncHublink();

@@ -619,8 +619,8 @@ bool FED4::logData(const String &newEvent)
     digitalWrite(SD_CS, HIGH);
     noPix();
     
-    // update screen counters when logging except at startup and not in ActivityMonitor
-    if (program != "ActivityMonitor" && (leftCount > 0 || rightCount > 0 || centerCount > 0)) {
+    // Update screen counters when logging (except at startup with zero pokes)
+    if (leftCount > 0 || rightCount > 0 || centerCount > 0) {
       displayIndicators();
       displayCounters();
     }

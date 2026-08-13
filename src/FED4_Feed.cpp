@@ -183,7 +183,7 @@ void FED4::handlePelletInWell()
 void FED4::finishFeeding()
 {
     redPix();
-    // Serial.println("Pellet Removed");
+    Serial.println("Pellet Removed");
 
     if (pelletReady)
     {

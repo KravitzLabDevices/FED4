@@ -54,23 +54,18 @@ void FED4::updateDisplay() {
   // Full clear each status frame — MIP retains uncleared pixels otherwise
   memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
 
-  // Check if this is ActivityMonitor program
-  if (program == "ActivityMonitor") {
-    displayActivityMonitor();
-  } else {
-    displayTask();
-    displayMouseId();
+  displayTask();
+  displayMouseId();
 
-    drawLine(0, DIVIDER_Y, 175, DIVIDER_Y, DISPLAY_BLACK);
+  drawLine(0, DIVIDER_Y, 175, DIVIDER_Y, DISPLAY_BLACK);
 
-    // draw screen elements
-    displayEnvironmental();
-    displayBattery();
-    displaySDCardStatus();
-    displayCounters();
-    displayIndicators();
-    displayDateTime();
-  }
+  displayEnvironmental();
+  displayBattery();
+  displaySDCardStatus();
+  displayCounters();
+  displayIndicators();
+  displayDateTime();
+
   refresh();
 }
 

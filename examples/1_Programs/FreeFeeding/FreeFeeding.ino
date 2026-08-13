@@ -12,12 +12,14 @@
 
 FED4 fed4;
 
-void setup() {
+void setup()
+{
   Serial.begin(115200);
   fed4.begin("FreeFeeding");
 }
 
-void loop() {
-  fed4.feed();    // dispense, wait until taken (or error/timeout)
-  fed4.update();  // refresh counters / serial after each cycle
+void loop()
+{
+  fed4.feed();   // dispense, wait until taken (or error/timeout)
+  fed4.update(); // refresh counters / serial after each cycle
 }
