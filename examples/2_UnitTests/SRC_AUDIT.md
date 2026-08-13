@@ -103,4 +103,5 @@ Flash with USB CDC On Boot enabled:
 ## Programs
 
 - **Unarchived:** [`examples/1_Programs/BasicFED4/`](../1_Programs/BasicFED4/) — `begin("BasicFED4")` + `waitUntil()` / `FedPad::Left` / `feed()` / `update()`.
+- **Unarchived:** [`examples/1_Programs/FreeFeeding/`](../1_Programs/FreeFeeding/) — `begin("FreeFeeding")` + `feed()` / `update()` (replace-when-taken).
 - Other sketches remain in `0_Archive/1_Programs/` until their domains are consistent.
