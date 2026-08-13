@@ -52,7 +52,6 @@ class DateTime;
 #endif
 
 // Set to 1 to skip waitUntil() poke logData (flicker A/B). 0 = normal SD logging.
-// PSV2 stays on in light sleep — card keeps power (no wake remount).
 #ifndef FED4_DIAG_SKIP_SD_LOG
 #define FED4_DIAG_SKIP_SD_LOG 0
 #endif

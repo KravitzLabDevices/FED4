@@ -17,19 +17,59 @@ void FED4::sleep()
   sleep(sleepSeconds);
 }
 
-// PSV2 ON + one long light sleep + LEDC VCOM KEEP_ALIVE (no rail-off SPI teardown).
+// SleepModes / Demo-Hardware VCOM keepalive between light-sleep chunks (ms).
+static const uint32_t kVcomChunkMs = 500;
+
+static void toggleVcomGpio(bool &vcomLevel)
+{
+  vcomLevel = !vcomLevel;
+  pinMode(DISPLAY_VCOM, OUTPUT);
+  digitalWrite(DISPLAY_VCOM, vcomLevel ? HIGH : LOW);
+}
+
+// Minimal SD/MIP CS park before PSV2 off — no SPI.end() / gpio_hold (Test B).
+static void parkSpiChipSelectsForPsv2Off()
+{
+  SD.end();
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, LOW);
+  pinMode(DISPLAY_CS, OUTPUT);
+  digitalWrite(DISPLAY_CS, LOW);
+}
+
+static void quiescePsv2PeripheralGpios()
+{
+  pinMode(PHOTOGATE_1, OUTPUT);
+  pinMode(PHOTOGATE_2, OUTPUT);
+  pinMode(PHOTOGATE_3, OUTPUT);
+  pinMode(PHOTOGATE_4, OUTPUT);
+  digitalWrite(PHOTOGATE_1, LOW);
+  digitalWrite(PHOTOGATE_2, LOW);
+  digitalWrite(PHOTOGATE_3, LOW);
+  digitalWrite(PHOTOGATE_4, LOW);
+
+  pinMode(AMP_BCLK, OUTPUT);
+  pinMode(AMP_LRCLK, OUTPUT);
+  pinMode(AMP_DIN, OUTPUT);
+  digitalWrite(AMP_BCLK, LOW);
+  digitalWrite(AMP_LRCLK, LOW);
+  digitalWrite(AMP_DIN, LOW);
+}
+
+// DIAG Test B: PSV2 OFF + GPIO VCOM every 500 ms chunk (no LEDC, no SPI.end/hold).
+// If flicker returns → cutting 3.3V2 / unpowered SD on shared SCK/MOSI.
 // Poke logData gated by FED4_DIAG_SKIP_SD_LOG (0 = enabled).
 void FED4::startSleep()
 {
   lastWakeSource = FedWakeSource::None;
 
-  // Wait for all touch pads to be released before sleeping
+  releaseVcomLedcToGpio(); // ensure GPIO VCOM (no LEDC during Test B)
+
   while (!fed4TouchPadsReleased(TOUCH_THRESHOLD))
   {
     delay(1);
   }
 
-  // Rare rebaseline (skip wakeCount==0 — first sleep already calibrated at begin)
   if (wakeCount > 0 && wakeCount % 200 == 0)
   {
     calibrateTouchSensors();
@@ -37,17 +77,16 @@ void FED4::startSleep()
     delay(1);
   }
 
-  // Clear poke latches and push to MIP — panel retains pixels until refresh
   resetTouchFlags();
   wakePad = 0;
   if (displayBuffer != nullptr)
   {
     displayIndicators();
-    refresh(); // GPIO VCOM invert for this frame
+    refresh();
   }
 
   noPix();
-  enableAmp(false); // EXP_AMP_SD LOW; PSV2 stays on
+  enableAmp(false);
 
   if (sleepyLEDs)
   {
@@ -55,8 +94,10 @@ void FED4::startSleep()
     PSV3_OFF();
   }
 
-  // 3.3V2 stays powered — photogates / SD keep VCC (no SPI.end / pin-hold)
-  PSV2_ON();
+  Serial.println("DIAG Test B: PSV2 off + GPIO VCOM 500 ms chunks (no SPI.end/hold)");
+  parkSpiChipSelectsForPsv2Off();
+  quiescePsv2PeripheralGpios();
+  PSV2_OFF();
 
   if (sleepSeconds <= 0)
   {
@@ -69,7 +110,6 @@ void FED4::startSleep()
     printInterruptStatus("pre-sleep");
   }
 
-  // INT_OR must not wake us (held-low spam). Buttons may wake via GPIO.
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
   gpio_wakeup_disable((gpio_num_t)INT_OR);
   gpio_wakeup_disable((gpio_num_t)PHOTOGATE_1);
@@ -80,34 +120,48 @@ void FED4::startSleep()
 
   fed4TouchEnableTouchpadWakeup();
 
-  // Continuous VCOM via LEDC through one full-duration light sleep
-  startVcomLedc();
-  esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
-
-  Serial.flush();
-  esp_light_sleep_start();
-
-  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-  const bool buttonHigh = digitalRead(BUTTON_1) == HIGH ||
-                          digitalRead(BUTTON_2) == HIGH ||
-                          digitalRead(BUTTON_3) == HIGH;
-
-  if (cause == ESP_SLEEP_WAKEUP_TOUCHPAD || fed4TouchAnyPadActive(TOUCH_THRESHOLD))
+  uint32_t remainingMs = (uint32_t)sleepSeconds * 1000UL;
+  while (remainingMs > 0)
   {
-    lastWakeSource = FedWakeSource::Touch;
-  }
-  else if (buttonHigh)
-  {
-    lastWakeSource = FedWakeSource::Button;
-  }
-  else
-  {
-    lastWakeSource = FedWakeSource::Timer;
+    toggleVcomGpio(vcom);
+
+    const uint32_t chunkMs = remainingMs < kVcomChunkMs ? remainingMs : kVcomChunkMs;
+    esp_sleep_enable_timer_wakeup((uint64_t)chunkMs * 1000ULL);
+
+    Serial.flush();
+    esp_light_sleep_start();
+
+    const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+    const bool buttonHigh = digitalRead(BUTTON_1) == HIGH ||
+                            digitalRead(BUTTON_2) == HIGH ||
+                            digitalRead(BUTTON_3) == HIGH;
+    const bool touchWake = (cause == ESP_SLEEP_WAKEUP_TOUCHPAD) ||
+                           fed4TouchAnyPadActive(TOUCH_THRESHOLD);
+
+    if (touchWake)
+    {
+      lastWakeSource = FedWakeSource::Touch;
+      break;
+    }
+    if (buttonHigh || cause == ESP_SLEEP_WAKEUP_GPIO)
+    {
+      lastWakeSource = FedWakeSource::Button;
+      break;
+    }
+
+    if (remainingMs > chunkMs)
+    {
+      remainingMs -= chunkMs;
+    }
+    else
+    {
+      remainingMs = 0;
+      lastWakeSource = FedWakeSource::Timer;
+    }
   }
 
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
 
-  // Restore INT_OR + button GPIO wake for awake code paths
   gpio_wakeup_enable((gpio_num_t)INT_OR, GPIO_INTR_LOW_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
@@ -208,13 +262,10 @@ void FED4::wakeUp()
     wakePad = 0;
   }
 
-  // Hand VCOM back to GPIO before any refresh() (Test A used LEDC through sleep)
-  releaseVcomLedcToGpio();
-
-  // Rails: PSV2 was left on; re-assert enables. No SPI.end / remount for rail cycle.
+  // Test B: rail was off — restore PSV2, photogates, remount SD
   PSV2_ON();
   PSV3_ON();
-  delay(1);
+  delay(40);
 
   pinMode(PHOTOGATE_1, INPUT_PULLUP);
   pinMode(PHOTOGATE_2, INPUT_PULLUP);
@@ -225,6 +276,19 @@ void FED4::wakeUp()
   digitalWrite(SD_CS, HIGH);
   pinMode(DISPLAY_CS, OUTPUT);
   digitalWrite(DISPLAY_CS, LOW);
+
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+  SPI.setFrequency(1000000);
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setDataMode(SPI_MODE0);
+
+  if (sdCardAvailable)
+  {
+    if (!SD.begin(SD_CS, SPI, 4000000) || SD.cardType() == CARD_NONE)
+    {
+      Serial.println("SD remount after wake failed");
+    }
+  }
   reclaimSpiForDisplay();
 
   i2cReinitBus();
