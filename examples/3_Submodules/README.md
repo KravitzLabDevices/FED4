@@ -124,7 +124,7 @@ This supports hot-plugging the submodule after FED4 boot and avoids redundant ti
 | Master ready wait | Poll every 50 ms, up to 2 s, until address ACK |
 | Serial debug reconnect | Up to 2 s after wake (development only; not part of wire protocol) |
 | Master retry | After 100 ms if transaction fails |
-| CAPTURE settle | Master should allow ~3 s before next wake (camera + SD write) |
+| CAPTURE | Fire-and-forget after ACK; Sense runs camera/SD alone (optional master `settleMs` if a caller wants to block) |
 
 Serial output is for bench debugging only. Production FED4 ↔ submodule communication is entirely over I2C.
 

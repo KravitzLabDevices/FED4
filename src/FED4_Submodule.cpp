@@ -158,7 +158,8 @@ bool FED4::senseSyncAndCapture(uint32_t settleMs)
   {
     return false;
   }
-  delay(50);
+  // CAPTURE follows immediately; senseCapture()'s wake/status path already
+  // gives the slave listen loop time to apply SET_TIME before RTC-named shots.
   return senseCapture(settleMs);
 }
 

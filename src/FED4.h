@@ -45,13 +45,14 @@ class DateTime;
 // Sense I2C master (FED4_Submodule*) — off until core sleep/SD is stable.
 // Set to 1 here (library rebuild) to expose FED4::sense* again.
 #ifndef FED4_ENABLE_SUBMODULE
-#define FED4_ENABLE_SUBMODULE 0
+#define FED4_ENABLE_SUBMODULE 1
 #endif
 #if FED4_ENABLE_SUBMODULE
 #include "FED4_SubmoduleProtocol.h"
 #endif
 
 // Set to 1 to skip waitUntil() poke logData (flicker A/B). 0 = normal SD logging.
+// PSV2 stays on in light sleep — card keeps power (no wake remount).
 #ifndef FED4_DIAG_SKIP_SD_LOG
 #define FED4_DIAG_SKIP_SD_LOG 0
 #endif
@@ -365,8 +366,10 @@ public:
     bool senseReadStatus(SubmoduleStatus *status);
     bool senseWakeReadStatus(SubmoduleStatus *status);
     bool senseSyncTime();
-    bool senseCapture(uint32_t settleMs = 3000);
-    bool senseSyncAndCapture(uint32_t settleMs = 3000);
+    // Fire-and-forget: returns after CAPTURE is ACKed; Sense finishes on its own.
+    // Optional settleMs blocks the master only if a caller wants to serialize.
+    bool senseCapture(uint32_t settleMs = 0);
+    bool senseSyncAndCapture(uint32_t settleMs = 0);
 #endif
 
     // Vitals functions (defined in FED4_Vitals.cpp)

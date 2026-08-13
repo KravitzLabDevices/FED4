@@ -14,7 +14,6 @@
 #endif
 
 static const uint32_t TX_INTERVAL_MS = 15000;
-static const uint32_t CAPTURE_SETTLE_MS = 3000;
 
 FED4 fed4;
 
@@ -58,7 +57,7 @@ void loop()
     Serial.println("  Sense: wake/status failed");
   }
 
-  if (fed4.senseSyncAndCapture(CAPTURE_SETTLE_MS))
+  if (fed4.senseSyncAndCapture())
   {
     Serial.println("  senseSyncAndCapture OK");
   }
