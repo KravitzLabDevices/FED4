@@ -189,6 +189,7 @@ void FED4::finishFeeding()
         {
             retrievalTime = 0.0f;
             pendingRetrieval = false;
+            pelletPresent = false;
             logData("PelletNotDetected");
             Serial.println("Pellet not detected in well");
         }
@@ -197,11 +198,13 @@ void FED4::finishFeeding()
             // Awake 20 s window ended; pellet still present — precise time stopped.
             // Next waitUntil wake (timer/touch/button) → checkLateRetrieval().
             pendingRetrieval = true;
+            pelletPresent = true;
             Serial.println("Pellet still in well — pending late retrieval");
         }
         else
         {
             pendingRetrieval = false;
+            pelletPresent = false;
             logData("PelletTaken");
             blockPokeCount = 0;
             Serial.println("Pellet Removed");
@@ -245,6 +248,7 @@ bool FED4::checkLateRetrieval()
     }
 
     retrievalTime = (static_cast<float>(millis() - pelletWellTime)) / 1000.0f;
+    pelletPresent = false; // clear before logData/displayIndicators refresh
     logData("LatePelletTaken");
     blockPokeCount = 0;
     pendingRetrieval = false;

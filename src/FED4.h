@@ -5,32 +5,32 @@
 #include <WString.h>
 #include <map>
 #include <string>
-#include <Adafruit_MCP23X17.h>  // version 2.3.2 
-#include "Adafruit_MAX1704X.h"  // version 1.0.3
-#include <Stepper.h>  // version 1.1.3
-#include <FastLED.h> // version 3.10.2 
-#include <Wire.h> 
-#include <Adafruit_GFX.h>  // version 1.12.3
+#include <Adafruit_MCP23X17.h> // version 2.3.2
+#include "Adafruit_MAX1704X.h" // version 1.0.3
+#include <Stepper.h>           // version 1.1.3
+#include <FastLED.h>           // version 3.10.2
+#include <Wire.h>
+#include <Adafruit_GFX.h> // version 1.12.3
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/Org_01.h>
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
 class DateTime;
 #include "RTClib.h" //Adafruit version, 2.1.4
-#include <SD.h> //ESP32 version
+#include <SD.h>     //ESP32 version
 #include "FS.h"
 #include <Adafruit_BME680.h> //version 2.0.5
 #include <SPI.h>
 #include <driver/adc.h>
-#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
+#include <ESP_I2S.h> // New I2S API for ESP32 core 3.x
 #include <driver/rtc_io.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <Adafruit_LIS3DH.h> //version 1.3.0
 #include <Adafruit_Sensor.h>
-#include "SparkFun_VL53L1X.h" //version 1.2.12
+#include "SparkFun_VL53L1X.h"  //version 1.2.12
 #include "Adafruit_VEML7700.h" //version 2.1.6
-#include <ESP32Time.h> //version 2.0.6
+#include <ESP32Time.h>         //version 2.0.6
 
 // Optional Hublink integration - can be excluded via compiler directive
 #ifndef FED4_EXCLUDE_HUBLINK
@@ -41,6 +41,15 @@ class DateTime;
 #include "FED4_Pins.h"
 #include "FED4_DisplayOrient.h"
 #include "FED4_TouchHelpers.h"
+
+// Sense I2C master (FED4_Submodule*) — off until core sleep/SD is stable.
+// Set to 1 here (library rebuild) to expose FED4::sense* again.
+#ifndef FED4_ENABLE_SUBMODULE
+#define FED4_ENABLE_SUBMODULE 0
+#endif
+#if FED4_ENABLE_SUBMODULE
+#include "FED4_SubmoduleProtocol.h"
+#endif
 
 // Board Version: v1.7
 #define FED4_BOARD_VERSION_STR "1.7.0"
@@ -69,23 +78,26 @@ static const bool PREFS_RO_MODE = true;
 static const bool PREFS_RW_MODE = false;
 
 /** Why waitUntil() / startSleep() returned to the sketch. */
-enum class FedWakeSource : uint8_t {
+enum class FedWakeSource : uint8_t
+{
     None = 0,
     Touch,
     Button,
-    Timer,      // UI update interval deadline
-    Interrupt   // INT_OR GPIO (non-button)
+    Timer,    // UI update interval deadline
+    Interrupt // INT_OR GPIO (non-button)
 };
 
 /** Touch pad identity for FedEvent::pad. */
-enum class FedPad : uint8_t {
+enum class FedPad : uint8_t
+{
     None = 0,
     Left = 1,
     Center = 2,
     Right = 3
 };
 
-struct FedEvent {
+struct FedEvent
+{
     FedWakeSource source = FedWakeSource::None;
     FedPad pad = FedPad::None;
     uint8_t button = 0; // 1/2/3 when Button
@@ -136,7 +148,7 @@ public:
     void pong();
 
     // Sleep configuration
-    int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups (run/sleep)
+    int sleepSeconds = 4;   // how many seconds to sleep between timer based wake-ups (run/sleep)
     bool sleepyLEDs = true; // Flag to control whether LEDs stay on during sleep (true = LEDs sleep with sleep, false = LEDs stay on during sleep)
 
     // Menu functions
@@ -262,7 +274,7 @@ public:
     void displaySDCardStatus();
     void displayIndicators();
     void startupAnimation();
-    void displayInitStatus(const char* message);
+    void displayInitStatus(const char *message);
     void displayLowBatteryWarning();
     void displayActivityMonitor();
     void displayActivityCounters();
@@ -306,9 +318,9 @@ public:
     void setAge(String age);
     void handleSDCardError();
     bool isSDCardAvailable() const { return sdCardAvailable; }
-    
+
     // Sequence display methods
-    void setSequenceDisplay(const String& sequence, int index, int level);
+    void setSequenceDisplay(const String &sequence, int index, int level);
 
     // Public counters and timing
     int pelletCount;
@@ -318,7 +330,7 @@ public:
     int blockPokeCount;
     int blockPelletCount;
     int FR;
-    String currentSequence;  // For display purposes
+    String currentSequence;   // For display purposes
     int currentSequenceIndex; // Current position in sequence
     int currentSequenceLevel; // Current level (FR)
     int wakeCount = 0;
@@ -340,6 +352,16 @@ public:
     void updateTime();
     bool forceRTCUpdate = false; // Set to true to force RTC update on next initialization
 
+#if FED4_ENABLE_SUBMODULE
+    // I2C submodule master (SeeedStudio Sense @ 0x42) — call while awake only
+    bool sensePresent();
+    bool senseReadStatus(SubmoduleStatus *status);
+    bool senseWakeReadStatus(SubmoduleStatus *status);
+    bool senseSyncTime();
+    bool senseCapture(uint32_t settleMs = 3000);
+    bool senseSyncAndCapture(uint32_t settleMs = 3000);
+#endif
+
     // Vitals functions (defined in FED4_Vitals.cpp)
     float getBatteryVoltage();
     float getBatteryPercentage();
@@ -347,7 +369,7 @@ public:
     float getHumidity();
     float getPressure();
     float getGasResistance();
-    bool getTempAndHumidity(float &temp, float &hum); // Efficient combined read
+    bool getTempAndHumidity(float &temp, float &hum);                        // Efficient combined read
     bool getAllBME680Data(float &temp, float &hum, float &pres, float &gas); // Get all BME680 values
     float getLux();
     float getWhite();
@@ -419,7 +441,7 @@ public:
     int reBaselineTouches;
     char filename[32];
     bool sdCardAvailable = true; // Track if SD card operations are available
-    bool audioSilenced = false; // Track if audio has been silenced
+    bool audioSilenced = false;  // Track if audio has been silenced
 
     void clearDisplay();
     void refresh();
@@ -456,28 +478,29 @@ public:
     // and ACCEL_INT1 (push-pull, configured active-LOW).
 
     // Bit flags identifying each interrupt source
-    enum FED4IntSource : uint8_t {
-        INT_SRC_NONE    = 0,
-        INT_SRC_TOF     = 1 << 0,  // VL53L1X data-ready / threshold
-        INT_SRC_RTC     = 1 << 1,  // DS3231 alarm 1 or alarm 2
-        INT_SRC_BATTERY = 1 << 2,  // MAX17048 voltage / SOC alert
-        INT_SRC_ACCEL   = 1 << 3,  // LIS2DH12TR inertial event on INT1
+    enum FED4IntSource : uint8_t
+    {
+        INT_SRC_NONE = 0,
+        INT_SRC_TOF = 1 << 0,     // VL53L1X data-ready / threshold
+        INT_SRC_RTC = 1 << 1,     // DS3231 alarm 1 or alarm 2
+        INT_SRC_BATTERY = 1 << 2, // MAX17048 voltage / SOC alert
+        INT_SRC_ACCEL = 1 << 3,   // LIS2DH12TR inertial event on INT1
     };
 
-    bool initializeInterrupts();                     // configure INT_OR wake + accel INT1
-    bool interruptPending();                         // true when INT_OR is LOW
-    uint8_t scanInterrupts();                        // bitmask of all asserted sources (no clear)
-    void clearInterrupts(uint8_t mask = 0xFF);       // clear latches for given sources
-    uint8_t scanAndClearInterrupts();                // scan + clear + verify line release
-    FED4IntSource firstInterruptSource();            // highest-priority single source
-    uint8_t getLastInterruptMask();                  // mask captured automatically on GPIO wake
+    bool initializeInterrupts();               // configure INT_OR wake + accel INT1
+    bool interruptPending();                   // true when INT_OR is LOW
+    uint8_t scanInterrupts();                  // bitmask of all asserted sources (no clear)
+    void clearInterrupts(uint8_t mask = 0xFF); // clear latches for given sources
+    uint8_t scanAndClearInterrupts();          // scan + clear + verify line release
+    FED4IntSource firstInterruptSource();      // highest-priority single source
+    uint8_t getLastInterruptMask();            // mask captured automatically on GPIO wake
     /** Serial dump of INT_OR + button wake pins + decoded scanInterrupts() mask. */
     void printInterruptStatus(const char *tag = nullptr);
 
     // Opt-in per-source interrupt enable helpers
     bool enableAccelInterrupt(float threshold_g = 0.1f, uint8_t duration_count = 0);
-    bool enableRTCAlarmInterrupt(uint8_t alarmNum = 1);  // arm DS3231 alarm on INT pin
-    bool enableBatteryAlert(float minVoltage, float maxVoltage);  // set MAX17048 VALERT window
+    bool enableRTCAlarmInterrupt(uint8_t alarmNum = 1);          // arm DS3231 alarm on INT pin
+    bool enableBatteryAlert(float minVoltage, float maxVoltage); // set MAX17048 VALERT window
 
     ~FED4()
     {
@@ -500,7 +523,7 @@ private:
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
     Adafruit_VEML7700 lightSensor;
-    I2SClass i2s;  // New I2S driver object for ESP32 core 3.x
+    I2SClass i2s; // New I2S driver object for ESP32 core 3.x
 
 // Hublink integration
 #ifndef FED4_EXCLUDE_HUBLINK
@@ -514,10 +537,10 @@ private:
     String sex;
     String strain;
     String age;
-    bool dropSensorAvailable; // Flag to store drop sensor availability status
-    uint8_t lastInterruptMask = 0; // captured by wakeUp() on INT_OR GPIO wake
+    bool dropSensorAvailable;        // Flag to store drop sensor availability status
+    uint8_t lastInterruptMask = 0;   // captured by wakeUp() on INT_OR GPIO wake
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
-    bool pendingRetrieval = false; // pellet still in well after awake 20 s window
+    bool pendingRetrieval = false;   // pellet still in well after awake 20 s window
     void monitorPelletInWell(uint32_t retrievalTimeoutSec);
 
     // RTC functions
@@ -535,6 +558,12 @@ private:
     bool i2cProbe(uint8_t addr);
     void i2cRecoverBus();
     bool i2cBusHealthy();
+
+#if FED4_ENABLE_SUBMODULE
+    // Submodule master transport (Sense @ 0x42)
+    bool senseWakeAndWait();
+    bool senseSend(const uint8_t *data, size_t len);
+#endif
 };
 
 // Standard ASCII 5x7 font

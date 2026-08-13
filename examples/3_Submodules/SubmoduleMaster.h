@@ -1,5 +1,8 @@
 #pragma once
 
+// Legacy standalone master helpers for sketches that do not use FED4.h.
+// Prefer FED4::senseSyncAndCapture() / senseSyncTime() / senseCapture() in src/.
+
 #include <stddef.h>
 #include <stdint.h>
 #include "SubmoduleProtocol.h"

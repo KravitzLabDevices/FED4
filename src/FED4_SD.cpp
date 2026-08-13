@@ -806,76 +806,85 @@ void FED4::setAge(String age)
 }
 
 /**
- * Handles SD card errors by playing 2 clicks, blinking red LEDs, 
- * displaying error message, and waiting for Button1 press to continue
+ * SD init / log-file failure: alert UI on Kyocera MIP (logical 176×320 portrait),
+ * blink strip red, wait for BUTTON_1 (bottom) to continue without logging.
  */
 void FED4::handleSDCardError()
 {
     Serial.println("SD Card Error - Data won't be saved. Continue?");
-    
-    // Play 2 clicks
+
     playTone(1000, 8, 0.5);
     delay(100);
     playTone(1000, 8, 0.5);
     delay(100);
-    
-    // Start blinking red LEDs
+
     bool ledsOn = true;
     unsigned long lastBlinkTime = 0;
-    const unsigned long blinkInterval = 500; // 500ms blink interval
-    
-    // Clear display and show error message
+    const unsigned long blinkInterval = 500;
+
     clearDisplay();
-    
-    // Fill the entire display area with black background
-    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
-    
-    setFont(&Org_01);
+    const int16_t w = width();
+    const int16_t h = height();
+    fillRect(0, 0, w, h, DISPLAY_BLACK);
+
+    setFont(nullptr);
     setTextSize(2);
-    setTextColor(DISPLAY_WHITE); // Use white text on black background
-    
-    // Display error message with corrected coordinates for 144x168 display
-    setCursor(5, 30);
-    print("Card error,");
-    setCursor(5, 50);
-    print("data won't");
-    setCursor(5, 70);
+    setTextColor(DISPLAY_WHITE);
+    setCursor(8, 36);
+    print("SD card");
+    setCursor(8, 60);
+    print("error");
+
+    setTextSize(1);
+    setCursor(8, 100);
+    print("Data will not");
+    setCursor(8, 116);
     print("be saved.");
-    setCursor(5, 100);
-    print("Continue?");
+    setCursor(8, 148);
+    print("Check that a");
+    setCursor(8, 164);
+    print("card is seated.");
+    setCursor(8, 220);
+    print("Bottom button:");
+    setCursor(8, 236);
+    print("Continue");
     refresh();
-    
-    // Blink red LEDs and wait for Button1 press
-    while (digitalRead(BUTTON_1) == LOW) {
-        unsigned long currentTime = millis();
-        
-        if (currentTime - lastBlinkTime >= blinkInterval) {
-            if (ledsOn) {
-                colorWipe("red", 0); // Turn all LEDs red
-            } else {
-                lightsOff(); // Turn all LEDs off
+
+    while (digitalRead(BUTTON_1) == LOW)
+    {
+        const unsigned long currentTime = millis();
+        if (currentTime - lastBlinkTime >= blinkInterval)
+        {
+            if (ledsOn)
+            {
+                colorWipe("red", 0);
+            }
+            else
+            {
+                lightsOff();
             }
             ledsOn = !ledsOn;
             lastBlinkTime = currentTime;
         }
-        
-        delay(10); // Small delay to prevent excessive CPU usage
+        delay(10);
     }
-    
-    // Button1 was pressed, play highBeep and stop blinking
+    while (digitalRead(BUTTON_1) == HIGH)
+    {
+        delay(10);
+    }
+
     lowBeep();
     lightsOff();
-    
-    // Clear display and show continuing message
+
     clearDisplay();
-    
-    // Fill the entire display area with black background
-    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
-    
-    setCursor(5, 80);
+    fillRect(0, 0, w, h, DISPLAY_BLACK);
+    setFont(nullptr);
+    setTextSize(1);
+    setTextColor(DISPLAY_WHITE);
+    setCursor(8, 150);
     print("Continuing...");
     refresh();
-    delay(1000);
-    
+    delay(800);
+
     Serial.println("User chose to continue without SD card");
 }

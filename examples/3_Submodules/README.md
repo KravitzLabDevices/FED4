@@ -4,22 +4,24 @@
 
 This directory holds **standalone firmware** for satellite boards that communicate with FED4 over I2C. Submodule code is **not** part of the FED4 core library and does not use `FED4.h` or any `src/` APIs.
 
-The only link between FED4 and submodules is the **I2C wire protocol** defined here. When FED4 master support is added, it will be separate FED4-side code that conforms to this spec.
+The only link between FED4 and submodules is the **I2C wire protocol** defined here.
 
-Shared opcode constants and pack helpers: [`SubmoduleProtocol.h`](SubmoduleProtocol.h).
+**FED4 master (library):** `src/FED4_Submodule.cpp` + `src/FED4_SubmoduleProtocol.h` — sketch API `FED4::senseSyncAndCapture()` / `senseSyncTime()` / `senseCapture()`. Keep the protocol header here in sync with the `src/` copy when changing opcodes.
+
+Shared opcode constants for **slave** firmware: [`SubmoduleProtocol.h`](SubmoduleProtocol.h).
 
 ## Module layout
 
-Portable helpers live in `examples/3_Submodules/` (not FED4 `src/`):
+Portable **slave** helpers live in `examples/3_Submodules/`:
 
 | Module | Role |
 |--------|------|
-| [`SubmoduleProtocol.h`](SubmoduleProtocol.h) | Wire format, status flags, pack/parse helpers (header-only) |
+| [`SubmoduleProtocol.h`](SubmoduleProtocol.h) | Wire format, status flags, pack/parse helpers (header-only; mirror in `src/`) |
 | [`SubmoduleState.h/.cpp`](SubmoduleState.h) | Slave runtime state + status byte building |
 | [`SubmoduleRtc.h/.cpp`](SubmoduleRtc.h) | Wall-clock validation and `settimeofday()` |
 | [`SubmoduleCommands.h/.cpp`](SubmoduleCommands.h) | Command dispatch; board supplies `SubmoduleCaptureOps` |
 | [`SubmoduleI2cSlaveEsp32.h/.cpp`](SubmoduleI2cSlaveEsp32.h) | ESP32-S3 light sleep, SCL wake, I2C slave transport |
-| [`SubmoduleMaster.h/.cpp`](SubmoduleMaster.h) | FED4-side wake, status read, send |
+| [`SubmoduleMaster.h/.cpp`](SubmoduleMaster.h) | Legacy standalone master (prefer `FED4::sense*`) |
 
 Board folders (e.g. [`SeeedStudioSense/`](SeeedStudioSense/)) provide pin maps, capture backend, and a thin `.ino`. Each sketch includes a `SubmodulePort.cpp` that `#include`s the shared `.cpp` files (Arduino IDE only compiles sources in the sketch directory).
 
@@ -36,8 +38,8 @@ Future submodules: copy the Seeed `SubmodulePort.cpp` pattern, implement `Submod
 
 | | FED4 (master) | Submodules (slaves) |
 |---|---|---|
-| Role | I2C bus master (future) | I2C bus slaves |
-| Code location | `src/` + FED4 examples | `examples/3_Submodules/` only |
+| Role | I2C bus master | I2C bus slaves |
+| Code location | `src/FED4_Submodule*.{h,cpp}` + `FED4::sense*` | `examples/3_Submodules/` only |
 | Hardware | FED4 board | Separate boards |
 | Library dependency | FED4 library | Arduino-ESP32 core only |
 
@@ -202,7 +204,7 @@ The Sense expansion **J3 solder pad must be bridged** for onboard SD pull-ups. I
 |--------|-------|-------------|--------|
 | [SeeedStudioSense](SeeedStudioSense/) | Seeed XIAO ESP32-S3 Sense | 0x42 | v0.3 — status read, SET_TIME, CAPTURE, SD SPI |
 
-**FED4 master test:** [`FED4-Submodule-SeeedStudioSense`](../2_UnitTests/FED4-Submodule-SeeedStudioSense/) — enables PSV2 for DS3231, initializes RTC if battery-lost, syncs time each cycle, sends CAPTURE commands.
+**FED4 master test:** [`FED4-Submodule-SeeedStudioSense`](../2_UnitTests/FED4-Submodule-SeeedStudioSense/) — `fed4.begin()` + `senseSyncAndCapture()` each cycle.
 
 ## ESP32-S3 slave notes
 

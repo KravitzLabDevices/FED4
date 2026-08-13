@@ -173,7 +173,7 @@ void FED4::displayMouseId() {
   if (!sdCardAvailable) {
     setCursor(6, mouseY);
     fillRect(6, mouseY - 8, 160, 14, DISPLAY_WHITE);
-    print("SD Card error!");
+    print("No SD — not logging");
   } else {
     setCursor(6, mouseY);
     print("MouseID: ");
@@ -238,20 +238,8 @@ void FED4::displayEnvironmental(){
     print("%");
   }
 
-  if (lux >= 0) {
-    setCursor(70, HEADER_TEXT_Y);
-    if (lux >= 10000) {
-      print((int)(lux / 1000));
-      print("k");
-    } else {
-      print((int)lux);
-    }
-    // Uppercase L — default font's lowercase 'l' looks like '1' ("18lx" → "181x")
-    print(" L");
-  }
-
   if (audioSilenced) {
-    setCursor(108, HEADER_TEXT_Y);
+    setCursor(70, HEADER_TEXT_Y);
     print("X");
   }
 }
@@ -322,6 +310,8 @@ void FED4::displayIndicators(){
   static const int16_t DOT_R = 4;
   static const int16_t DOT_DY = 3;
 
+  // Live well state — cached pelletPresent can lag after LatePelletTaken / sleep
+  pelletPresent = checkForPellet();
   const bool filled[4] = {leftTouch, centerTouch, rightTouch, pelletPresent};
 
   for (int i = 0; i < 4; i++) {
