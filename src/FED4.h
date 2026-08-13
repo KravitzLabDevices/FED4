@@ -2,6 +2,7 @@
 #define FED4_h
 
 #include <Arduino.h>
+#include <WString.h>
 #include <map>
 #include <string>
 #include <Adafruit_MCP23X17.h>  // version 2.3.2 
@@ -14,6 +15,7 @@
 #include <Fonts/Org_01.h>
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
+class DateTime;
 #include "RTClib.h" //Adafruit version, 2.1.4
 #include <SD.h> //ESP32 version
 #include "FS.h"
