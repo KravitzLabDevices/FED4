@@ -51,6 +51,12 @@ class DateTime;
 #include "FED4_SubmoduleProtocol.h"
 #endif
 
+// Set to 1 to skip waitUntil() poke logData (flicker A/B). 0 = normal SD logging.
+// PSV2 stays on in light sleep — card keeps power (no wake remount).
+#ifndef FED4_DIAG_SKIP_SD_LOG
+#define FED4_DIAG_SKIP_SD_LOG 0
+#endif
+
 // Board Version: v1.7
 #define FED4_BOARD_VERSION_STR "1.7.0"
 
@@ -282,10 +288,12 @@ public:
     void displayLight(bool on);
     /** One-shot accel read; sets rotation from device X (g). Returns true if rotation changed. */
     bool orientScreen();
-    /** Start ~30 Hz LEDC VCOM (KEEP_ALIVE through light sleep). */
+    /** LEDC VCOM KEEP_ALIVE (~30 Hz; Test A sleep path). */
     bool startVcomLedc();
     /** Stop LEDC VCOM and drive pin LOW (required before RST HIGH). */
     void stopVcomLedc();
+    /** If LEDC was running, release pin to GPIO at last refresh() polarity. */
+    void releaseVcomLedcToGpio();
 
     void serialStatusReport();
 
@@ -564,6 +572,9 @@ private:
     bool senseWakeAndWait();
     bool senseSend(const uint8_t *data, size_t len);
 #endif
+
+    // Shared SPI: after SD, restore 1 MHz / LSBFIRST / CS idle for MIP
+    void reclaimSpiForDisplay();
 };
 
 // Standard ASCII 5x7 font

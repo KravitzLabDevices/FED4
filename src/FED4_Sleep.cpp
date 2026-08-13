@@ -17,102 +17,8 @@ void FED4::sleep()
   sleep(sleepSeconds);
 }
 
-// Shared SPI: SD lives on PSV2. With VCC off, any line held HIGH back-powers the
-// card through ESD diodes (~16 mA with card inserted). Idle CS is HIGH only while
-// powered; for rail-off drive CS/SCK/MOSI/MISO all LOW (not SD_CS HIGH).
-static void holdSdSpiPinsLow(bool hold)
-{
-  const gpio_num_t pins[] = {
-      (gpio_num_t)SD_CS,
-      (gpio_num_t)SPI_SCK,
-      (gpio_num_t)SPI_MOSI,
-      (gpio_num_t)SPI_MISO,
-  };
-  for (gpio_num_t p : pins)
-  {
-    if (hold)
-    {
-      gpio_sleep_sel_dis(p);
-      gpio_hold_en(p);
-    }
-    else
-    {
-      gpio_hold_dis(p);
-    }
-  }
-}
-
-static void quiesceSpiForPsv2Off()
-{
-  // GO_IDLE while card still has VCC, then release the bus
-  SD.end();
-  SPI.end();
-
-  pinMode(SD_CS, OUTPUT);
-  pinMode(SPI_SCK, OUTPUT);
-  pinMode(SPI_MOSI, OUTPUT);
-  pinMode(SPI_MISO, OUTPUT);
-  digitalWrite(SD_CS, LOW);
-  digitalWrite(SPI_SCK, LOW);
-  digitalWrite(SPI_MOSI, LOW);
-  digitalWrite(SPI_MISO, LOW);
-
-  // MIP SCS inactive = LOW (panel on always-on 3.3 V; VCOM is separate LEDC)
-  pinMode(DISPLAY_CS, OUTPUT);
-  digitalWrite(DISPLAY_CS, LOW);
-
-  holdSdSpiPinsLow(true);
-}
-
-// Drive ESP32 pins into the PSV2 domain LOW before rail off (avoid back-power).
-static void quiescePsv2Gpios()
-{
-  quiesceSpiForPsv2Off();
-
-  pinMode(PHOTOGATE_1, OUTPUT);
-  pinMode(PHOTOGATE_2, OUTPUT);
-  pinMode(PHOTOGATE_3, OUTPUT);
-  pinMode(PHOTOGATE_4, OUTPUT);
-  digitalWrite(PHOTOGATE_1, LOW);
-  digitalWrite(PHOTOGATE_2, LOW);
-  digitalWrite(PHOTOGATE_3, LOW);
-  digitalWrite(PHOTOGATE_4, LOW);
-
-  pinMode(AMP_BCLK, OUTPUT);
-  pinMode(AMP_LRCLK, OUTPUT);
-  pinMode(AMP_DIN, OUTPUT);
-  digitalWrite(AMP_BCLK, LOW);
-  digitalWrite(AMP_LRCLK, LOW);
-  digitalWrite(AMP_DIN, LOW);
-}
-
-static void restorePhotogateInputs()
-{
-  pinMode(PHOTOGATE_1, INPUT_PULLUP);
-  pinMode(PHOTOGATE_2, INPUT_PULLUP);
-  pinMode(PHOTOGATE_3, INPUT_PULLUP);
-  pinMode(PHOTOGATE_4, INPUT_PULLUP);
-}
-
-static void restoreSpiAfterPsv2On()
-{
-  holdSdSpiPinsLow(false);
-
-  pinMode(SD_CS, OUTPUT);
-  digitalWrite(SD_CS, HIGH); // powered idle: CS deasserted
-  pinMode(DISPLAY_CS, OUTPUT);
-  digitalWrite(DISPLAY_CS, LOW);
-
-  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
-  SPI.setFrequency(1000000);
-  SPI.setBitOrder(MSBFIRST);
-  SPI.setDataMode(SPI_MODE0);
-}
-
-// Light sleep with LEDC VCOM keepalive (FED4-VCOM-LEDC-Light-Sleep):
-//   - one timer wake for the full sleepSeconds budget
-//   - touchpad + button GPIO wake (INT_OR off); PSV2/PSV3 off for battery life
-//   - late retrieval: checkLateRetrieval() on wake (no photogate wake — PSV2 off)
+// PSV2 ON + one long light sleep + LEDC VCOM KEEP_ALIVE (no rail-off SPI teardown).
+// Poke logData gated by FED4_DIAG_SKIP_SD_LOG (0 = enabled).
 void FED4::startSleep()
 {
   lastWakeSource = FedWakeSource::None;
@@ -137,11 +43,11 @@ void FED4::startSleep()
   if (displayBuffer != nullptr)
   {
     displayIndicators();
-    refresh();
+    refresh(); // GPIO VCOM invert for this frame
   }
 
   noPix();
-  enableAmp(false);
+  enableAmp(false); // EXP_AMP_SD LOW; PSV2 stays on
 
   if (sleepyLEDs)
   {
@@ -149,9 +55,8 @@ void FED4::startSleep()
     PSV3_OFF();
   }
 
-  // Cut 3.3V2 — photogate IR LEDs / amp domain off (battery); late retrieval is coarse
-  quiescePsv2Gpios();
-  PSV2_OFF();
+  // 3.3V2 stays powered — photogates / SD keep VCC (no SPI.end / pin-hold)
+  PSV2_ON();
 
   if (sleepSeconds <= 0)
   {
@@ -174,6 +79,9 @@ void FED4::startSleep()
   esp_sleep_enable_gpio_wakeup();
 
   fed4TouchEnableTouchpadWakeup();
+
+  // Continuous VCOM via LEDC through one full-duration light sleep
+  startVcomLedc();
   esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
 
   Serial.flush();
@@ -218,7 +126,6 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   startSleep();
   wakeUp();
 
-  // After PSV2 is back: coarse late retrieval on timer/touch/button wake
   checkLateRetrieval();
 
   sleepSeconds = savedSeconds;
@@ -261,7 +168,7 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
     }
   }
 
-  // Library owns poke SD rows so sketches (e.g. BasicFED4) stay event-only
+#if !FED4_DIAG_SKIP_SD_LOG
   if (event.source == FedWakeSource::Touch)
   {
     if (event.pad == FedPad::Left)
@@ -277,14 +184,18 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
       logData("Right");
     }
   }
+#else
+  if (event.source == FedWakeSource::Touch)
+  {
+    Serial.println("DIAG: skip poke logData (FED4_DIAG_SKIP_SD_LOG)");
+  }
+#endif
 
-  // Refresh UI while poke flags are still set (dots / counters / clock)
   update();
 
   return event;
 }
 
-// Wakes up device by re-enabling components and initializing I2C/I2S
 void FED4::wakeUp()
 {
   wakeCount++;
@@ -297,19 +208,25 @@ void FED4::wakeUp()
     wakePad = 0;
   }
 
+  // Hand VCOM back to GPIO before any refresh() (Test A used LEDC through sleep)
+  releaseVcomLedcToGpio();
+
+  // Rails: PSV2 was left on; re-assert enables. No SPI.end / remount for rail cycle.
   PSV2_ON();
   PSV3_ON();
   delay(1);
-  restorePhotogateInputs();
-  restoreSpiAfterPsv2On();
-  // SD lost VCC with PSV2; remount so poke/log paths don't rely on hot-swap recovery
-  if (sdCardAvailable)
-  {
-    if (!SD.begin(SD_CS, SPI, 4000000) || SD.cardType() == CARD_NONE)
-    {
-      Serial.println("SD remount after wake failed");
-    }
-  }
+
+  pinMode(PHOTOGATE_1, INPUT_PULLUP);
+  pinMode(PHOTOGATE_2, INPUT_PULLUP);
+  pinMode(PHOTOGATE_3, INPUT_PULLUP);
+  pinMode(PHOTOGATE_4, INPUT_PULLUP);
+
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+  pinMode(DISPLAY_CS, OUTPUT);
+  digitalWrite(DISPLAY_CS, LOW);
+  reclaimSpiForDisplay();
+
   i2cReinitBus();
   delay(1);
 
@@ -328,7 +245,6 @@ void FED4::wakeUp()
     lastInterruptMask = INT_SRC_NONE;
   }
 
-  // Touch first (UT identifies pad immediately after touchpad wake)
   if (wakeCause == ESP_SLEEP_WAKEUP_TOUCHPAD ||
       lastWakeSource == FedWakeSource::Touch ||
       fed4TouchAnyPadActive(TOUCH_THRESHOLD))
@@ -344,6 +260,5 @@ void FED4::wakeUp()
     checkButton3();
   }
 
-  // Sensors refreshed in update() — keep wakeUp to rails / I2C / touch / buttons
   noPix();
 }

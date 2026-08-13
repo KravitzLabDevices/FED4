@@ -64,7 +64,7 @@ Living checklist for aligning library code with [`examples/2_UnitTests/`](./).
 | `wakeUp()` sensor contamination | **Done** — sensors via `refreshSensors()` in `update()`; buttons kept in wake by design |
 | 10-minute `pollSensors` gate | **Removed** — `refreshSensors()` always reads BME/battery/lux; no auto-`logData("Status")` |
 | ActivityMonitor `program ==` branches in hot src | **Removed** — revisit when that sketch is unarchived |
-| MIP VCOM keepalive | **Done** — LEDC ~30 Hz KEEP_ALIVE + RC_FAST (`FED4-VCOM-LEDC-Light-Sleep`) |
+| MIP VCOM keepalive | **Done** — refresh() inverts VCOM then ~30 Hz LEDC KEEP_ALIVE + RC_FAST |
 | LEDC vs `analogWrite` conflict | **Fixed** — STATUS_LED is digital only after VCOM LEDC start |
 | Wake `Wire.begin()` bare | **Fixed** — `i2cReinitBus()` |
 | Accel INT auto-enabled at begin | **Fixed** — INT_OR idle HIGH via H_LACTIVE |

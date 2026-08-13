@@ -474,6 +474,7 @@ bool FED4::logData(const String &newEvent)
             if (!SD.begin(SD_CS, SPI, 4000000)) { 
                 Serial.println("Failed");
                 digitalWrite(SD_CS, HIGH);
+                reclaimSpiForDisplay();
                 return false;
             }
         }
@@ -484,6 +485,7 @@ bool FED4::logData(const String &newEvent)
         if (!SD.exists(filename)) {
             Serial.println("File not found after reinit");
             digitalWrite(SD_CS, HIGH);
+            reclaimSpiForDisplay();
             return false;
         }
 
@@ -511,6 +513,7 @@ bool FED4::logData(const String &newEvent)
             }
             digitalWrite(SD_CS, HIGH);
             noPix();
+            reclaimSpiForDisplay();
             return false;
         }
         Serial.println("Success!");
@@ -612,20 +615,17 @@ bool FED4::logData(const String &newEvent)
         dataFile.close();
         digitalWrite(SD_CS, HIGH);
         noPix();
+        reclaimSpiForDisplay();
         return false;
     }
     
     dataFile.close();
     digitalWrite(SD_CS, HIGH);
     noPix();
-    
-    // Update screen counters when logging (except at startup with zero pokes)
-    if (leftCount > 0 || rightCount > 0 || centerCount > 0) {
-      displayIndicators();
-      displayCounters();
-    }
 
-    refresh();
+    // Do not refresh here — shared SPI was at SD rates; waitUntil/feed callers
+    // paint once via update()/updateDisplay(). Reclaim bus for a following MIP write.
+    reclaimSpiForDisplay();
 
     return true;
 }

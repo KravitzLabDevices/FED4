@@ -50,7 +50,7 @@ void FED4::jammed()
   print("DISPENSE ERR");
   refresh();
   releaseMotor();
-  logData("DispenseError");
+  logData("DispenseError"); // reclaimSpiForDisplay inside; UI already refreshed above
   lightsOff();
   noPix();
 

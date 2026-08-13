@@ -10,11 +10,13 @@
 // Pixel data: 0 = BLACK, 1 = WHITE  (section 9-1)
 // SPI bit order: LSBFIRST — AG0 / D0 are the "first" bits per the datasheet notation,
 //   meaning they map to bit 0 (transmitted first by LSBFIRST).
-// Gate address: linear mapping assumed (address = line number 1–176).
-//   If rows appear interleaved, consult the section 7 address table in the datasheet.
+// Gate address: linear 0–175 (Demo-Hardware / SleepModes). Not 1–176.
 //
-// VCOM: LEDC ~30 Hz 50% KEEP_ALIVE + RC_FAST (see FED4-VCOM-LEDC-Light-Sleep).
-// Do not use analogWrite() after startVcomLedc() — S3 LEDC timers share one clock.
+// VCOM policy (Demo-Hardware / FED4-SleepModes):
+//   - refresh(): GPIO invert only (phase-locked to SCS), then leave pin static.
+//   - light sleep: GPIO toggle every 500 ms between esp_light_sleep chunks (see FED4_Sleep.cpp).
+// LEDC KEEP_ALIVE helpers remain for RST safety / optional experiments — not used in sleep path.
+// Do not use analogWrite() on other channels that share LEDC timers while VCOM LEDC is active.
 
 static const ledc_timer_t VCOM_LEDC_TIMER = LEDC_TIMER_1;
 static const ledc_channel_t VCOM_LEDC_CHANNEL = LEDC_CHANNEL_1;
@@ -382,15 +384,30 @@ void FED4::displayLowBatteryWarning() {
     refresh();
 }
 
+// Release LEDC from DISPLAY_VCOM without forcing a polarity (refresh sets the next level).
+static void detachVcomLedc(bool &vcomLedcActive)
+{
+    if (!vcomLedcActive) {
+        return;
+    }
+    ledc_stop(VCOM_LEDC_MODE, VCOM_LEDC_CHANNEL, 0);
+    vcomLedcActive = false;
+}
+
 void FED4::stopVcomLedc()
 {
-    if (vcomLedcActive) {
-        ledc_stop(VCOM_LEDC_MODE, VCOM_LEDC_CHANNEL, 0);
-        vcomLedcActive = false;
-    }
+    detachVcomLedc(vcomLedcActive);
     pinMode(DISPLAY_VCOM, OUTPUT);
     digitalWrite(DISPLAY_VCOM, LOW);
     vcom = false;
+}
+
+// End sleep KEEP_ALIVE; leave GPIO at last refresh() polarity (do not force LOW).
+void FED4::releaseVcomLedcToGpio()
+{
+    detachVcomLedc(vcomLedcActive);
+    pinMode(DISPLAY_VCOM, OUTPUT);
+    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
 }
 
 bool FED4::startVcomLedc()
@@ -453,8 +470,9 @@ void FED4::displayReset()
     mcp.digitalWrite(EXP_DISPLAY_RESET, LOW);
     delay(10);
 
-    // Restart LEDC VCOM keepalive while panel is ON
-    startVcomLedc();
+    pinMode(DISPLAY_VCOM, OUTPUT);
+    digitalWrite(DISPLAY_VCOM, LOW);
+    vcom = false;
 }
 
 // Controls the display frontlight LED via MCP expander
@@ -492,12 +510,7 @@ bool FED4::initializeDisplay()
     setTextColor(DISPLAY_BLACK);
     setTextWrap(false);
 
-    refresh(); // Push initial white frame to panel
-
-    // Ensure VCOM LEDC is running (displayReset already starts it; re-assert after SPI mux)
-    if (!vcomLedcActive) {
-        startVcomLedc();
-    }
+    refresh(); // Push initial white frame (GPIO VCOM)
 
     return true;
 }
@@ -526,6 +539,18 @@ void FED4::clearDisplay()
     refresh();
 }
 
+// After SD (often 4 MHz / MSBFIRST), reclaim the shared bus for Kyocera (Demo: 1 MHz LSBFIRST).
+void FED4::reclaimSpiForDisplay()
+{
+    pinMode(SD_CS, OUTPUT);
+    digitalWrite(SD_CS, HIGH);
+    pinMode(DISPLAY_CS, OUTPUT);
+    digitalWrite(DISPLAY_CS, LOW);
+    SPI.setFrequency(1000000);
+    SPI.setBitOrder(LSBFIRST);
+    SPI.setDataMode(SPI_MODE0);
+}
+
 // Sends the full framebuffer to the panel using Kyocera line-oriented SPI protocol (section 9-2).
 // Each gate line: 1 address byte + 40 data bytes + 4 dummy bytes = 360 clocks.
 // All 176 lines are sent within a single SCS=HIGH window (continuous mode).
@@ -535,32 +560,33 @@ void FED4::refresh()
         return;
     }
 
-    SPI.setBitOrder(LSBFIRST);
+    reclaimSpiForDisplay();
 
-    // VCOM AC is provided by LEDC (~30 Hz KEEP_ALIVE). Do not digitalWrite the pin
-    // while LEDC owns it — that fights the PWM. Fallback toggle only if LEDC failed.
-    if (!vcomLedcActive) {
-        vcom = !vcom;
-        pinMode(DISPLAY_VCOM, OUTPUT);
-        digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
-    }
+    // Demo-Hardware: phase-lock VCOM to this frame (GPIO only)
+    detachVcomLedc(vcomLedcActive); // no-op if LEDC unused
+    vcom = !vcom;
+    pinMode(DISPLAY_VCOM, OUTPUT);
+    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
 
-    // tsSCS: SCS must be LOW for ≥ 4 ms before asserting HIGH for the next frame (section 9-4)
+    // tsSCS: SCS must be LOW for ≥ 4 ms before asserting HIGH (section 9-4)
     delay(4);
+    delayMicroseconds(30);
 
-    // Assert SCS active HIGH — all 176 lines sent in one SCS window (section 9-2)
+    // Assert SCS active HIGH — all 176 lines in one SCS window (section 9-2)
     digitalWrite(DISPLAY_CS, HIGH);
+    delay(5); // Demo-Hardware settle after SCS↑
+
+    SPI.beginTransaction(SPISettings(1000000, LSBFIRST, SPI_MODE0));
 
     const uint8_t bytesPerLine = DISPLAY_WIDTH / 8; // 40 bytes = 320 pixels
 
-    for (uint8_t line = 1; line <= DISPLAY_HEIGHT; line++) {
-        // Gate address byte (AG0~AG7).
-        // LSBFIRST: AG0 (bit 0) is sent first, matching the AG0~AG7 transmission order.
-        // Gate line addressing assumed linear from section 7: address = line number (1–176).
+    // Gate addresses 0..175 — match FED4-Demo-Hardware / SleepModes (not 1..176).
+    // LSBFIRST: AG0 (bit 0) first. Row i in the framebuffer → address i.
+    for (uint8_t line = 0; line < DISPLAY_HEIGHT; line++) {
         SPI.transfer(line);
 
         // Pixel data: 40 bytes, D0 (bit 0 of first byte) = leftmost pixel (section 9-1)
-        const uint8_t *row = displayBuffer + (uint16_t)(line - 1) * bytesPerLine;
+        const uint8_t *row = displayBuffer + (uint16_t)line * bytesPerLine;
         for (uint8_t b = 0; b < bytesPerLine; b++) {
             SPI.transfer(row[b]);
         }
@@ -572,7 +598,8 @@ void FED4::refresh()
         SPI.transfer(0x00);
     }
 
-    // Deassert SCS; tsSCS and thSCS satisfied by the delay(4) at the start of the next call
+    SPI.endTransaction();
+    delay(2); // Demo-Hardware: hold before SCS↓
     digitalWrite(DISPLAY_CS, LOW);
 }
 
