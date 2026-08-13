@@ -1,5 +1,9 @@
 #include "FED4.h"
 
+#include "driver/ledc.h"
+#include "driver/gpio.h"
+#include "esp_sleep.h"
+
 // Display: Kyocera TN0216ANVNANN-GN00  320×176 Memory-in-Pixel (MIP)
 // Interface: 3-wire SPI (SCLK, SCS, SI) + RST + VCOM
 // RST = LOW → display ON;  RST = HIGH → display OFF (VCOM must be LOW when RST HIGH)
@@ -8,6 +12,16 @@
 //   meaning they map to bit 0 (transmitted first by LSBFIRST).
 // Gate address: linear mapping assumed (address = line number 1–176).
 //   If rows appear interleaved, consult the section 7 address table in the datasheet.
+//
+// VCOM: LEDC ~2 Hz 50% KEEP_ALIVE + RC_FAST (see FED4-VCOM-LEDC-Light-Sleep).
+// Do not use analogWrite() after startVcomLedc() — S3 LEDC timers share one clock.
+
+static const ledc_timer_t VCOM_LEDC_TIMER = LEDC_TIMER_1;
+static const ledc_channel_t VCOM_LEDC_CHANNEL = LEDC_CHANNEL_1;
+static const ledc_mode_t VCOM_LEDC_MODE = LEDC_LOW_SPEED_MODE;
+static const ledc_timer_bit_t VCOM_LEDC_RES = LEDC_TIMER_14_BIT;
+static const uint32_t VCOM_LEDC_HZ = 2;
+static const uint32_t VCOM_LEDC_DUTY_50 = 8192; // 50% of 2^14
 
 #ifndef _swap_int16_t
 #define _swap_int16_t(a, b) \
@@ -383,6 +397,57 @@ void FED4::displayLowBatteryWarning() {
     refresh();
 }
 
+void FED4::stopVcomLedc()
+{
+    if (vcomLedcActive) {
+        ledc_stop(VCOM_LEDC_MODE, VCOM_LEDC_CHANNEL, 0);
+        vcomLedcActive = false;
+    }
+    pinMode(DISPLAY_VCOM, OUTPUT);
+    digitalWrite(DISPLAY_VCOM, LOW);
+    vcom = false;
+}
+
+bool FED4::startVcomLedc()
+{
+    // Keep RC_FAST powered in light sleep (LEDC clock for KEEP_ALIVE)
+    esp_sleep_pd_config(ESP_PD_DOMAIN_RC_FAST, ESP_PD_OPTION_ON);
+
+    ledc_timer_config_t timer = {};
+    timer.speed_mode = VCOM_LEDC_MODE;
+    timer.timer_num = VCOM_LEDC_TIMER;
+    timer.duty_resolution = VCOM_LEDC_RES;
+    timer.freq_hz = VCOM_LEDC_HZ;
+    timer.clk_cfg = (ledc_clk_cfg_t)LEDC_USE_RC_FAST_CLK;
+
+    esp_err_t err = ledc_timer_config(&timer);
+    if (err != ESP_OK) {
+        Serial.printf("startVcomLedc: timer config failed: %s\n", esp_err_to_name(err));
+        vcomLedcActive = false;
+        return false;
+    }
+
+    ledc_channel_config_t channel = {};
+    channel.gpio_num = DISPLAY_VCOM;
+    channel.speed_mode = VCOM_LEDC_MODE;
+    channel.channel = VCOM_LEDC_CHANNEL;
+    channel.timer_sel = VCOM_LEDC_TIMER;
+    channel.duty = VCOM_LEDC_DUTY_50;
+    channel.hpoint = 0;
+    channel.sleep_mode = LEDC_SLEEP_MODE_KEEP_ALIVE;
+
+    err = ledc_channel_config(&channel);
+    if (err != ESP_OK) {
+        Serial.printf("startVcomLedc: channel config failed: %s\n", esp_err_to_name(err));
+        vcomLedcActive = false;
+        return false;
+    }
+
+    gpio_sleep_sel_dis((gpio_num_t)DISPLAY_VCOM);
+    vcomLedcActive = true;
+    return true;
+}
+
 // Resets the display panel via MCP expander RST line.
 // Per section 8 of the TN0216 datasheet:
 //   RST = HIGH → display OFF (panel blanked, pixel memory retained)
@@ -392,10 +457,8 @@ void FED4::displayReset()
 {
     mcp.pinMode(EXP_DISPLAY_RESET, OUTPUT);
 
-    // Ensure VCOM is LOW before asserting RST HIGH (shoot-through prevention, section 6-2)
-    pinMode(DISPLAY_VCOM, OUTPUT);
-    digitalWrite(DISPLAY_VCOM, LOW);
-    vcom = false;
+    // Stop LEDC and force VCOM LOW before RST HIGH (section 6-2)
+    stopVcomLedc();
 
     // Brief RST HIGH: blanks the panel so random power-on pixel memory isn't visible
     mcp.digitalWrite(EXP_DISPLAY_RESET, HIGH);
@@ -404,6 +467,9 @@ void FED4::displayReset()
     // RST LOW: display enters normal operation — hold LOW for the device lifetime
     mcp.digitalWrite(EXP_DISPLAY_RESET, LOW);
     delay(10);
+
+    // Restart LEDC VCOM keepalive while panel is ON
+    startVcomLedc();
 }
 
 // Controls the display frontlight LED via MCP expander
@@ -442,6 +508,12 @@ bool FED4::initializeDisplay()
     setTextWrap(false);
 
     refresh(); // Push initial white frame to panel
+
+    // Ensure VCOM LEDC is running (displayReset already starts it; re-assert after SPI mux)
+    if (!vcomLedcActive) {
+        startVcomLedc();
+    }
+
     return true;
 }
 
@@ -480,9 +552,13 @@ void FED4::refresh()
 
     SPI.setBitOrder(LSBFIRST);
 
-    // Toggle VCOM each refresh — AC drive requirement (section 9-3, ≥ ~1 Hz)
-    vcom = !vcom;
-    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
+    // VCOM AC is provided by LEDC (~2 Hz KEEP_ALIVE). Do not digitalWrite the pin
+    // while LEDC owns it — that fights the PWM. Fallback toggle only if LEDC failed.
+    if (!vcomLedcActive) {
+        vcom = !vcom;
+        pinMode(DISPLAY_VCOM, OUTPUT);
+        digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
+    }
 
     // tsSCS: SCS must be LOW for ≥ 4 ms before asserting HIGH for the next frame (section 9-4)
     delay(4);

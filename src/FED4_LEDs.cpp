@@ -486,32 +486,31 @@ void FED4::rightLight(const char *colorName, uint8_t brightness)
 }
 
 // ── STATUS LED ──────────────────────────────────────────────────────────────
-// Single red LED driven by PWM on GPIO STATUS_LED.
-// API: redPix(brightness) to light, noPix() to turn off.
-// brightness = PWM duty cycle, 0 (off) – 255 (full).
-// Example: redPix(5);    // dim red indicator
-//          redPix(128);  // half brightness
-//          noPix();      // off
+// Single red LED on GPIO STATUS_LED — digital on/off only (no analogWrite).
+// ESP32-S3 LEDC timers share one clock with VCOM KEEP_ALIVE; PWM here would
+// fight DISPLAY_VCOM LEDC (see FED4-VCOM-LEDC-Light-Sleep).
+// API: redPix(brightness) lights if brightness > 0; noPix() turns off.
 
 bool FED4::initializePixel()
 {
     pinMode(STATUS_LED, OUTPUT);
-    analogWrite(STATUS_LED, 0);
+    digitalWrite(STATUS_LED, LOW);
+    statusLedBrightness = 0;
     return true;
 }
 
-// Lights the red LED at the given brightness (PWM duty 0–255).
-// Example: redPix();      // default brightness (5)
-//          redPix(128);   // half brightness
+// Lights the red LED when brightness > 0 (digital; brightness value not PWM).
 void FED4::redPix(uint8_t brightness)
 {
-    analogWrite(STATUS_LED, brightness);
+    statusLedBrightness = brightness;
+    digitalWrite(STATUS_LED, brightness > 0 ? HIGH : LOW);
 }
 
 // Turns the status LED off.
 void FED4::noPix()
 {
-    analogWrite(STATUS_LED, 0);
+    statusLedBrightness = 0;
+    digitalWrite(STATUS_LED, LOW);
 }
 
 // Example usage:

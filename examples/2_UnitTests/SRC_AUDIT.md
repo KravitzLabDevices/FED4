@@ -8,7 +8,7 @@ Living checklist for aligning library code with [`examples/2_UnitTests/`](./).
 | File | Notes |
 |------|--------|
 | `FED4_Menu.cpp` | Pause — rebuild later for new screen |
-| `FED4.cpp` | Core `run()` orchestration (now calls `orientScreen`) |
+| `FED4.cpp` | Core `run()` / `update()` / `waitUntil()` orchestration |
 | `FED4_Buttons.cpp` | No dedicated button sketch |
 | `FED4_Hublink.cpp` | Archive only |
 | `FED4_Interrupts.cpp` | Demo mentions INT_OR only |
@@ -58,21 +58,22 @@ Living checklist for aligning library code with [`examples/2_UnitTests/`](./).
 | `FED4-SleepModes` uses library touch helpers | **Done** |
 | Power rails still in `FED4_Sleep.cpp` | **Flagged** — peel later |
 | `wakeUp()` still runs buttons + `pollSensors` | **Flagged** — contamination |
-| MIP VCOM keepalive in `FED4::startSleep` | **Done** — 500 ms chunks (currently bypassed; see TEMP delay) |
+| MIP VCOM keepalive | **Done** — LEDC ~2 Hz KEEP_ALIVE + RC_FAST (`FED4-VCOM-LEDC-Light-Sleep` ✓); chunked digitalWrite **removed** |
+| LEDC vs `analogWrite` conflict | **Fixed** — STATUS_LED is digital only after VCOM LEDC start |
 | Wake `Wire.begin()` bare | **Fixed** — `i2cReinitBus()` |
-| Light sleep bypass for bring-up | **Restored** — UT-aligned chunks + VCOM + flush; touchpad wake; no auto accel INT |
-| Accel INT auto-enabled at begin | **Fixed** — was holding INT_OR low → GPIO wake every chunk, masking touch wake |
-| Sleep budget credited early wakes | **Fixed** — `millis()` wall-clock deadline (SleepModes); spurious GPIO/USB no longer halves period |
-| Event-driven idle API | **Done** — `waitUntil(housekeepingSeconds)` + `serviceHousekeeping()`; BasicFED4 uses 60 s |
-| GPIO wake during light sleep | **Fixed** — disabled for sleep session (UT has none); buttons + software touch polled between VCOM chunks |
-| Poke dots sticky / missing | **Fixed** — redraw cleared indicators before sleep; BasicFED4 refreshes UI before `feed()` clears flags |
-| Identify GPIO wake conflict | **Diag** — `printInterruptStatus()`; begin clears ToF/RTC/BAT/Accel latches; pre-sleep logs if INT_OR LOW |
-| INT_OR stuck LOW / ACCEL | **Fixed** — LIS2DH12 default active-HIGH INT1 idles LOW; set H_LACTIVE + clear sources; ToF active-LOW; RTC INTCN; clear BAT |
+| Accel INT auto-enabled at begin | **Fixed** — was holding INT_OR low → GPIO wake spam |
+| Sleep budget / early GPIO wakes | **Fixed** — single light-sleep for full interval; INT_OR wake off; button-only GPIO wake |
+| Event-driven idle API | **Done** — `waitUntil(updateIntervalSeconds=60)` + `update()` + `FedPad`; auto-`update()` on wait return |
+| Poke dots sticky / missing | **Fixed** — clear indicators before sleep; `waitUntil` refreshes UI before return |
+| Identify GPIO wake conflict | **Diag** — `printInterruptStatus()`; begin clears ToF/RTC/BAT/Accel latches |
+| INT_OR stuck LOW / ACCEL | **Fixed** — LIS2DH12 H_LACTIVE active-LOW idle HIGH; ToF active-LOW; RTC INTCN; clear BAT |
 | Program/menu fonts vs Demo | **Aligned** — default GFX size 1 for body; FreeSans for short labels |
 | RTC stuck at 2000-01-01 | **Fixed** — `lostPower()` + year&lt;2020 + new-compile sync (Demo pattern) |
-| STATUS_LED dim always-on | **Fixed** — mirrors PIR when `useMotionSensor` (Demo); BasicFED4 enables motion |
+| STATUS_LED / PIR coupling | **Decoupled** — idle/`update()`/`wakeUp` do not mirror PIR; `updateStatusLedFromMotion()` remains for demos |
+| `orientScreen()` in idle path | **Removed** from `update()` — demo/interrupt later |
 | Startup triple-click audio | **Replaced** — Demo `startup_sound.h` PCM via early `playStartup()` after power rails |
 | Header ENV vertical align | **Fixed** — Demo `HEADER_H=20` / `HEADER_TEXT_Y=5` (default font top-edge) |
+| Frontlight default | **Off** — `displayLight(false)` in begin |
 
 ## Begin / Feed / Display (BasicFED4 readiness)
 
@@ -84,9 +85,9 @@ Living checklist for aligning library code with [`examples/2_UnitTests/`](./).
 | Low-battery `startSleep()` hang (no timer) | **Fixed** — uses `sleep(sleepSeconds)` |
 | `jammed()` infinite loop | **Fixed** — soft-fail + `dispenseError`; dispense loop exits |
 | Program ENV header (temp only) | **Fixed** — temp + humidity + lux; battery shifted right |
-| `orientScreen()` never called from `run()` | **Fixed** |
 | `displayInitStatus` before framebuffer alloc | **Fixed** — null-guard draw/refresh/status (was LoadProhibited at boot) |
 | Full Demo dashboard in library UI | **Out of scope** — stays in `FED4-Demo-Hardware` |
+| `startVcomLedc` / `stopVcomLedc` | **Done** — display reset stops LEDC for RST; restarts after panel ON |
 
 ## Hardware verify checklist (Touch / Sleep / Demo / BasicFED4)
 
@@ -94,11 +95,12 @@ Flash with USB CDC On Boot enabled:
 
 1. **FED4-Touch** — Serial shows NG driver line + rising counts on poke; idle baselines non-zero
 2. **FED4-Touch-Light-Sleep-Multiple** — sleep, wake on each pad, strip glow, unique pad names
-3. **FED4-SleepModes** — light sleep touch wake prints pad; deep sleep cycle continues
-4. **FED4-Demo-Hardware** — strip + poke still work after library helper switch
-5. **BasicFED4** (`examples/1_Programs/BasicFED4/`) — boot completes without I2C hang; status UI shows T/H/lux + L/C/R/Pellets; left poke → feed → display refresh → sleep; left poke wakes and feeds again
+3. **FED4-VCOM-LEDC-Light-Sleep** — ✓ passed (~502 ms period through light sleep)
+4. **FED4-SleepModes** — light sleep touch wake prints pad; deep sleep cycle continues
+5. **FED4-Demo-Hardware** — strip + poke still work after library helper switch
+6. **BasicFED4** — boot UI from `begin()`; left poke → feed → `update()`; VCOM via LEDC during `waitUntil`
 
 ## Programs
 
-- **Unarchived:** [`examples/1_Programs/BasicFED4/`](../1_Programs/BasicFED4/) — uses `begin("BasicFED4")` + `run()` after left-poke `feed()`.
+- **Unarchived:** [`examples/1_Programs/BasicFED4/`](../1_Programs/BasicFED4/) — `begin("BasicFED4")` + `waitUntil()` / `FedPad::Left` / `feed()` / `update()`.
 - Other sketches remain in `0_Archive/1_Programs/` until their domains are consistent.

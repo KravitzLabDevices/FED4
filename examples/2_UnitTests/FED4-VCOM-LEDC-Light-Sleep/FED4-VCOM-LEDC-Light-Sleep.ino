@@ -33,15 +33,11 @@
 #include "esp_idf_version.h"
 #include "esp_err.h"
 
-#ifndef LEDC_USE_RC_FAST_CLK
-#define LEDC_USE_RC_FAST_CLK LEDC_SLOW_CLK_RC_FAST
-#endif
-
-#ifdef LEDC_SLEEP_MODE_KEEP_ALIVE
-#define FED4_LEDC_HAS_SLEEP_MODE 1
-#else
-#define FED4_LEDC_HAS_SLEEP_MODE 0
-#endif
+// Use LEDC_USE_RC_FAST_CLK (ledc_clk_cfg_t / soc_periph_ledc_clk_src_legacy_t).
+// Do NOT alias LEDC_SLOW_CLK_RC_FAST — that is ledc_slow_clk_sel_t.
+// Do NOT #ifdef LEDC_SLEEP_MODE_KEEP_ALIVE / LEDC_USE_RC_FAST_CLK — those are
+// enum enumerators, not macros; #ifdef is always false and silently drops
+// KEEP_ALIVE (default sleep_mode = no PWM in light sleep).
 
 static const uint32_t SERIAL_BOOT_DELAY_MS = 1000;
 static const uint32_t AWAKE_MS = 2000;
@@ -101,14 +97,18 @@ static bool holdDisplayResetLow() {
 }
 
 static bool setupVcomLedc() {
+  // Keep RC_FAST powered in light sleep (LEDC clock for KEEP_ALIVE)
+  esp_err_t err = esp_sleep_pd_config(ESP_PD_DOMAIN_RC_FAST, ESP_PD_OPTION_ON);
+  Serial.printf("esp_sleep_pd_config(RC_FAST, ON): %s\n", esp_err_to_name(err));
+
   ledc_timer_config_t timer = {};
   timer.speed_mode = VCOM_SPEED;
   timer.timer_num = VCOM_TIMER;
   timer.duty_resolution = VCOM_RES;
   timer.freq_hz = VCOM_HZ;
-  timer.clk_cfg = LEDC_USE_RC_FAST_CLK;
+  timer.clk_cfg = (ledc_clk_cfg_t)LEDC_USE_RC_FAST_CLK;
 
-  esp_err_t err = ledc_timer_config(&timer);
+  err = ledc_timer_config(&timer);
   Serial.printf("ledc_timer_config: %s\n", esp_err_to_name(err));
   if (err != ESP_OK) {
     return false;
@@ -121,16 +121,16 @@ static bool setupVcomLedc() {
   channel.timer_sel = VCOM_TIMER;
   channel.duty = VCOM_DUTY_50;
   channel.hpoint = 0;
-#if FED4_LEDC_HAS_SLEEP_MODE
   channel.sleep_mode = LEDC_SLEEP_MODE_KEEP_ALIVE;
-#endif
 
   err = ledc_channel_config(&channel);
-  Serial.printf("ledc_channel_config: %s\n", esp_err_to_name(err));
+  Serial.printf("ledc_channel_config: %s (sleep_mode=KEEP_ALIVE=%d)\n",
+                esp_err_to_name(err), (int)LEDC_SLEEP_MODE_KEEP_ALIVE);
   if (err != ESP_OK) {
     return false;
   }
 
+  // Prevent GPIO sleep mux from freezing/holding the pin (required even with KEEP_ALIVE)
   err = gpio_sleep_sel_dis((gpio_num_t)DISPLAY_VCOM);
   Serial.printf("gpio_sleep_sel_dis(%d): %s\n", DISPLAY_VCOM, esp_err_to_name(err));
 
@@ -154,9 +154,7 @@ void setup() {
   Serial.printf("Arduino-ESP32 %d.%d.%d\n", ESP_ARDUINO_VERSION_MAJOR,
                 ESP_ARDUINO_VERSION_MINOR, ESP_ARDUINO_VERSION_PATCH);
 #endif
-  Serial.printf("KEEP_ALIVE compile: %s\n",
-                FED4_LEDC_HAS_SLEEP_MODE ? "yes" : "NO (gpio_sleep_sel_dis only)");
-  Serial.printf("VCOM GPIO %d  %lu Hz  50%%  timer %d  channel %d  RC_FAST\n",
+  Serial.printf("VCOM GPIO %d  %lu Hz  50%%  timer %d  channel %d  RC_FAST + KEEP_ALIVE\n",
                 DISPLAY_VCOM, (unsigned long)VCOM_HZ, (int)VCOM_TIMER,
                 (int)VCOM_CHANNEL);
   Serial.printf("Cycle: awake %lu ms, light sleep %lu ms, timer wake only\n",

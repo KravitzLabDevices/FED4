@@ -35,6 +35,7 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
     feedReady = false;
     displayBuffer = nullptr; // Initialize our display buffer pointer
     vcom = false;            // Initialize VCOM state
+    vcomLedcActive = false;
 
     // Initialize counters
     pelletCount = 0;
@@ -61,22 +62,20 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 /********************************************************
  * Core Functions
  ********************************************************/
-void FED4::serviceHousekeeping()
+void FED4::update()
 {
     updateTime();
-    orientScreen();
     updateDisplay();
     serialStatusReport();
     syncHublink();
-    updateStatusLedFromMotion();
 }
 
 /**
- * Legacy loop helper: housekeeping then sleep(sleepSeconds).
- * Prefer waitUntil() + serviceHousekeeping() for event-driven programs.
+ * Legacy loop helper: update() then sleep(sleepSeconds).
+ * Prefer waitUntil() + update() after feed for event-driven programs.
  */
 void FED4::run()
 {
-    serviceHousekeeping();
+    update();
     sleep();
 }

@@ -1,5 +1,7 @@
 #include "FED4.h"
 
+#include "driver/gpio.h"
+
 // High-level sleep function that handles device sleep and wake cycle
 void FED4::sleep(int seconds)
 {
@@ -15,12 +17,10 @@ void FED4::sleep()
   sleep(sleepSeconds);
 }
 
-// Light sleep aligned with FED4-Touch-Light-Sleep-Multiple / FED4-SleepModes:
-//   - touchpad + timer only (GPIO wake disabled for the session — UT has no GPIO wake;
-//     INT_OR/USB-level GPIO spam was preventing real sleep so touch never won)
-//   - buttons polled between VCOM chunks
-//   - software touch poll between chunks as backup if pad is held across a timer wake
-//   - wall-clock deadline (millis)
+// Light sleep with LEDC VCOM keepalive (FED4-VCOM-LEDC-Light-Sleep):
+//   - one timer wake for the full sleepSeconds budget (no 500 ms VCOM chunks)
+//   - touchpad wake + button-only GPIO wake (INT_OR disabled for the session)
+//   - software touch poll after wake as backup
 void FED4::startSleep()
 {
   lastWakeSource = FedWakeSource::None;
@@ -63,88 +63,58 @@ void FED4::startSleep()
     return;
   }
 
-  // Match unit tests: do not arm GPIO wake during light sleep. Buttons are polled
-  // between chunks; INT_OR held low would otherwise exit every sleep immediately.
   if (interruptPending())
   {
     printInterruptStatus("pre-sleep");
   }
+
+  // INT_OR must not wake us (held-low spam). Buttons may wake via GPIO.
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+  gpio_wakeup_disable((gpio_num_t)INT_OR);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_3, GPIO_INTR_HIGH_LEVEL);
+  esp_sleep_enable_gpio_wakeup();
 
   fed4TouchEnableTouchpadWakeup();
+  esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
 
-  const uint32_t vcomMs = 500;
-  const uint32_t deadline = millis() + (uint32_t)sleepSeconds * 1000UL;
-  bool exitedForEvent = false;
+  Serial.flush();
+  esp_light_sleep_start();
 
-  while ((int32_t)(deadline - millis()) > 0)
+  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+
+  if (cause == ESP_SLEEP_WAKEUP_TOUCHPAD || fed4TouchAnyPadActive(TOUCH_THRESHOLD))
   {
-    vcom = !vcom;
-    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
-
-    uint32_t remainingMs = deadline - millis();
-    uint32_t chunkMs = (remainingMs < vcomMs) ? remainingMs : vcomMs;
-    if (chunkMs < 1)
-    {
-      chunkMs = 1;
-    }
-
-    esp_sleep_enable_timer_wakeup((uint64_t)chunkMs * 1000ULL);
-    fed4TouchEnableTouchpadWakeup();
-
-    Serial.flush();
-    esp_light_sleep_start();
-
-    const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-
-    if (cause == ESP_SLEEP_WAKEUP_TOUCHPAD)
-    {
-      lastWakeSource = FedWakeSource::Touch;
-      exitedForEvent = true;
-      break;
-    }
-
-    // Software backup: pad active after a timer wake (finger across chunk boundary)
-    if (fed4TouchAnyPadActive(TOUCH_THRESHOLD))
-    {
-      lastWakeSource = FedWakeSource::Touch;
-      exitedForEvent = true;
-      break;
-    }
-
-    if (digitalRead(BUTTON_1) == HIGH || digitalRead(BUTTON_2) == HIGH ||
-        digitalRead(BUTTON_3) == HIGH)
-    {
-      PSV2_ON();
-      i2cReinitBus();
-      checkButton1();
-      checkButton2();
-      checkButton3();
-      lastWakeSource = FedWakeSource::Button;
-      exitedForEvent = true;
-      break;
-    }
-
-    updateStatusLedFromMotion();
+    lastWakeSource = FedWakeSource::Touch;
   }
-
-  if (!exitedForEvent)
+  else if (cause == ESP_SLEEP_WAKEUP_GPIO ||
+           digitalRead(BUTTON_1) == HIGH || digitalRead(BUTTON_2) == HIGH ||
+           digitalRead(BUTTON_3) == HIGH)
+  {
+    lastWakeSource = FedWakeSource::Button;
+  }
+  else
   {
     lastWakeSource = FedWakeSource::Timer;
   }
 
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
 
-  // Restore GPIO wake for buttons / INT_OR outside the sleep session
+  // Restore INT_OR + button GPIO wake for awake code paths
+  gpio_wakeup_enable((gpio_num_t)INT_OR, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BUTTON_3, GPIO_INTR_HIGH_LEVEL);
   esp_sleep_enable_gpio_wakeup();
 }
 
-FedEvent FED4::waitUntil(uint32_t housekeepingSeconds)
+FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
 {
   FedEvent event;
 
   const int savedSeconds = sleepSeconds;
-  sleepSeconds = (housekeepingSeconds > 0) ? (int)housekeepingSeconds : 1;
+  sleepSeconds = (updateIntervalSeconds > 0) ? (int)updateIntervalSeconds : 1;
 
   noPix();
   startSleep();
@@ -157,22 +127,22 @@ FedEvent FED4::waitUntil(uint32_t housekeepingSeconds)
   if (leftTouch)
   {
     event.source = FedWakeSource::Touch;
-    event.pad = 1;
+    event.pad = FedPad::Left;
   }
   else if (centerTouch)
   {
     event.source = FedWakeSource::Touch;
-    event.pad = 2;
+    event.pad = FedPad::Center;
   }
   else if (rightTouch)
   {
     event.source = FedWakeSource::Touch;
-    event.pad = 3;
+    event.pad = FedPad::Right;
   }
   else if (wakePad >= 1 && wakePad <= 3)
   {
     event.source = FedWakeSource::Touch;
-    event.pad = wakePad;
+    event.pad = static_cast<FedPad>(wakePad);
   }
   else if (lastWakeSource == FedWakeSource::Button)
   {
@@ -189,6 +159,9 @@ FedEvent FED4::waitUntil(uint32_t housekeepingSeconds)
       event.button = 3;
     }
   }
+
+  // Refresh UI while poke flags are still set (dots / counters / clock)
+  update();
 
   return event;
 }
@@ -234,14 +207,17 @@ void FED4::wakeUp()
     interpretTouch();
   }
 
-  // App-level wake: buttons + sensors (not every VCOM micro-wake)
-  if (wakeCause != ESP_SLEEP_WAKEUP_TOUCHPAD &&
-      lastWakeSource != FedWakeSource::Touch)
+  if (lastWakeSource == FedWakeSource::Button ||
+      (wakeCause == ESP_SLEEP_WAKEUP_GPIO && !interruptPending()))
   {
     checkButton1();
     checkButton2();
     checkButton3();
+  }
 
+  // Sensor poll on timer/housekeeping wakes (not every touch)
+  if (lastWakeSource != FedWakeSource::Touch)
+  {
     if (program == "ActivityMonitor")
     {
       pollSensors(1);
@@ -252,14 +228,8 @@ void FED4::wakeUp()
     }
   }
 
-  if (useMotionSensor)
-  {
-    updateStatusLedFromMotion();
-  }
-  else
-  {
-    redPix(1);
-  }
+  // STATUS_LED left alone here — digital only via redPix/noPix; not tied to PIR
+  noPix();
 }
 
 bool FED4::initializePower()

@@ -9,7 +9,8 @@ void FED4::updateStatusLedFromMotion()
     if (!useMotionSensor) {
         return;
     }
-    analogWrite(STATUS_LED, digitalRead(PIR_MOTION) ? 255 : 0);
+    // Digital only — do not use analogWrite (conflicts with VCOM LEDC clock)
+    digitalWrite(STATUS_LED, digitalRead(PIR_MOTION) ? HIGH : LOW);
 }
 
 bool FED4::motion()

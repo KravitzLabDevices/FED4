@@ -73,13 +73,21 @@ enum class FedWakeSource : uint8_t {
     None = 0,
     Touch,
     Button,
-    Timer,      // housekeeping deadline (wall clock)
+    Timer,      // UI update interval deadline
     Interrupt   // INT_OR GPIO (non-button)
+};
+
+/** Touch pad identity for FedEvent::pad. */
+enum class FedPad : uint8_t {
+    None = 0,
+    Left = 1,
+    Center = 2,
+    Right = 3
 };
 
 struct FedEvent {
     FedWakeSource source = FedWakeSource::None;
-    uint8_t pad = 0;    // 1=left, 2=center, 3=right when Touch
+    FedPad pad = FedPad::None;
     uint8_t button = 0; // 1/2/3 when Button
 };
 
@@ -114,16 +122,15 @@ public:
 
     // Corefunctions
     void feed();
-    void run(); // legacy: housekeeping + sleep(sleepSeconds)
-    /** Display/time/serial/hublink/motion LED — call after handling a FedEvent. */
-    void serviceHousekeeping();
+    void run(); // legacy: update() + sleep(sleepSeconds)
+    /** Refresh clock/display/serial/hublink — call after feed() or when UI must change. */
+    void update();
     /**
-     * Light-sleep until touch, button, or housekeepingSeconds (wall clock).
-     * VCOM is toggled every ~500 ms inside sleep; spurious GPIO/USB wakes do not
-     * shorten the housekeeping deadline. Sets leftTouch/centerTouch/rightTouch
-     * on touch. Default 60 s — much less aggressive than run()'s 4 s.
+     * Light-sleep until touch, button, or updateIntervalSeconds.
+     * MIP VCOM is kept alive by LEDC during sleep (no CPU wake chunks).
+     * Calls update() before returning. Default interval 60 s.
      */
-    FedEvent waitUntil(uint32_t housekeepingSeconds = 60);
+    FedEvent waitUntil(uint32_t updateIntervalSeconds = 60);
 
     // Game functions
     void pong();
@@ -266,6 +273,10 @@ public:
     void displayLight(bool on);
     /** One-shot accel read; sets rotation from device X (g). Returns true if rotation changed. */
     bool orientScreen();
+    /** Start ~2 Hz LEDC VCOM (KEEP_ALIVE through light sleep). */
+    bool startVcomLedc();
+    /** Stop LEDC VCOM and drive pin LOW (required before RST HIGH). */
+    void stopVcomLedc();
 
     void serialStatusReport();
 
@@ -524,6 +535,7 @@ private:
 
     uint8_t *displayBuffer = nullptr;
     bool vcom;
+    bool vcomLedcActive = false;
     void sendDisplayCommand(uint8_t cmd);
 
     // I2C bus helpers (ESP32 Wire.setTimeOut — not Stream setTimeout)

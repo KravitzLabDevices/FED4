@@ -565,15 +565,16 @@ bool FED4::begin(const char *programName)
     Serial.println("================================\n");
 
     lightsOff();
+    noPix();
 
     clearDisplay();
 
     // Reset pollSensorsTimer so seconds display resets when data is written
     pollSensorsTimer = millis();
 
-    if (useMotionSensor) {
-        updateStatusLedFromMotion();
-    } 
+    // First program UI frame (sketches need not call update() in setup)
+    update();
+
     // Check if mouseId is 99 - if so, launch Pong game
     if (mouseId == "99" || mouseId == "0099") {
         Serial.println("MouseID 99 detected - launching Pong game!");
