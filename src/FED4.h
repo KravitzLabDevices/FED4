@@ -2,6 +2,7 @@
 #define FED4_h
 
 #include <Arduino.h>
+#include <WString.h>
 #include <map>
 #include <string>
 #include <Adafruit_MCP23X17.h>  // version 2.3.2 

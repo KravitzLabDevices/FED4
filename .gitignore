@@ -20,6 +20,7 @@ Release/
 # IDE specific files
 .vscode/
 .idea/
+.clangd
 *.swp
 *.swo
 *~
