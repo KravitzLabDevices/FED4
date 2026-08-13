@@ -1,12 +1,10 @@
 #include "FED4.h"
 
-#include "driver/gpio.h"
-
 /**
  * Dispense + settle + awake well monitor (≤20 s for precise retrievalTime).
  * If the pellet is still in the well after that window, pendingRetrieval is set;
- * the sketch should call checkLateRetrieval() after waitUntil() (across sleep).
- * DispenseError is only logged from jammed() after hard give-up — not during jam clears.
+ * waitUntil() calls checkLateRetrieval() on the next wake (PSV2 off in light sleep;
+ * LatePelletTaken is coarse — up to the UI interval). DispenseError only from jammed().
  */
 void FED4::feed()
 {
@@ -197,9 +195,9 @@ void FED4::finishFeeding()
         else if (checkForPellet())
         {
             // Awake 20 s window ended; pellet still present — precise time stopped.
-            // Light sleep arms PHOTOGATE_1; waitUntil() → checkLateRetrieval().
+            // Next waitUntil wake (timer/touch/button) → checkLateRetrieval().
             pendingRetrieval = true;
-            Serial.println("Pellet still in well — pending late retrieval (photogate wake)");
+            Serial.println("Pellet still in well — pending late retrieval");
         }
         else
         {
@@ -232,9 +230,7 @@ void FED4::finishFeeding()
 
 /**
  * If feed() left a pellet in the well after the awake retrieval window, and the
- * well is now empty, log LatePelletTaken. Invoked from waitUntil()/feed();
- * sleep enables PHOTOGATE_1 HIGH wake while pending so takes are not deferred
- * to the 60 s UI timer.
+ * well is now empty, log LatePelletTaken (approx retrievalTime — may span sleep).
  */
 bool FED4::checkLateRetrieval()
 {
@@ -253,7 +249,6 @@ bool FED4::checkLateRetrieval()
     blockPokeCount = 0;
     pendingRetrieval = false;
     retrievalTime = 0.0f;
-    gpio_wakeup_disable((gpio_num_t)PHOTOGATE_1);
     Serial.println("Late pellet retrieval logged");
     return true;
 }

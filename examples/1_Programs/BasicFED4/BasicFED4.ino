@@ -2,12 +2,10 @@
   Feeding Experimentation Device 4 (FED4)
 
   BasicFED4 — left poke dispenses a pellet, then wait until the next poke.
-  Light sleep keeps MIP VCOM alive via LEDC; app wakes on touch/button or
-  every 60 s for a display/serial refresh.
+  Light sleep keeps MIP VCOM alive via LEDC (PSV2 off for battery life).
 
-  If a pellet remains after feed()'s ~20 s awake watch, the library arms the
-  well photogate for light-sleep wake and logs LatePelletTaken from waitUntil()
-  — no sketch-side retrieval polling required.
+  If a pellet remains after feed()'s ~20 s awake watch, waitUntil() logs
+  LatePelletTaken on a later wake (timer/touch/button) — coarse retrievalTime.
 */
 
 #include <FED4.h>

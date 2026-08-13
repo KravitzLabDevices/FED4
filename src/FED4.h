@@ -74,8 +74,7 @@ enum class FedWakeSource : uint8_t {
     Touch,
     Button,
     Timer,      // UI update interval deadline
-    Interrupt,  // INT_OR GPIO (non-button)
-    Pellet      // well photogate: late retrieval while pendingRetrieval
+    Interrupt   // INT_OR GPIO (non-button)
 };
 
 /** Touch pad identity for FedEvent::pad. */
@@ -170,8 +169,8 @@ public:
     void dispense();
     /**
      * If pendingRetrieval and well is empty, log LatePelletTaken.
-     * Called from waitUntil()/feed(); sketches normally need not call this —
-     * sleep arms PHOTOGATE_1 wake while a pellet is still pending.
+     * Called from waitUntil()/feed() after PSV2 is back on. Coarse timing
+     * (up to waitUntil interval); PSV2 stays off in light sleep for battery life.
      */
     bool checkLateRetrieval();
     unsigned long pelletDropTime;

@@ -17,11 +17,102 @@ void FED4::sleep()
   sleep(sleepSeconds);
 }
 
+// Shared SPI: SD lives on PSV2. With VCC off, any line held HIGH back-powers the
+// card through ESD diodes (~16 mA with card inserted). Idle CS is HIGH only while
+// powered; for rail-off drive CS/SCK/MOSI/MISO all LOW (not SD_CS HIGH).
+static void holdSdSpiPinsLow(bool hold)
+{
+  const gpio_num_t pins[] = {
+      (gpio_num_t)SD_CS,
+      (gpio_num_t)SPI_SCK,
+      (gpio_num_t)SPI_MOSI,
+      (gpio_num_t)SPI_MISO,
+  };
+  for (gpio_num_t p : pins)
+  {
+    if (hold)
+    {
+      gpio_sleep_sel_dis(p);
+      gpio_hold_en(p);
+    }
+    else
+    {
+      gpio_hold_dis(p);
+    }
+  }
+}
+
+static void quiesceSpiForPsv2Off()
+{
+  // GO_IDLE while card still has VCC, then release the bus
+  SD.end();
+  SPI.end();
+
+  pinMode(SD_CS, OUTPUT);
+  pinMode(SPI_SCK, OUTPUT);
+  pinMode(SPI_MOSI, OUTPUT);
+  pinMode(SPI_MISO, OUTPUT);
+  digitalWrite(SD_CS, LOW);
+  digitalWrite(SPI_SCK, LOW);
+  digitalWrite(SPI_MOSI, LOW);
+  digitalWrite(SPI_MISO, LOW);
+
+  // MIP SCS inactive = LOW (panel on always-on 3.3 V; VCOM is separate LEDC)
+  pinMode(DISPLAY_CS, OUTPUT);
+  digitalWrite(DISPLAY_CS, LOW);
+
+  holdSdSpiPinsLow(true);
+}
+
+// Drive ESP32 pins into the PSV2 domain LOW before rail off (avoid back-power).
+static void quiescePsv2Gpios()
+{
+  quiesceSpiForPsv2Off();
+
+  pinMode(PHOTOGATE_1, OUTPUT);
+  pinMode(PHOTOGATE_2, OUTPUT);
+  pinMode(PHOTOGATE_3, OUTPUT);
+  pinMode(PHOTOGATE_4, OUTPUT);
+  digitalWrite(PHOTOGATE_1, LOW);
+  digitalWrite(PHOTOGATE_2, LOW);
+  digitalWrite(PHOTOGATE_3, LOW);
+  digitalWrite(PHOTOGATE_4, LOW);
+
+  pinMode(AMP_BCLK, OUTPUT);
+  pinMode(AMP_LRCLK, OUTPUT);
+  pinMode(AMP_DIN, OUTPUT);
+  digitalWrite(AMP_BCLK, LOW);
+  digitalWrite(AMP_LRCLK, LOW);
+  digitalWrite(AMP_DIN, LOW);
+}
+
+static void restorePhotogateInputs()
+{
+  pinMode(PHOTOGATE_1, INPUT_PULLUP);
+  pinMode(PHOTOGATE_2, INPUT_PULLUP);
+  pinMode(PHOTOGATE_3, INPUT_PULLUP);
+  pinMode(PHOTOGATE_4, INPUT_PULLUP);
+}
+
+static void restoreSpiAfterPsv2On()
+{
+  holdSdSpiPinsLow(false);
+
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH); // powered idle: CS deasserted
+  pinMode(DISPLAY_CS, OUTPUT);
+  digitalWrite(DISPLAY_CS, LOW);
+
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+  SPI.setFrequency(1000000);
+  SPI.setBitOrder(MSBFIRST);
+  SPI.setDataMode(SPI_MODE0);
+}
+
 // Light sleep with LEDC VCOM keepalive (FED4-VCOM-LEDC-Light-Sleep):
-//   - one timer wake for the full sleepSeconds budget (no 500 ms VCOM chunks)
-//   - touchpad wake + button GPIO wake (INT_OR disabled for the session)
-//   - PHOTOGATE_1 HIGH wake only while pendingRetrieval (pellet still in well)
-//   - software touch poll after wake as backup
+//   - one timer wake for the full sleepSeconds budget
+//   - touchpad + button GPIO wake (INT_OR off); PSV2/PSV3 off for battery life
+//   - late retrieval: checkLateRetrieval() on wake (no photogate wake — PSV2 off)
 void FED4::startSleep()
 {
   lastWakeSource = FedWakeSource::None;
@@ -49,14 +140,18 @@ void FED4::startSleep()
     refresh();
   }
 
+  noPix();
+  enableAmp(false);
+
   if (sleepyLEDs)
   {
     lightsOff();
-    noPix();
     PSV3_OFF();
   }
 
-  enableAmp(false);
+  // Cut 3.3V2 — photogate IR LEDs / amp domain off (battery); late retrieval is coarse
+  quiescePsv2Gpios();
+  PSV2_OFF();
 
   if (sleepSeconds <= 0)
   {
@@ -70,17 +165,12 @@ void FED4::startSleep()
   }
 
   // INT_OR must not wake us (held-low spam). Buttons may wake via GPIO.
-  // Well photogate: pellet present = LOW; taken = HIGH — arm only while pending.
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
   gpio_wakeup_disable((gpio_num_t)INT_OR);
   gpio_wakeup_disable((gpio_num_t)PHOTOGATE_1);
   gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_3, GPIO_INTR_HIGH_LEVEL);
-  if (pendingRetrieval && checkForPellet())
-  {
-    gpio_wakeup_enable((gpio_num_t)PHOTOGATE_1, GPIO_INTR_HIGH_LEVEL);
-  }
   esp_sleep_enable_gpio_wakeup();
 
   fed4TouchEnableTouchpadWakeup();
@@ -102,10 +192,6 @@ void FED4::startSleep()
   {
     lastWakeSource = FedWakeSource::Button;
   }
-  else if (pendingRetrieval && !checkForPellet())
-  {
-    lastWakeSource = FedWakeSource::Pellet;
-  }
   else
   {
     lastWakeSource = FedWakeSource::Timer;
@@ -113,8 +199,7 @@ void FED4::startSleep()
 
   esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
 
-  // Restore INT_OR + button GPIO wake for awake code paths; photogate off unless pending
-  gpio_wakeup_disable((gpio_num_t)PHOTOGATE_1);
+  // Restore INT_OR + button GPIO wake for awake code paths
   gpio_wakeup_enable((gpio_num_t)INT_OR, GPIO_INTR_LOW_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_1, GPIO_INTR_HIGH_LEVEL);
   gpio_wakeup_enable((gpio_num_t)BUTTON_2, GPIO_INTR_HIGH_LEVEL);
@@ -133,7 +218,7 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   startSleep();
   wakeUp();
 
-  // Photogate / timer / any wake: close pending late retrieval in-library
+  // After PSV2 is back: coarse late retrieval on timer/touch/button wake
   checkLateRetrieval();
 
   sleepSeconds = savedSeconds;
@@ -213,13 +298,24 @@ void FED4::wakeUp()
   }
 
   PSV2_ON();
+  PSV3_ON();
+  delay(1);
+  restorePhotogateInputs();
+  restoreSpiAfterPsv2On();
+  // SD lost VCC with PSV2; remount so poke/log paths don't rely on hot-swap recovery
+  if (sdCardAvailable)
+  {
+    if (!SD.begin(SD_CS, SPI, 4000000) || SD.cardType() == CARD_NONE)
+    {
+      Serial.println("SD remount after wake failed");
+    }
+  }
   i2cReinitBus();
   delay(1);
 
   mcp.pinMode(EXP_HAPTIC, OUTPUT);
   mcp.digitalWrite(EXP_HAPTIC, LOW);
 
-  PSV3_ON();
   enableAmp(true);
 
   if (wakeCause == ESP_SLEEP_WAKEUP_GPIO && interruptPending())

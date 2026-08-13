@@ -60,7 +60,7 @@ Living checklist for aligning library code with [`examples/2_UnitTests/`](./).
 | Touch wake re-enabled before light sleep | **Done** |
 | Dead `handleTouch()` removed | **Done** |
 | `FED4-SleepModes` uses library touch helpers | **Done** |
-| Power rails peel | **Done** — `FED4_Power.cpp`; Sleep still calls PSV APIs; **PSV3 off during sleep** |
+| Power rails peel | **Done** — `FED4_Power.cpp`; Sleep: **PSV2+PSV3 off** in light sleep (quiesce PG/I2S); late retrieval via `waitUntil` only |
 | `wakeUp()` sensor contamination | **Done** — sensors via `refreshSensors()` in `update()`; buttons kept in wake by design |
 | 10-minute `pollSensors` gate | **Removed** — `refreshSensors()` always reads BME/battery/lux; no auto-`logData("Status")` |
 | ActivityMonitor `program ==` branches in hot src | **Removed** — revisit when that sketch is unarchived |
