@@ -4,17 +4,27 @@
   <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4.gif?raw=true" alt="FED4 Demo" width="400"/>
 </p>
 
-**FED4** (Feeding Experimentation Device) is an open-source Arduino library for mouse operant training on board **v1.7**. It handles pellet delivery, poke sensing, sleep/power, and session logging so experiment sketches stay small.
+**FED4** (Feeding Experimentation Device) is an open-source Arduino library for mouse operant training on board **v1.7**. Hardware details and chipsets: [`CHIPSETS.md`](CHIPSETS.md).
 
-## Capabilities
+## Hardware features (v1.7)
 
-- Pellet dispense with jam soft-fail and approach sensing  
-- Three capacitive nose-pokes (ESP32-S3 touch) with light-sleep wake  
-- Front RGB LEDs, status LED, haptic, and speaker feedback  
-- ENV sensors (BME temp/humidity, lux, battery) refreshed in `update()`  
-- MIP display with LEDC VCOM through light sleep  
-- SD logging and optional [Hublink](docs/wiki/Wireless-and-Hublink.md) networking  
-- Event-driven idle: `waitUntil()` → act → `update()`
+- **MCU** — ESP32-S3  
+- **Feeding** — stepper pellet dispenser with photogate well sensing and jam-clear paths  
+- **Nose pokes** — three ESP32-S3 capacitive touch pads (left / center / right) with light-sleep wake  
+- **Photogates** — four IR gates (left / center / right poke lanes + pellet / drop path)  
+- **Display** — Kyocera TN0216 320×176 MIP reflective mono panel (SPI + VCOM)  
+- **Storage** — microSD (SPI) for session CSV logging  
+- **Clock** — DS3231 RTC  
+- **Environment** — BME680 (temp / humidity / pressure / gas), VEML7700 ambient light  
+- **Battery** — LiPo monitoring via MAX17048 fuel gauge  
+- **Motion / proximity** — PIR (EKMB1107112); VL53L1X time-of-flight; LIS3DH accelerometer on board  
+- **User I/O** — three front buttons; MCP23017 GPIO expander (rails, haptics, solenoids, display control)  
+- **Feedback** — WS2812 front RGB strip, red status LED, haptic motor, MAX98357A I2S speaker amp  
+- **Expansion** — TRRS / GPIO header (audio or digital); dual solenoid drivers; user expander pins; optional servo/INT  
+- **Power** — switched peripheral rails (PSV2 / PSV3 via TPS22917) for sleep current control  
+- **Optional wireless** — [Hublink](docs/wiki/Wireless-and-Hublink.md) BLE sync  
+
+Library sketches stay small via an event-driven idle path: `waitUntil()` → act → `update()`.
 
 ## Examples
 
@@ -37,4 +47,3 @@ Open work tracked in detail in [`examples/2_UnitTests/SRC_AUDIT.md`](examples/2_
 - [ ] Revisit ActivityMonitor when that sketch is unarchived  
 - [ ] **Sense / camera** — TRRS TRIG + UART path in [`examples/3_Submodules/`](examples/3_Submodules/) (`FED4::senseSyncTime` / `senseTrigPulse`). Validate chamber lighting + fixed AE under strip white.  
 - [ ] Characterize touch / SD card write duration to determine max touch rate  
-
