@@ -8,14 +8,14 @@
 #define MOTOR_PIN_4 47 // A5 motor
 
 // User Buttons
-#define BUTTON_1 15// User Button 1 - bottom
+#define BUTTON_1 15 // User Button 1 - bottom
 #define BUTTON_2 16 // User Button 2 - middle
 #define BUTTON_3 39 // User Button 3 - top
 
 // Touch Sensor Pins (ESP32-S3: GPIO number == touch channel index for pads 1–14)
-#define TOUCH_PAD_LEFT   1 // GPIO1 / touch channel 1
+#define TOUCH_PAD_LEFT 1   // GPIO1 / touch channel 1
 #define TOUCH_PAD_CENTER 3 // GPIO3 / touch channel 3
-#define TOUCH_PAD_RIGHT  2 // GPIO2 / touch channel 2
+#define TOUCH_PAD_RIGHT 2  // GPIO2 / touch channel 2
 
 // Photogate Pins
 #define PHOTOGATE_1 14 // Center
@@ -26,7 +26,7 @@
 // PIR Motion Sensor
 #define PIR_MOTION 10 // PIR motion sensor
 
-// Audio Interface
+// Audio/GPIO Interface
 #define AUDIO_TRRS_1 4 // Audio TRRS pin 1
 #define AUDIO_TRRS_2 5 // Audio TRRS pin 2
 #define AUDIO_TRRS_3 6 // Audio TRRS pin 3
@@ -36,43 +36,43 @@
 
 // Amplifier Interface
 #define AMP_LRCLK 40 // Amplifier left right clock
-#define AMP_BCLK 41 // Amplifier bit clock
-#define AMP_DIN 42 // Amplifier data input
+#define AMP_BCLK 41  // Amplifier bit clock
+#define AMP_DIN 42   // Amplifier data input
 #define EXP_AMP_SD 4 // Amplifier SD line on GPIO expander
 
 // SPI Interface
 #define SPI_MOSI 13 // SPI master output, slave input
-#define SPI_SCK 12 // SPI clock
+#define SPI_SCK 12  // SPI clock
 #define SPI_MISO 11 // SPI master input, slave output
-#define SD_CS 48 // SD card chip select
+#define SD_CS 48    // SD card chip select
 
 // Display Interface
-#define DISPLAY_CS 44 // Display chip select
-#define DISPLAY_VCOM 43 // Display VCOM
+#define DISPLAY_CS 44       // Display chip select
+#define DISPLAY_VCOM 43     // Display VCOM
 #define EXP_DISPLAY_RESET 6 // Display reset on GPIO expander
-#define EXP_DISPLAY_LED 7 // Display LED on GPIO expander
+#define EXP_DISPLAY_LED 7   // Display LED on GPIO expander
 
 // I2C Interface
 #define SDA 8 // I2C data
 #define SCL 9 // I2C clock
 
 // I2C Device Addresses
-#define I2C_ADDR_ACCEL       0x19 // LIS2DH12TR  (SA0=HIGH)
-#define I2C_ADDR_BME680      0x76 // BME680       (SDO=LOW)
-#define I2C_ADDR_MCP23017    0x20 // MCP23017     (A0/A1/A2=LOW)
-#define I2C_ADDR_MAX17048    0x36 // MAX17048     (fixed)
-#define I2C_ADDR_RTC         0x68 // DS3231       (fixed)
-#define I2C_ADDR_TOF         0x29 // VL53L1X      (fixed)
-#define I2C_ADDR_LIGHT       0x10 // VEML7700     (fixed)
+#define I2C_ADDR_ACCEL 0x19    // LIS2DH12TR  (SA0=HIGH)
+#define I2C_ADDR_BME680 0x76   // BME680       (SDO=LOW)
+#define I2C_ADDR_MCP23017 0x20 // MCP23017     (A0/A1/A2=LOW)
+#define I2C_ADDR_MAX17048 0x36 // MAX17048     (fixed)
+#define I2C_ADDR_RTC 0x68      // DS3231       (fixed)
+#define I2C_ADDR_TOF 0x29      // VL53L1X      (fixed)
+#define I2C_ADDR_LIGHT 0x10    // VEML7700     (fixed)
 
 // Power Management (TPS22917 load switch ~ON — active LOW: LOW = rail ON, HIGH = rail OFF)
 #define EXP_PSV2_EN 13 // PSV2 enable on GPIO expander (MCP pin 13)
 #define EXP_PSV3_EN 12 // PSV3 enable on GPIO expander (MCP pin 12)
 
 // User Control Pins
-#define USER_SRV_INT 21 // User Servo or interrupt
-#define EXP_USER_GPX0 8 // User pin 8 on GPIO expander
-#define EXP_USER_GPX1 9 // User pin 9 on GPIO expander
+#define USER_SRV_INT 21  // User Servo or interrupt
+#define EXP_USER_GPX0 8  // User pin 8 on GPIO expander
+#define EXP_USER_GPX1 9  // User pin 9 on GPIO expander
 #define EXP_USER_GPX2 10 // Touch point 10 on GPIO expander
 #define EXP_USER_GPX3 11 // Touch point 11 on GPIO expander
 
@@ -82,9 +82,9 @@
 
 // LED Control
 #define STATUS_LED 35 // Status LED
-#define RGB_STRIP 36 // front LEDs
+#define RGB_STRIP 36  // front LEDs
 
 // Haptic Motor
-#define EXP_HAPTIC 5       // Turns on/off haptic motor
+#define EXP_HAPTIC 5 // Turns on/off haptic motor
 
 #endif

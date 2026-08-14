@@ -1,8 +1,9 @@
 #include "SubmoduleRtc.h"
 
+#include <stdio.h>
+#include <string.h>
 #include <sys/time.h>
 #include <time.h>
-#include "SubmoduleProtocol.h"
 
 bool submoduleValidateDateTime(uint16_t year, uint8_t month, uint8_t day,
                                uint8_t hour, uint8_t min, uint8_t sec) {
@@ -21,22 +22,12 @@ bool submoduleValidateDateTime(uint16_t year, uint8_t month, uint8_t day,
   return true;
 }
 
-bool submoduleApplySetTimeFrame(SubmoduleDateTime *outRtc, bool *outRtcValid,
-                                const uint8_t *frame, size_t len) {
-  if (outRtc == nullptr || outRtcValid == nullptr || frame == nullptr) {
+bool submoduleApplyDateTime(SubmoduleDateTime *outRtc, bool *outRtcValid,
+                            uint16_t year, uint8_t month, uint8_t day,
+                            uint8_t hour, uint8_t min, uint8_t sec) {
+  if (outRtc == nullptr || outRtcValid == nullptr) {
     return false;
   }
-  if (len != SUBMODULE_SET_TIME_FRAME_LEN || frame[0] != SUBMODULE_CMD_SET_TIME) {
-    return false;
-  }
-
-  const uint16_t year = submoduleReadU16Le(&frame[1]);
-  const uint8_t month = frame[3];
-  const uint8_t day = frame[4];
-  const uint8_t hour = frame[5];
-  const uint8_t min = frame[6];
-  const uint8_t sec = frame[7];
-
   if (!submoduleValidateDateTime(year, month, day, hour, min, sec)) {
     return false;
   }
@@ -65,6 +56,31 @@ bool submoduleApplySetTimeFrame(SubmoduleDateTime *outRtc, bool *outRtcValid,
   outRtc->sec = sec;
   *outRtcValid = true;
   return true;
+}
+
+bool submoduleApplySetTimeLine(SubmoduleDateTime *outRtc, bool *outRtcValid,
+                               const char *line) {
+  if (line == nullptr) {
+    return false;
+  }
+
+  const char *p = line;
+  while (*p == ' ' || *p == '\t') {
+    p++;
+  }
+  if (*p == 'T' || *p == 't') {
+    p++;
+  }
+
+  unsigned year = 0, month = 0, day = 0, hour = 0, min = 0, sec = 0;
+  if (sscanf(p, "%u %u %u %u %u %u", &year, &month, &day, &hour, &min, &sec) !=
+      6) {
+    return false;
+  }
+
+  return submoduleApplyDateTime(outRtc, outRtcValid, (uint16_t)year,
+                                (uint8_t)month, (uint8_t)day, (uint8_t)hour,
+                                (uint8_t)min, (uint8_t)sec);
 }
 
 bool submoduleGetCurrentDateTime(SubmoduleDateTime *out) {
@@ -100,4 +116,14 @@ bool submoduleGetCurrentDateTime(SubmoduleDateTime *out) {
   out->min = min;
   out->sec = sec;
   return true;
+}
+
+void submoduleFormatDatetimeFilename(char *out, size_t outLen,
+                                     const SubmoduleDateTime *dt) {
+  if (out == nullptr || outLen == 0 || dt == nullptr) {
+    return;
+  }
+  snprintf(out, outLen, "%04u%02u%02u%02u%02u%02u.jpg", (unsigned)dt->year,
+           (unsigned)dt->month, (unsigned)dt->day, (unsigned)dt->hour,
+           (unsigned)dt->min, (unsigned)dt->sec);
 }

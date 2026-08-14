@@ -11,9 +11,11 @@
 // --- Camera color / exposure tuning (OV3660) ---
 // White balance mode (set_wb_mode): 0=Auto, 1=Sunny, 2=Cloudy, 3=Office, 4=Home
 static const int SENSE_WB_MODE = 3;
+static const int SENSE_AEC_VALUE = 300;
+static const int SENSE_AGC_GAIN = 0;
 
-// Discard frames after init so AWB/AEC can settle before the saved JPEG.
-static const int SENSE_WARMUP_FRAMES = 3;
+// No warmup discard — fixed AE/WB (TRIG wake path).
+static const int SENSE_WARMUP_FRAMES = 0;
 
 static char g_lastCaptureError[64] = "";
 static bool g_captureDebug = true;
@@ -140,40 +142,23 @@ static void tuneSensor(sensor_t *sensor) {
   sensor->set_vflip(sensor, 1);
   // sensor->set_hmirror(sensor, 0);  // 0=off, 1=flip horizontal
 
-  // White balance — office/fluorescent default for FED4 chamber lighting
-  // sensor->set_whitebal(sensor, 1);   // 0=off, 1=auto WB on
-  // sensor->set_awb_gain(sensor, 1);   // 0=off, 1=AWB gain on
+  // White balance — office default for FED4 chamber / strip lighting
+  sensor->set_whitebal(sensor, 1);
+  sensor->set_awb_gain(sensor, 1);
   sensor->set_wb_mode(sensor, SENSE_WB_MODE);
 
-  // Auto exposure
-  sensor->set_exposure_ctrl(sensor, 1);  // 0=manual, 1=auto AEC
-  // sensor->set_aec2(sensor, 0);         // 0=enable AEC DSP, 1=disable
-  // sensor->set_ae_level(sensor, 0);     // -2 .. +2 brightness target
-  // sensor->set_aec_value(sensor, 300);  // manual exposure (when AEC off)
-
-  // Gain
-  sensor->set_gain_ctrl(sensor, 1);  // 0=manual, 1=auto AGC
-  // sensor->set_agc_gain(sensor, 0);   // manual gain 0-30 (when AGC off)
-  // sensor->set_gainceiling(sensor, GAINCEILING_2X);  // max AGC ceiling
+  // Fixed exposure / gain (minimize startup settle)
+  sensor->set_exposure_ctrl(sensor, 0);  // manual AEC
+  sensor->set_aec_value(sensor, SENSE_AEC_VALUE);
+  sensor->set_gain_ctrl(sensor, 0);  // manual AGC
+  sensor->set_agc_gain(sensor, SENSE_AGC_GAIN);
 
   // Color / tone (Espressif OV3660 starting point)
   sensor->set_brightness(sensor, 1);   // -2 .. +2
   sensor->set_saturation(sensor, -2);  // -2 .. +2
-  // sensor->set_contrast(sensor, 0);    // -2 .. +2
-  // sensor->set_sharpness(sensor, 0);   // -2 .. +2 (if supported)
-  // sensor->set_denoise(sensor, 0);    // 0 .. 8
 
-  // JPEG quality on sensor (separate from camera_config_t.jpeg_quality)
-  // sensor->set_quality(sensor, 10);  // 0-63, lower = higher quality
-
-  // Special effects (0=none)
-  // sensor->set_special_effect(sensor, 0);
-
-  // Lens correction
-  // sensor->set_lenc(sensor, 1);  // 0=off, 1=on
-
-  logCapturef("CAPTURE: WB mode %d (0=Auto 1=Sunny 2=Cloudy 3=Office 4=Home)",
-                SENSE_WB_MODE);
+  logCapturef("CAPTURE: fixed AE=%d AGC=%d WB mode %d", SENSE_AEC_VALUE,
+              SENSE_AGC_GAIN, SENSE_WB_MODE);
 }
 
 static void discardWarmupFrames() {
@@ -331,6 +316,85 @@ bool senseCaptureImageDatetime(const SubmoduleDateTime *dt) {
            (unsigned)dt->year, (unsigned)dt->month, (unsigned)dt->day,
            (unsigned)dt->hour, (unsigned)dt->min, (unsigned)dt->sec);
   return captureToFile(path);
+}
+
+bool senseCaptureImageNow(char *outName, size_t outNameLen) {
+  SubmoduleDateTime now = {};
+  if (!submoduleGetCurrentDateTime(&now)) {
+    setCaptureError("system clock unreadable");
+    return false;
+  }
+
+  char name[32];
+  submoduleFormatDatetimeFilename(name, sizeof(name), &now);
+  char path[36];
+  snprintf(path, sizeof(path), "/%s", name);
+
+  if (!captureToFile(path)) {
+    return false;
+  }
+
+  if (outName != nullptr && outNameLen > 0) {
+    snprintf(outName, outNameLen, "%s", name);
+  }
+  return true;
+}
+
+bool senseCaptureImageNamed(const char *basename, char *outName, size_t outNameLen) {
+  if (basename == nullptr || basename[0] == '\0') {
+    setCaptureError("invalid filename");
+    return false;
+  }
+
+  char path[40];
+  if (basename[0] == '/') {
+    snprintf(path, sizeof(path), "%s", basename);
+  } else {
+    snprintf(path, sizeof(path), "/%s", basename);
+  }
+
+  if (!captureToFile(path)) {
+    return false;
+  }
+
+  if (outName != nullptr && outNameLen > 0) {
+    const char *nameOnly = (basename[0] == '/') ? (basename + 1) : basename;
+    snprintf(outName, outNameLen, "%s", nameOnly);
+  }
+  return true;
+}
+
+bool senseRenameCapture(const char *fromName, const char *toName) {
+  if (fromName == nullptr || toName == nullptr || fromName[0] == '\0' ||
+      toName[0] == '\0') {
+    setCaptureError("invalid rename args");
+    return false;
+  }
+
+  if (!mountSdBus(true)) {
+    return false;
+  }
+
+  char fromPath[40];
+  char toPath[40];
+  snprintf(fromPath, sizeof(fromPath), "/%s", fromName);
+  snprintf(toPath, sizeof(toPath), "/%s", toName);
+
+  if (!SD.exists(fromPath)) {
+    shutdownSd();
+    setCaptureError("rename source missing");
+    return false;
+  }
+  if (SD.exists(toPath)) {
+    SD.remove(toPath);
+  }
+
+  const bool ok = SD.rename(fromPath, toPath);
+  shutdownSd();
+  if (!ok) {
+    setCaptureError("SD rename failed");
+  }
+  return ok;
 }
 
 bool senseCaptureImageById(uint16_t imageId) {

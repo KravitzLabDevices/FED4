@@ -15,8 +15,15 @@ typedef struct {
 bool submoduleValidateDateTime(uint16_t year, uint8_t month, uint8_t day,
                                uint8_t hour, uint8_t min, uint8_t sec);
 
-bool submoduleApplySetTimeFrame(SubmoduleDateTime *outRtc, bool *outRtcValid,
-                                const uint8_t *frame, size_t len);
+bool submoduleApplyDateTime(SubmoduleDateTime *outRtc, bool *outRtcValid,
+                            uint16_t year, uint8_t month, uint8_t day,
+                            uint8_t hour, uint8_t min, uint8_t sec);
 
-// Read live wall clock previously set via SET_TIME / settimeofday().
+// Parse "T yyyy mm dd HH MM SS" (leading T optional if already stripped).
+bool submoduleApplySetTimeLine(SubmoduleDateTime *outRtc, bool *outRtcValid,
+                               const char *line);
+
 bool submoduleGetCurrentDateTime(SubmoduleDateTime *out);
+
+void submoduleFormatDatetimeFilename(char *out, size_t outLen,
+                                     const SubmoduleDateTime *dt);

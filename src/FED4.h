@@ -42,13 +42,10 @@ class DateTime;
 #include "FED4_DisplayOrient.h"
 #include "FED4_TouchHelpers.h"
 
-// Sense I2C master (FED4_Submodule*) — off until core sleep/SD is stable.
-// Set to 1 here (library rebuild) to expose FED4::sense* again.
+// Sense TRRS TRIG+UART master (FED4_Submodule*) — TRRS2=TRIG, TRRS3=DATA.
+// Set to 1 here (library rebuild) to expose FED4::sense*.
 #ifndef FED4_ENABLE_SUBMODULE
 #define FED4_ENABLE_SUBMODULE 1
-#endif
-#if FED4_ENABLE_SUBMODULE
-#include "FED4_SubmoduleProtocol.h"
 #endif
 
 // Set to 1 to skip waitUntil() poke logData (flicker A/B). 0 = normal SD logging.
@@ -361,15 +358,11 @@ public:
     bool forceRTCUpdate = false; // Set to true to force RTC update on next initialization
 
 #if FED4_ENABLE_SUBMODULE
-    // I2C submodule master (SeeedStudio Sense @ 0x42) — call while awake only
-    bool sensePresent();
-    bool senseReadStatus(SubmoduleStatus *status);
-    bool senseWakeReadStatus(SubmoduleStatus *status);
-    bool senseSyncTime();
-    // Fire-and-forget: returns after CAPTURE is ACKed; Sense finishes on its own.
-    // Optional settleMs blocks the master only if a caller wants to serialize.
-    bool senseCapture(uint32_t settleMs = 0);
-    bool senseSyncAndCapture(uint32_t settleMs = 0);
+    // TRRS submodule (TRIG=AUDIO_TRRS_2, DATA=AUDIO_TRRS_3 half-duplex UART)
+    bool senseBegin();
+    bool senseSyncTime(uint32_t timeoutMs = 2000);
+    void senseTrigPulse(uint32_t durationMs = 10);
+    void senseTrig(bool active); // active=true drives TRIG LOW
 #endif
 
     // Vitals functions (defined in FED4_Vitals.cpp)
@@ -568,12 +561,6 @@ private:
     bool i2cProbe(uint8_t addr);
     void i2cRecoverBus();
     bool i2cBusHealthy();
-
-#if FED4_ENABLE_SUBMODULE
-    // Submodule master transport (Sense @ 0x42)
-    bool senseWakeAndWait();
-    bool senseSend(const uint8_t *data, size_t len);
-#endif
 
     // Shared SPI: after SD, restore 1 MHz / LSBFIRST / CS idle for MIP
     void reclaimSpiForDisplay();

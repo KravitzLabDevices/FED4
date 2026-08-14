@@ -4,15 +4,16 @@
  * Scans the primary I2C bus (SDA=8, SCL=9).
  * RTC (DS3231) and all peripherals are on the main always-on bus (no PSV2 / TCA4307).
  *
- * Expected devices (see src/FED4_Pins.h, examples/3_Submodules/README.md):
+ * Expected devices (see src/FED4_Pins.h):
  *   0x10  VEML7700 lux sensor
  *   0x19  LIS2DH12TR accelerometer
  *   0x20  MCP23017 GPIO expander
  *   0x29  VL53L1X time-of-flight sensor
  *   0x36  MAX17048 battery monitor
- *   0x42  SeeedStudio submodule (when connected)
  *   0x68  DS3231 real-time clock
  *   0x76  BME680 temperature, humidity, pressure, and gas sensor
+ *
+ * SeeedStudio Sense submodule uses TRRS TRIG+UART (not I2C).
  */
 
 #include <Wire.h>
@@ -24,7 +25,6 @@ static const uint8_t EXPECTED_ADDRS[] = {
     I2C_ADDR_MCP23017,
     I2C_ADDR_TOF,
     I2C_ADDR_MAX17048,
-    0x42,
     I2C_ADDR_RTC,
     I2C_ADDR_BME680,
 };
@@ -161,9 +161,6 @@ void identifyDevice(byte address) {
       break;
     case I2C_ADDR_MAX17048:
       Serial.print(" (MAX17048 Battery Monitor)");
-      break;
-    case 0x42:
-      Serial.print(" (SeeedStudio Submodule)");
       break;
     case I2C_ADDR_RTC:
       Serial.print(" (DS3231 RTC)");

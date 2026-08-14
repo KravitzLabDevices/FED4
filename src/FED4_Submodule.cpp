@@ -1,166 +1,135 @@
 #include "FED4.h"
 
-// SeeedStudio Sense (and future) I2C submodule — master side on FED4.
+// TRRS TRIG + UART Sense master.
 // Spec: examples/3_Submodules/README.md
-// Gated by FED4_ENABLE_SUBMODULE in FED4.h (default 0).
+// Gated by FED4_ENABLE_SUBMODULE in FED4.h.
 
 #if FED4_ENABLE_SUBMODULE
 
+#include <HardwareSerial.h>
+#include <string.h>
+
 namespace {
-constexpr uint32_t kSenseReadyPollMs = 50;
-constexpr uint32_t kSenseReadyTimeoutMs = 2000;
-constexpr uint32_t kSenseTxRetryDelayMs = 100;
-uint8_t senseProbeAddr()
-{
-  Wire.beginTransmission(SUBMODULE_I2C_ADDR);
-  return Wire.endTransmission(true);
+HardwareSerial SenseSerial(1);
+bool gSenseBegun = false;
+
+bool senseReadLine(char *buf, size_t bufLen, uint32_t timeoutMs) {
+  if (buf == nullptr || bufLen < 2) {
+    return false;
+  }
+  size_t n = 0;
+  const uint32_t start = millis();
+  while ((millis() - start) < timeoutMs) {
+    while (SenseSerial.available()) {
+      const char c = (char)SenseSerial.read();
+      if (c == '\n' || c == '\r') {
+        if (n > 0) {
+          buf[n] = '\0';
+          return true;
+        }
+        continue;
+      }
+      if (n + 1 < bufLen) {
+        buf[n++] = c;
+      }
+    }
+    delay(1);
+  }
+  if (n > 0) {
+    buf[n] = '\0';
+    return true;
+  }
+  return false;
+}
+
+void senseFlushRx() {
+  while (SenseSerial.available()) {
+    (void)SenseSerial.read();
+  }
 }
 } // namespace
 
-bool FED4::senseWakeAndWait()
-{
-  const uint8_t wakeErr = senseProbeAddr();
-  if (wakeErr == 4)
-  {
-    i2cRecoverBus();
-  }
+bool FED4::senseBegin() {
+  pinMode(AUDIO_TRRS_2, OUTPUT);
+  digitalWrite(AUDIO_TRRS_2, HIGH); // TRIG idle HIGH
 
-  const unsigned long deadline = millis() + kSenseReadyTimeoutMs;
-  while (millis() < deadline)
-  {
-    delay(kSenseReadyPollMs);
-    const uint8_t err = senseProbeAddr();
-    if (err == 0)
-    {
-      return true;
-    }
-    if (err == 4)
-    {
-      i2cRecoverBus();
-    }
-  }
-  return false;
-}
-
-bool FED4::sensePresent()
-{
-  return senseWakeAndWait();
-}
-
-bool FED4::senseReadStatus(SubmoduleStatus *status)
-{
-  if (status == nullptr)
-  {
-    return false;
-  }
-
-  const uint8_t received =
-      Wire.requestFrom((uint8_t)SUBMODULE_I2C_ADDR, (uint8_t)SUBMODULE_STATUS_READ_LEN);
-  if (received != SUBMODULE_STATUS_READ_LEN)
-  {
-    return false;
-  }
-
-  status->flags = (uint8_t)Wire.read();
-  status->lastError = (uint8_t)Wire.read();
+  // Half-duplex one-wire on TRRS3
+  SenseSerial.end();
+  SenseSerial.begin(115200, SERIAL_8N1, AUDIO_TRRS_3, AUDIO_TRRS_3);
+  gSenseBegun = true;
   return true;
 }
 
-bool FED4::senseWakeReadStatus(SubmoduleStatus *status)
-{
-  if (!senseWakeAndWait())
-  {
-    return false;
+void FED4::senseTrig(bool active) {
+  if (!gSenseBegun) {
+    senseBegin();
   }
-  return senseReadStatus(status);
+  digitalWrite(AUDIO_TRRS_2, active ? LOW : HIGH);
 }
 
-bool FED4::senseSend(const uint8_t *data, size_t len)
-{
-  if (data == nullptr && len > 0)
-  {
-    return false;
+void FED4::senseTrigPulse(uint32_t durationMs) {
+  if (!gSenseBegun) {
+    senseBegin();
   }
-
-  for (int attempt = 1; attempt <= 2; attempt++)
-  {
-    Wire.beginTransmission(SUBMODULE_I2C_ADDR);
-    for (size_t i = 0; i < len; i++)
-    {
-      Wire.write(data[i]);
-    }
-    const uint8_t err = Wire.endTransmission(true);
-    if (err == 0)
-    {
-      return true;
-    }
-    if (err == 4)
-    {
-      i2cRecoverBus();
-    }
-    if (attempt == 1)
-    {
-      delay(kSenseTxRetryDelayMs);
-    }
-  }
-  return false;
+  digitalWrite(AUDIO_TRRS_2, LOW);
+  delay(durationMs > 0 ? durationMs : 1);
+  digitalWrite(AUDIO_TRRS_2, HIGH);
 }
 
-bool FED4::senseSyncTime()
-{
-  SubmoduleStatus status = {};
-  if (!senseWakeReadStatus(&status))
-  {
-    Serial.println("Sense: not ready — SET_TIME skipped");
+bool FED4::senseSyncTime(uint32_t timeoutMs) {
+  if (!gSenseBegun) {
+    senseBegin();
+  }
+
+  senseFlushRx();
+  digitalWrite(AUDIO_TRRS_2, LOW);
+
+  char line[64];
+  const uint32_t t0 = millis();
+  bool gotRdy = false;
+  while ((millis() - t0) < timeoutMs) {
+    if (senseReadLine(line, sizeof(line), 100)) {
+      if (strncmp(line, "RDY", 3) == 0) {
+        gotRdy = true;
+        break;
+      }
+    }
+  }
+
+  if (!gotRdy) {
+    digitalWrite(AUDIO_TRRS_2, HIGH);
+    Serial.println("Sense: RDY timeout");
     return false;
   }
 
   DateTime t = now();
-  uint8_t frame[SUBMODULE_SET_TIME_FRAME_LEN];
-  const size_t len = submodulePackSetTime(
-      frame, (uint16_t)t.year(), t.month(), t.day(), t.hour(), t.minute(), t.second());
+  char cmd[48];
+  snprintf(cmd, sizeof(cmd), "T %u %u %u %u %u %u\n", (unsigned)t.year(),
+           (unsigned)t.month(), (unsigned)t.day(), (unsigned)t.hour(),
+           (unsigned)t.minute(), (unsigned)t.second());
+  SenseSerial.print(cmd);
+  SenseSerial.flush();
 
-  if (!senseSend(frame, len))
-  {
-    Serial.println("Sense: SET_TIME failed");
-    return false;
-  }
-  return true;
-}
-
-bool FED4::senseCapture(uint32_t settleMs)
-{
-  SubmoduleStatus status = {};
-  if (!senseWakeReadStatus(&status))
-  {
-    Serial.println("Sense: not ready — CAPTURE skipped");
-    return false;
-  }
-
-  uint8_t frame[SUBMODULE_CAPTURE_WITH_ID_LEN];
-  const size_t len = submodulePackCaptureDatetime(frame);
-  if (!senseSend(frame, len))
-  {
-    Serial.println("Sense: CAPTURE failed");
-    return false;
+  bool ok = false;
+  const uint32_t t1 = millis();
+  while ((millis() - t1) < timeoutMs) {
+    if (senseReadLine(line, sizeof(line), 100)) {
+      if (strncmp(line, "OK", 2) == 0) {
+        ok = true;
+        break;
+      }
+      if (strncmp(line, "ERR", 3) == 0) {
+        Serial.printf("Sense: SET_TIME %s\n", line);
+        break;
+      }
+    }
   }
 
-  if (settleMs > 0)
-  {
-    delay(settleMs);
+  digitalWrite(AUDIO_TRRS_2, HIGH);
+  if (!ok) {
+    Serial.println("Sense: SET_TIME failed or timeout");
   }
-  return true;
-}
-
-bool FED4::senseSyncAndCapture(uint32_t settleMs)
-{
-  if (!senseSyncTime())
-  {
-    return false;
-  }
-  // CAPTURE follows immediately; senseCapture()'s wake/status path already
-  // gives the slave listen loop time to apply SET_TIME before RTC-named shots.
-  return senseCapture(settleMs);
+  return ok;
 }
 
 #endif // FED4_ENABLE_SUBMODULE

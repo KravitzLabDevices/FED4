@@ -1,14 +1,13 @@
 /*
- * SeeedStudio Sense — I2C Slave Submodule (v0.3)
+ * SeeedStudio Sense — TRRS TRIG + UART Submodule (v1.0)
  *
- * Board-specific wiring and capture backend. Shared protocol, state, commands,
- * and ESP32-S3 I2C slave transport live in examples/3_Submodules/.
+ * Standalone firmware for Seeed XIAO ESP32-S3 Sense. Not part of FED4 library.
  * Spec: ../README.md
  *
- * Pins (XIAO ESP32-S3 Sense):
- *   D4 / SDA = GPIO5
- *   D5 / SCL = GPIO6
- *   SD SPI: CS=GPIO21, SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9 (expansion board)
+ * Pins:
+ *   TRIG = GPIO1 (D0) — idle HIGH, active LOW
+ *   DATA = GPIO2 (D1) — half-duplex UART 115200 (external pull-up)
+ *   SD SPI: CS=GPIO21, SCK=GPIO7, MISO=GPIO8, MOSI=GPIO9
  *
  * Arduino IDE:
  *   Board: Seeed Studio XIAO ESP32S3 Sense
@@ -16,90 +15,129 @@
  */
 
 #include <Arduino.h>
+#include "esp_sleep.h"
 #include "../SubmoduleCommands.h"
-#include "../SubmoduleI2cSlaveEsp32.h"
+#include "../SubmoduleProtocol.h"
 #include "../SubmoduleState.h"
+#include "../SubmoduleUartEsp32.h"
 #include "SenseCamera.h"
 
+static const int PIN_TRIG = 1;
+static const int PIN_DATA = 2;
 static const uint32_t SERIAL_BOOT_DELAY_MS = 2000;
+static const uint32_t SERIAL_WAKE_GRACE_MS = 500;
 
 static SubmoduleState gState;
-static SubmoduleI2cSlaveEsp32 gI2cSlave;
+static SubmoduleUartEsp32 gUart;
 
-static bool captureDatetimeAdapter(const SubmoduleDateTime *dt) {
-  return senseCaptureImageDatetime(dt);
+// millis() sampled immediately when light sleep returns (before Serial delays).
+static uint32_t gWakeMs = 0;
+
+static const char *wakeCauseName(esp_sleep_wakeup_cause_t cause) {
+  switch (cause) {
+    case ESP_SLEEP_WAKEUP_UNDEFINED:
+      return "UNDEFINED";
+    case ESP_SLEEP_WAKEUP_GPIO:
+      return "GPIO";
+    case ESP_SLEEP_WAKEUP_TIMER:
+      return "TIMER";
+    case ESP_SLEEP_WAKEUP_UART:
+      return "UART";
+    default:
+      return "OTHER";
+  }
 }
 
-static bool captureByIdAdapter(uint16_t imageId) {
-  return senseCaptureImageById(imageId);
+static bool renameAdapter(const char *fromName, const char *toName) {
+  return senseRenameCapture(fromName, toName);
 }
 
-static void releaseBusAdapter(void) {
-  submoduleI2cSlaveEsp32End(&gI2cSlave);
-}
+static bool captureAdapter(SubmoduleState *state) {
+  const uint32_t captureStartMs = millis();
+  Serial.println("captureAdapter: enter");
+  Serial.flush();
+  char name[32];
+  bool ok = false;
 
-static const SubmoduleCaptureOps kCaptureOps = {
-    captureDatetimeAdapter,
-    captureByIdAdapter,
-    senseCaptureLastError,
-    releaseBusAdapter,
-};
+  if (state != nullptr && !state->rtcValid) {
+    Serial.println("captureAdapter: RTC invalid — writing invalidrtc.jpeg");
+    Serial.flush();
+    ok = senseCaptureImageNamed("invalidrtc.jpeg", name, sizeof(name));
+  } else {
+    ok = senseCaptureImageNow(name, sizeof(name));
+  }
 
-static bool onCommand(const uint8_t *frame, size_t len,
-                      SubmoduleCommandResult *result, void *context) {
-  (void)context;
-  *result = submoduleDispatchCommand(&gState, &kCaptureOps, frame, len);
+  const uint32_t savedMs = millis();
+  const uint32_t captureOnlyMs = savedMs - captureStartMs;
+  const uint32_t wakeToSavedMs = savedMs - gWakeMs;
+
+  if (!ok) {
+    submoduleStateSetError(state, SUBMODULE_ERR_CAPTURE);
+    Serial.printf("CAPTURE failed: %s\n", senseCaptureLastError());
+    Serial.printf("TIMING: wake→fail %lu ms | capture-only %lu ms\n",
+                  (unsigned long)wakeToSavedMs, (unsigned long)captureOnlyMs);
+    Serial.flush();
+    return false;
+  }
+  snprintf(state->lastFilename, sizeof(state->lastFilename), "%s", name);
+  submoduleStateSetError(state, SUBMODULE_ERR_NONE);
+  Serial.printf("CAPTURE saved: %s\n", name);
+  Serial.printf("TIMING: wake→saved %lu ms | capture-only %lu ms\n",
+                (unsigned long)wakeToSavedMs, (unsigned long)captureOnlyMs);
+  Serial.flush();
   return true;
 }
 
 void setup() {
   Serial.begin(115200);
   delay(SERIAL_BOOT_DELAY_MS);
-  Serial.println("Serial ready.");
+  Serial.println("SeeedStudioSense TRIG+UART submodule v1.0");
+  Serial.printf("TRIG=GPIO%d DATA=GPIO%d baud=%lu\n", PIN_TRIG, PIN_DATA,
+                (unsigned long)SUBMODULE_UART_BAUD);
+  Serial.println("Manual test: pull TRIG LOW to wake, then release HIGH to exit UART wait");
+  Serial.flush();
 
   submoduleStateInit(&gState);
+  submoduleSetRenameFn(renameAdapter);
 
-  const SubmoduleI2cSlaveEsp32Config i2cConfig = {
-      SUBMODULE_I2C_ADDR,
-      SDA,
-      SCL,
-      100000,
-      9000,
-      20,
-      50000,
-      15,
-      16,
+  const SubmoduleUartEsp32Config cfg = {
+      PIN_TRIG,
+      PIN_DATA,
+      SUBMODULE_UART_BAUD,
   };
 
-  if (!submoduleI2cSlaveEsp32Init(&gI2cSlave, &i2cConfig, &gState)) {
-    Serial.println("I2C slave init FAILED");
+  if (!submoduleUartEsp32Init(&gUart, &cfg, &gState)) {
+    Serial.println("UART/TRIG init FAILED");
     while (true) {
       delay(1000);
     }
   }
 
-  Serial.println();
-  Serial.println("SeeedStudio Sense I2C slave submodule v0.3");
-  Serial.printf("Address: 0x%02X  SDA: D4/GPIO%d  SCL: D5/GPIO%d  %lu kHz\n",
-                SUBMODULE_I2C_ADDR, SDA, SCL, (unsigned long)(i2cConfig.freqHz / 1000));
-  Serial.println("Shared modules: SubmoduleProtocol, State, Rtc, Commands, I2cSlaveEsp32");
-  Serial.println("Board backend: SenseCamera (OV3660 + microSD)");
-
-  gState.sdReady = senseSdCardReady();
-  Serial.println(gState.sdReady ? "SD card: detected at boot"
-                                : "SD card: NOT detected at boot — check card + J3 pad");
-
-  if (!submoduleI2cSlaveEsp32Begin(&gI2cSlave)) {
-    Serial.println("I2C slave begin FAILED at boot");
-    while (true) {
-      delay(1000);
-    }
-  }
-
-  Serial.println("Entering sleep loop");
+  Serial.printf("Init OK — TRIG idle read=%d (expect 1)\n", digitalRead(PIN_TRIG));
+  Serial.println("Ready — light sleep until TRIG LOW");
+  Serial.flush();
 }
 
 void loop() {
-  submoduleI2cSlaveEsp32EnterLightSleep(&gI2cSlave);
-  submoduleI2cSlaveEsp32HandleWake(&gI2cSlave, onCommand, nullptr);
+  Serial.println("Entering light sleep...");
+  Serial.flush();
+
+  submoduleUartEsp32EnterLightSleep(&gUart);
+  gWakeMs = millis(); // first instruction after wake — timing baseline
+
+  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+  const int trigAtWake = digitalRead(PIN_TRIG);
+
+  // Capture ASAP (no Serial grace before shutter). Print timing after.
+  submoduleUartEsp32HandleWakeSession(&gUart, captureAdapter);
+
+  delay(SERIAL_WAKE_GRACE_MS);
+  Serial.printf("Light sleep exited — cause=%s (%d) TRIG@wake=%d\n",
+                wakeCauseName(cause), (int)cause, trigAtWake);
+  Serial.printf("[post-session] TRIG=%d rtcValid=%d lastErr=%u wakeAge=%lu ms\n",
+                digitalRead(PIN_TRIG), (int)gState.rtcValid,
+                (unsigned)gState.lastErrorCode,
+                (unsigned long)(millis() - gWakeMs));
+  Serial.println("HandleWakeSession returned — back to sleep");
+  Serial.flush();
 }

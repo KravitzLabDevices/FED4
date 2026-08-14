@@ -1,8 +1,5 @@
-/*
- * Pulls shared submodule slave sources into this sketch build.
- * Arduino IDE compiles .cpp only from the sketch directory.
- */
+// Pull shared submodule .cpp into this sketch folder for Arduino IDE builds.
 #include "../SubmoduleState.cpp"
 #include "../SubmoduleRtc.cpp"
 #include "../SubmoduleCommands.cpp"
-#include "../SubmoduleI2cSlaveEsp32.cpp"
+#include "../SubmoduleUartEsp32.cpp"

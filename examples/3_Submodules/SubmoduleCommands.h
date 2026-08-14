@@ -1,23 +1,13 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
-#include "SubmoduleRtc.h"
 #include "SubmoduleState.h"
 
-typedef struct {
-  bool (*captureDatetime)(const SubmoduleDateTime *rtcTime);
-  bool (*captureById)(uint16_t imageId);
-  const char *(*captureLastError)(void);
-  void (*releaseBus)(void);
-} SubmoduleCaptureOps;
+// Handle one UART line (no trailing newline required). Returns true if a reply
+// was written into replyOut (NUL-terminated, includes trailing \n when set).
+bool submoduleHandleUartLine(SubmoduleState *state, const char *line,
+                             char *replyOut, size_t replyOutLen);
 
-typedef struct {
-  bool sleepAfterCommand;
-  bool captureSucceeded;
-} SubmoduleCommandResult;
+// Rename last capture on SD. Board provides filesystem rename.
+typedef bool (*SubmoduleRenameFn)(const char *fromName, const char *toName);
 
-SubmoduleCommandResult submoduleDispatchCommand(SubmoduleState *state,
-                                                  const SubmoduleCaptureOps *ops,
-                                                  const uint8_t *frame,
-                                                  size_t len);
+void submoduleSetRenameFn(SubmoduleRenameFn fn);
