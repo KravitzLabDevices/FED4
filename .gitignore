@@ -21,6 +21,7 @@ Release/
 .vscode/
 .idea/
 .clangd
+compile_commands.json
 *.swp
 *.swo
 *~
