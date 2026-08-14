@@ -19,7 +19,7 @@ void FED4::feed()
 void FED4::initFeeding()
 {
     pelletPresent = checkForPellet();
-    pelletDropped = didPelletDrop();
+    // pelletDropped = didPelletDrop();
     pelletReady = false;
     dispenseError = false;
     lightsOff();
@@ -28,10 +28,10 @@ void FED4::initFeeding()
 
 void FED4::dispense()
 {
-    while (!pelletPresent && !pelletDropped && !dispenseError)
+    while (!pelletPresent && !dispenseError)
     {
         redPix();
-        pelletDropped = didPelletDrop();
+        // pelletDropped = didPelletDrop();
         pelletPresent = checkForPellet();
 
         // Button 1: fake pelletPresent to exit dispense (lab/debug)
@@ -42,10 +42,10 @@ void FED4::dispense()
             pelletPresent = true;
         }
 
-        if (pelletDropped)
-        {
-            blockPelletCount++;
-        }
+        // if (pelletDropped)
+        // {
+        //     blockPelletCount++;
+        // }
 
         stepper.step(-10);
         delay(2);
@@ -61,7 +61,7 @@ void FED4::dispense()
         handleJams(); // minor/vibrate clears — DispenseError only in jammed()
     }
 
-    if (!dispenseError && (pelletPresent || pelletDropped))
+    if (!dispenseError && pelletPresent)
     {
         pelletReady = true;
     }
@@ -262,14 +262,14 @@ bool FED4::checkForPellet()
     return !digitalRead(PHOTOGATE_1);
 }
 
-bool FED4::didPelletDrop()
-{
-    if (dropSensorAvailable)
-    {
-        return !digitalRead(PHOTOGATE_4);
-    }
-    return false;
-}
+// bool FED4::didPelletDrop()
+// {
+//     if (dropSensorAvailable)
+//     {
+//         return !digitalRead(PHOTOGATE_4);
+//     }
+//     return false;
+// }
 
 bool FED4::initializeDropSensor()
 {
