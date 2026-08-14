@@ -35,5 +35,6 @@ Open work tracked in detail in [`examples/2_UnitTests/SRC_AUDIT.md`](examples/2_
 - [ ] Port remaining behavioral programs from archive → [`1_Programs`](examples/1_Programs/)  
 - [ ] PIR / motion idle path (deferred to v1.8 counter IC)  
 - [ ] Revisit ActivityMonitor when that sketch is unarchived  
-- [ ] **Sense / camera** — TRRS TRIG + UART path in [`examples/3_Submodules/`](examples/3_Submodules/) (`FED4::senseSyncTime` / `senseTrigPulse`). Validate chamber lighting + fixed AE under strip white.
+- [ ] **Sense / camera** — TRRS TRIG + UART path in [`examples/3_Submodules/`](examples/3_Submodules/) (`FED4::senseSyncTime` / `senseTrigPulse`). Validate chamber lighting + fixed AE under strip white.  
+- [ ] Characterize touch / SD card write duration to determine max touch rate  
 

@@ -208,7 +208,7 @@ void FED4::wakeUp()
     wakePad = 0;
   }
 
-  // Hand VCOM back to GPIO before any refresh() (Test A used LEDC through sleep)
+  // Hand VCOM back to GPIO before any refresh()
   releaseVcomLedcToGpio();
 
   // Rails: PSV2 was left on; re-assert enables. No SPI.end / remount for rail cycle.
