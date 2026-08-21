@@ -1,43 +1,36 @@
 #ifndef FED4_h
 #define FED4_h
 
-
-// note there is a known issue with FastLED 3.10.3 on ESP32-S3 devices
-// keep FastLED version 3.10.2 until this issue is fixed in the main FastLED repository
-// https://github.com/FastLED/FastLED/issues/5100
-
 #include <Arduino.h>
+#include <WString.h>
 #include <map>
 #include <string>
-#include <Adafruit_MCP23X17.h>  // version 2.3.2 
-#include "Adafruit_MAX1704X.h"  // version 1.0.3
-#include <Stepper.h>  // version 1.1.3
-#include <Adafruit_NeoPixel.h> // version 1.15.2
-#include <FastLED.h> // version 3.10.2 
-#include <Wire.h> 
-#include <Adafruit_GFX.h>  // version 1.12.3
+#include <Adafruit_MCP23X17.h> // version 2.3.2
+#include "Adafruit_MAX1704X.h" // version 1.0.3
+#include <Stepper.h>           // version 1.1.3
+#include <FastLED.h>           // version 3.10.2
+#include <Wire.h>
+#include <Adafruit_GFX.h> // version 1.12.3
 #include <Fonts/FreeSans9pt7b.h>
 #include <Fonts/Org_01.h>
 #include <esp_adc_cal.h>
 #include "esp_sleep.h"
+class DateTime;
 #include "RTClib.h" //Adafruit version, 2.1.4
-#include <SD.h> //ESP32 version
+#include <SD.h>     //ESP32 version
 #include "FS.h"
 #include <Adafruit_BME680.h> //version 2.0.5
 #include <SPI.h>
 #include <driver/adc.h>
-#include <ESP_I2S.h>  // New I2S API for ESP32 core 3.x
+#include <ESP_I2S.h> // New I2S API for ESP32 core 3.x
 #include <driver/rtc_io.h>
-#include <driver/touch_pad.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <Adafruit_LIS3DH.h> //version 1.3.0
 #include <Adafruit_Sensor.h>
-#include "Adafruit_MLX90393.h" //version 2.0.5
-#include "SparkFun_VL53L1X.h" //version 1.2.12
-#include "Adafruit_STHS34PF80.h"  //version 1.0.2
+#include "SparkFun_VL53L1X.h"  //version 1.2.12
 #include "Adafruit_VEML7700.h" //version 2.1.6
-#include <ESP32Time.h> //version 2.0.6
+#include <ESP32Time.h>         //version 2.0.6
 
 // Optional Hublink integration - can be excluded via compiler directive
 #ifndef FED4_EXCLUDE_HUBLINK
@@ -46,10 +39,23 @@
 
 // Pin Definitions
 #include "FED4_Pins.h"
+#include "FED4_DisplayOrient.h"
+#include "FED4_TouchHelpers.h"
 
-// Device Constants
-static const uint8_t LIS3DH_I2C_ADDRESS = 0x19;   // Default I2C address for LIS3DH accelerometer
-static const uint8_t MLX90393_I2C_ADDRESS = 0x0C; // Default I2C address for MLX90393 magnetometer
+// Sense TRRS TRIG+UART master (FED4_Submodule*) — TRRS2=TRIG, TRRS3=DATA.
+// Set to 1 here (library rebuild) to expose FED4::sense*.
+#ifndef FED4_ENABLE_SUBMODULE
+#define FED4_ENABLE_SUBMODULE 1
+#endif
+
+// Set to 1 to skip waitUntil() poke logData (flicker A/B). 0 = normal SD logging.
+// PSV2 stays on in light sleep — card keeps power (no wake remount).
+#ifndef FED4_DIAG_SKIP_SD_LOG
+#define FED4_DIAG_SKIP_SD_LOG 0
+#endif
+
+// Board Version: v1.7
+#define FED4_BOARD_VERSION_STR "1.7.0"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -57,21 +63,48 @@ static const uint8_t DISPLAY_WHITE = 1;
 static const uint8_t DISPLAY_INVERSE = 2;
 static const uint8_t DISPLAY_NORMAL = 3;
 
-// Common display dimensions
-static const uint16_t DISPLAY_WIDTH = 144;
-static const uint16_t DISPLAY_HEIGHT = 168;
+// Common display dimensions (Kyocera TN0216 physical: 320 source × 176 gate)
+static const uint16_t DISPLAY_WIDTH = 320;
+static const uint16_t DISPLAY_HEIGHT = 176;
+// Default boot rotation until orientScreen() runs (see FED4_DisplayOrient.h)
+static const uint8_t DISPLAY_ROTATION = FED4_DISPLAY_ROTATION_NATIVE;
 
 static const uint8_t NUM_STRIP_LEDS = 8;
-static const uint8_t NUMPIXELS = 1;
 static const uint16_t MOTOR_STEPS = 512;
 static const uint8_t MOTOR_SPEED = 24;
 
-static const float TOUCH_THRESHOLD = 0.2; // percentage of baseline change to trigger poke - note that when plugged in by USB this can be much more sensitive than on battery power, due to different grounding
+// TOUCH_THRESHOLD (rise fraction) is defined in FED4_TouchHelpers.h
 static const char *META_FILE = "/meta.json";
 
 static const char *PREFS_NAMESPACE = "fed4";
 static const bool PREFS_RO_MODE = true;
 static const bool PREFS_RW_MODE = false;
+
+/** Why waitUntil() / startSleep() returned to the sketch. */
+enum class FedWakeSource : uint8_t
+{
+    None = 0,
+    Touch,
+    Button,
+    Timer,    // UI update interval deadline
+    Interrupt // INT_OR GPIO (non-button)
+};
+
+/** Touch pad identity for FedEvent::pad. */
+enum class FedPad : uint8_t
+{
+    None = 0,
+    Left = 1,
+    Center = 2,
+    Right = 3
+};
+
+struct FedEvent
+{
+    FedWakeSource source = FedWakeSource::None;
+    FedPad pad = FedPad::None;
+    uint8_t button = 0; // 1/2/3 when Button
+};
 
 // current very public-oriented, consider pushing some to private
 class FED4 : public Adafruit_GFX
@@ -90,8 +123,8 @@ public:
     void syncHublink();
     static void onHublinkTimestampReceived(uint32_t timestamp);
 
-    // Motion sensor (STHS34PF80) control
-    bool useMotionSensor = true; // Default to true, can be set to false to disable STHS34PF80
+    // Motion sensor (PIR EKMB1107112) control
+    bool useMotionSensor = true; // Default to true, can be set to false to disable PIR
 
     // Button functions
     bool initializeButtons();
@@ -104,13 +137,21 @@ public:
 
     // Corefunctions
     void feed();
-    void run();
-    
+    void run(); // legacy: update() + sleep(sleepSeconds)
+    /** Refresh clock/display/serial/hublink — call after feed() or when UI must change. */
+    void update();
+    /**
+     * Light-sleep until touch, button, or updateIntervalSeconds.
+     * MIP VCOM is kept alive by LEDC during sleep (no CPU wake chunks).
+     * Calls update() before returning. Default interval 60 s.
+     */
+    FedEvent waitUntil(uint32_t updateIntervalSeconds = 60);
+
     // Game functions
     void pong();
 
     // Sleep configuration
-    int sleepSeconds = 4; // how many seconds to sleep between timer based wake-ups
+    int sleepSeconds = 4;   // how many seconds to sleep between timer based wake-ups (run/sleep)
     bool sleepyLEDs = true; // Flag to control whether LEDs stay on during sleep (true = LEDs sleep with sleep, false = LEDs stay on during sleep)
 
     // Menu functions
@@ -125,9 +166,11 @@ public:
     void menuRTC();
     void menuEnd();
 
-    // Sensor polling
-    void pollSensors(int minToUpdateSensors = 10);
+    // Sensor polling (BME/battery/lux for UI — called from update())
+    void refreshSensors();
     void startupPollSensors();
+    /** @deprecated Use refreshSensors(); kept as alias for older sketches. */
+    void pollSensors(int minToUpdateSensors = 10);
 
     // Pellet functions
     bool checkForPellet();
@@ -139,6 +182,12 @@ public:
     void handlePelletInWell();
     void finishFeeding();
     void dispense();
+    /**
+     * If pendingRetrieval and well is empty, log LatePelletTaken.
+     * Called from waitUntil()/feed() after PSV2 is back on. Coarse timing
+     * (up to waitUntil interval); PSV2 stays off in light sleep for battery life.
+     */
+    bool checkLateRetrieval();
     unsigned long pelletDropTime;
     unsigned long pelletWellTime;
     bool dispenseError = false;
@@ -158,7 +207,6 @@ public:
     bool initializeMotor();
     void releaseMotor();
     void minorJamClear();
-    void majorJamClear();
     void vibrateJamClear();
     void jammed();
 
@@ -171,17 +219,17 @@ public:
     void hapticTripleBuzz(uint8_t duration = 5);
     void hapticRumble(uint16_t duration_ms = 300);
 
-    // Touch sensor management (defined in FED4_Touch.cpp)
+    // Touch sensor management (defined in FED4_Touch.cpp; free helpers in FED4_TouchHelpers.h)
     bool initializeTouch();
     void calibrateTouchSensors(bool checkStability = false);
-    void interpretTouch();
-    static void IRAM_ATTR onTouchWakeUp();
-    void resetTouchFlags(); // Reset all touch flags to false
-    void logTouchEvent(); // Log touch events separately from critical path
-    static uint8_t wakePad; // 0=none, 1=left, 2=center, 3=right
+    /** Identify active poke (rise fraction); sets flags/counts/pokeDuration/wakePad. */
+    bool capturePoke();
+    void resetTouchFlags();
+    /** 0=none, 1=left, 2=center, 3=right — sync of FedPad after capturePoke; not an ISR latch. */
+    static uint8_t wakePad;
 
-    // Pixel an Strip control (defined in FED4_LEDs.cpp)
-    // (strip)
+    // Status LED and Strip control (defined in FED4_LEDs.cpp)
+    // (strip - front RGB LEDs on PSV3 rail)
     bool initializeStrip();
     void setStripBrightness(uint8_t brightness);
     void colorWipe(const char *colorName, unsigned long wait);
@@ -206,19 +254,9 @@ public:
     void centerLight(const char *colorName, uint8_t brightness);
     void rightLight(const char *colorName);
     void rightLight(const char *colorName, uint8_t brightness);
-    // (pixel)
+    // (status LED — digital red on STATUS_LED pin; LEDC VCOM owns the PWM path)
     bool initializePixel();
-    void setPixBrightness(uint8_t brightness);
-    void setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness = 5);
-    void setPixColor(const char *colorName, uint8_t brightness = 5);
-    void bluePix(uint8_t brightness = 5);
-    void greenPix(uint8_t brightness = 5);
     void redPix(uint8_t brightness = 5);
-    void purplePix(uint8_t brightness = 5);
-    void yellowPix(uint8_t brightness = 5);
-    void cyanPix(uint8_t brightness = 5);
-    void whitePix(uint8_t brightness = 5);
-    void orangePix(uint8_t brightness = 5);
     void noPix();
     // (shared)
     uint32_t getColorFromString(const char *colorName);
@@ -239,10 +277,20 @@ public:
     void displaySDCardStatus();
     void displayIndicators();
     void startupAnimation();
-    void displayInitStatus(const char* message);
+    void displayInitStatus(const char *message);
     void displayLowBatteryWarning();
     void displayActivityMonitor();
     void displayActivityCounters();
+    void displayReset();
+    void displayLight(bool on);
+    /** One-shot accel read; sets rotation from device X (g). Returns true if rotation changed. */
+    bool orientScreen();
+    /** LEDC VCOM KEEP_ALIVE (~30 Hz; Test A sleep path). */
+    bool startVcomLedc();
+    /** Stop LEDC VCOM and drive pin LOW (required before RST HIGH). */
+    void stopVcomLedc();
+    /** If LEDC was running, release pin to GPIO at last refresh() polarity. */
+    void releaseVcomLedcToGpio();
 
     void serialStatusReport();
 
@@ -251,15 +299,15 @@ public:
     void sleep();
     void startSleep();
     void wakeUp();
-    void handleTouch();
+    FedWakeSource lastWakeSource = FedWakeSource::None;
     unsigned long pollSensorsTimer = 0;
 
-    
-    bool initializeLDOs();
-    void LDO2_ON();
-    void LDO2_OFF();
-    void LDO3_ON();
-    void LDO3_OFF();
+    // Power management (defined in FED4_Power.cpp)
+    bool initializePower();
+    void PSV2_ON();
+    void PSV2_OFF();
+    void PSV3_ON();
+    void PSV3_OFF();
 
     // SD card functions (defined in FED4_SD.cpp)
     bool initializeSD();
@@ -275,9 +323,9 @@ public:
     void setAge(String age);
     void handleSDCardError();
     bool isSDCardAvailable() const { return sdCardAvailable; }
-    
+
     // Sequence display methods
-    void setSequenceDisplay(const String& sequence, int index, int level);
+    void setSequenceDisplay(const String &sequence, int index, int level);
 
     // Public counters and timing
     int pelletCount;
@@ -287,7 +335,7 @@ public:
     int blockPokeCount;
     int blockPelletCount;
     int FR;
-    String currentSequence;  // For display purposes
+    String currentSequence;   // For display purposes
     int currentSequenceIndex; // Current position in sequence
     int currentSequenceLevel; // Current level (FR)
     int wakeCount = 0;
@@ -309,6 +357,14 @@ public:
     void updateTime();
     bool forceRTCUpdate = false; // Set to true to force RTC update on next initialization
 
+#if FED4_ENABLE_SUBMODULE
+    // TRRS submodule (TRIG=AUDIO_TRRS_2, DATA=AUDIO_TRRS_3 half-duplex UART)
+    bool senseBegin();
+    bool senseSyncTime(uint32_t timeoutMs = 2000);
+    void senseTrigPulse(uint32_t durationMs = 10);
+    void senseTrig(bool active); // active=true drives TRIG LOW
+#endif
+
     // Vitals functions (defined in FED4_Vitals.cpp)
     float getBatteryVoltage();
     float getBatteryPercentage();
@@ -316,13 +372,12 @@ public:
     float getHumidity();
     float getPressure();
     float getGasResistance();
-    bool getTempAndHumidity(float &temp, float &hum); // Efficient combined read
+    bool getTempAndHumidity(float &temp, float &hum);                        // Efficient combined read
     bool getAllBME680Data(float &temp, float &hum, float &pres, float &gas); // Get all BME680 values
     float getLux();
     float getWhite();
     bool initializeLightSensor();
     bool reinitializeLightSensor();
-    
 
     // variables to store temp/humidity/pressure/gas and battery info so we don't have to keep pinging the chips every time
     float temperature = -1.0;
@@ -385,20 +440,15 @@ public:
     String event = "";
     float retrievalTime;
     float pokeDuration = 0.0;
-    int touchPadLeftBaseline;
-    int touchPadCenterBaseline;
-    int touchPadRightBaseline;
     int motorTurns;
     int reBaselineTouches;
     char filename[32];
     bool sdCardAvailable = true; // Track if SD card operations are available
-    bool audioSilenced = false; // Track if audio has been silenced
+    bool audioSilenced = false;  // Track if audio has been silenced
 
     void clearDisplay();
     void refresh();
     void drawPixel(int16_t x, int16_t y, uint16_t color);
-
-
 
     // Accelerometer functions (defined in FED4_Accel.cpp)
     bool initializeAccel();
@@ -409,28 +459,51 @@ public:
     void readAccel(float &x, float &y, float &z);
     bool accelDataReady();
 
-    // Magnet functions (defined in FED4_Magnet.cpp)
-    bool initializeMagnet();
-    void setMagnetGain(mlx90393_gain_t gain);
-    mlx90393_gain_t getMagnetGain();
-    bool readMagnetData(float &x, float &y, float &z);
-    bool getMagnetEvent(sensors_event_t *event);
-    void configureMagnet(mlx90393_gain_t gain = MLX90393_GAIN_5X);
-
     // ToF sensor functions (defined in FED4_ToF.cpp)
     bool initializeToF();
     int prox();
 
-    // Motion sensor functions (defined in FED4_Motion.cpp)
-    bool initializeMotion();
+    // Motion sensor functions (defined in FED4_Motion.cpp) - PIR EKMB1107112
+    // PIR pin configured in begin(); no protocol init required
     bool motion();
+    void updateStatusLedFromMotion(); // STATUS_LED mirrors PIR (Demo-Hardware)
     void resetMotionCounters();
 
     // Drop sensor functions
     bool initializeDropSensor();
 
-    // Memory monitoring function
-    void printMemoryStatus();
+    // Solenoid functions (defined in FED4_Begin.cpp)
+    bool initializeSolenoids();
+    void solenoid(uint8_t num, bool state);
+
+    // ── Interrupt subsystem (defined in FED4_Interrupts.cpp) ──────────────────
+    // INT_OR is the active-LOW AND of all open-drain sensor interrupts
+    // and ACCEL_INT1 (push-pull, configured active-LOW).
+
+    // Bit flags identifying each interrupt source
+    enum FED4IntSource : uint8_t
+    {
+        INT_SRC_NONE = 0,
+        INT_SRC_TOF = 1 << 0,     // VL53L1X data-ready / threshold
+        INT_SRC_RTC = 1 << 1,     // DS3231 alarm 1 or alarm 2
+        INT_SRC_BATTERY = 1 << 2, // MAX17048 voltage / SOC alert
+        INT_SRC_ACCEL = 1 << 3,   // LIS2DH12TR inertial event on INT1
+    };
+
+    bool initializeInterrupts();               // configure INT_OR wake + accel INT1
+    bool interruptPending();                   // true when INT_OR is LOW
+    uint8_t scanInterrupts();                  // bitmask of all asserted sources (no clear)
+    void clearInterrupts(uint8_t mask = 0xFF); // clear latches for given sources
+    uint8_t scanAndClearInterrupts();          // scan + clear + verify line release
+    FED4IntSource firstInterruptSource();      // highest-priority single source
+    uint8_t getLastInterruptMask();            // mask captured automatically on GPIO wake
+    /** Serial dump of INT_OR + button wake pins + decoded scanInterrupts() mask. */
+    void printInterruptStatus(const char *tag = nullptr);
+
+    // Opt-in per-source interrupt enable helpers
+    bool enableAccelInterrupt(float threshold_g = 0.1f, uint8_t duration_count = 0);
+    bool enableRTCAlarmInterrupt(uint8_t alarmNum = 1);          // arm DS3231 alarm on INT pin
+    bool enableBatteryAlert(float minVoltage, float maxVoltage); // set MAX17048 VALERT window
 
     ~FED4()
     {
@@ -449,15 +522,11 @@ private:
     RTC_DS3231 rtc;
     ESP32Time Inrtc;
     Adafruit_BME680 bme;
-    Adafruit_NeoPixel pixels;
     Stepper stepper;
-    TwoWire I2C_2;
     CRGB strip_leds[NUM_STRIP_LEDS];
     Adafruit_LIS3DH accel;
-    Adafruit_MLX90393 magnet;
-    Adafruit_STHS34PF80 motionSensor;
     Adafruit_VEML7700 lightSensor;
-    I2SClass i2s;  // New I2S driver object for ESP32 core 3.x
+    I2SClass i2s; // New I2S driver object for ESP32 core 3.x
 
 // Hublink integration
 #ifndef FED4_EXCLUDE_HUBLINK
@@ -471,8 +540,11 @@ private:
     String sex;
     String strain;
     String age;
-    bool dropSensorAvailable; // Flag to store drop sensor availability status
-    bool motionSensorInitialized; // Flag to track if motion sensor baseline is established
+    bool dropSensorAvailable;        // Flag to store drop sensor availability status
+    uint8_t lastInterruptMask = 0;   // captured by wakeUp() on INT_OR GPIO wake
+    uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
+    bool pendingRetrieval = false;   // pellet still in well after awake 20 s window
+    void monitorPelletInWell(uint32_t retrievalTimeoutSec);
 
     // RTC functions
     Preferences preferences;
@@ -480,29 +552,18 @@ private:
     bool isNewCompilation();
     void updateCompilationID();
 
-    uint16_t lastTouchValue; // Store the touch value that triggered the interrupt
-
     uint8_t *displayBuffer = nullptr;
     bool vcom;
-    void sendDisplayCommand(uint8_t cmd);
+    bool vcomLedcActive = false;
 
-    friend class FED4_Display;
-    friend class FED4_LED;
-    friend class FED4_Motor;
-    friend class FED4_RTC;
-    friend class FED4_SD;
-    friend class FED4_Touch;
-    friend class FED4_Vitals;
-    friend class FED4_Feed;
-    friend class FED4_Begin;
-    friend class FED4_Audio;
-    friend class FED4_Magnet;
-    friend class FED4_Accel;
-    friend class FED4_Menu;
-    friend class FED4_Motion;
-    friend class FED4_Sleep;
-    friend class FED4_Timeout;
-    friend class FED4_Prox;
+    // I2C bus helpers (ESP32 Wire.setTimeOut — not Stream setTimeout)
+    void i2cReinitBus();
+    bool i2cProbe(uint8_t addr);
+    void i2cRecoverBus();
+    bool i2cBusHealthy();
+
+    // Shared SPI: after SD, restore 1 MHz / LSBFIRST / CS idle for MIP
+    void reclaimSpiForDisplay();
 };
 
 // Standard ASCII 5x7 font

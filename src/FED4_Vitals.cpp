@@ -235,156 +235,93 @@ void FED4::startupPollSensors(){
 }
 
 /**
- * Polls temperature, humidity and battery sensors periodically to update their values.
- * Only updates every N minutes to avoid excessive polling.
- * Uses timeouts to prevent hanging if sensors are unresponsive.
- * @param minToUpdateSensors Number of minutes between sensor updates (default: 10)
+ * Refresh BME/battery/lux for the status UI. Called from update().
+ * Does not auto-log Status (avoids SD flood when update() runs after every feed).
+ * PIR/prox left to motion()/prox() — not required for the program header.
  */
-void FED4::pollSensors(int minToUpdateSensors) {
-  // Increment poll counter
-  pollCount++;
+void FED4::refreshSensors() {
+  lastPollTime = millis();
 
-  // A quirk of the ESP32-S3 is that the the primary I2C bus must
-  // be exercised before I2C_2 works properly - calling prox() here does that
-  // TODO: See if there is a simpler way to do this - this is a hack.
-  prox();
-  motion();
+  unsigned long startTime = millis();
+  float temp = -1;
+  float hum = -1;
+  float pres = -1;
+  float gas = -1;
 
-  if (millis() - lastPollTime > (minToUpdateSensors * 60000)) {
-    lastPollTime = millis();
-
-    // Calculate motion percentage over the last period using poll count
-    if (pollCount > 0) {
-      motionPercentage = (float)motionCount / pollCount * 100.0;
-    } else {
-      motionPercentage = 0.0;
-    }
-
-    //updateDisplay();
-
-    // Reset counters for next sampling period
-    // Note: ActivityMonitor resets counters manually after logging, so skip reset for that program
-    if (program != "ActivityMonitor") {
-      motionCount = 0;
-      pollCount = 0;
-    }
-
-    // Get all BME680 data together with timeout (single sensor read)
-    unsigned long startTime = millis();
-    float temp = -1;
-    float hum = -1;
-    float pres = -1;
-    float gas = -1;
-
-    while (millis() - startTime < 100) {  // 0.1 second timeout
-      if (getAllBME680Data(temp, hum, pres, gas) && temp > 1) break;  // Valid reading obtained
-      delay(1);
-    }
-    if (temp > 1) temperature = temp;
-    if (hum > 1) humidity = hum;
-    if (pres > 0) pressure = pres;
-    if (gas > 0) gasResistance = gas;
-
-    //get battery info with timeout
-    startTime = millis();
-    while (millis() - startTime < 100) {  // 0.1 second timeout
-      cellVoltage = getBatteryVoltage();
-      cellPercent = getBatteryPercentage();
-      if (cellVoltage > 0) break;  // Valid reading obtained
-      delay(1);
-    }
-
-    // Debug output for battery readings
-    if (cellVoltage <= 0) {
-      Serial.println("Warning: Battery voltage reading failed or invalid during periodic poll");
-    }
-
-    if (cellPercent > 100) {
-      cellPercent = 100;
-    }
-
-    // Halt device and display warning if battery is low
-    if (cellVoltage > 0 && cellVoltage < 3.5) {
-      displayLowBatteryWarning();
-      Serial.println("LOW BATTERY: Device halted to protect battery.");
-      while (1) {
-        delay(1000); // Halt here
-      }
-    }
-
-    //get lux with timeout
-    lightSensor.setGain(VEML7700_GAIN_2);
-    lightSensor.setIntegrationTime(VEML7700_IT_800MS);
-    lightSensor.enable(true);
-
-    startTime = millis();
-    float luxReading = -1;
-    int luxAttempts = 0;
-    while (millis() - startTime < 100) {  // 0.1 second timeout
-      luxReading = getLux();
-      if (luxReading >= 0) break;  // Valid reading obtained (lux can be 0)
-      delay(1);
-      luxAttempts++;
-    }
-
-    // If lux sensor failed after multiple attempts, try reinitializing it
-    if (luxReading < 0 && luxAttempts > 2) {  // More than 2 failed attempts
-      if (reinitializeLightSensor()) {
-        // Try one more reading after reinitialization
-        delay(1);  // Give sensor time to stabilize (reduced from 50ms)
-        luxReading = getLux();
-      }
-    }
-
-    if (luxReading >= 0) lux = luxReading;  // Only update if we got a valid reading >= 0
-
-    //get white with timeout
-    startTime = millis();
-    float whiteReading = -1;
-    int whiteAttempts = 0;
-    while (millis() - startTime < 100) {  // 0.1 second timeout
-      whiteReading = getWhite();
-      if (whiteReading >= 0) break;  // Valid reading obtained (white can be 0)
-      delay(1);
-      whiteAttempts++;
-    }
-
-    // If white sensor failed after multiple attempts, try reinitializing it
-    if (whiteReading < 0 && whiteAttempts > 2) {  // More than 2 failed attempts
-      if (reinitializeLightSensor()) {
-        // Try one more reading after reinitialization
-        delay(1);  // Give sensor time to stabilize
-        whiteReading = getWhite();
-      }
-    }
-
-    if (whiteReading >= 0) white = whiteReading;  // Only update if we got a valid reading >= 0
-
-    //If it's not an ActivityMonitor program, log Status to capture sensor data for each period
-    if (program != "ActivityMonitor")  {
-      logData("Status");
-    }
-        
-    // Reset pollSensorsTimer so seconds display resets when data is written
-    pollSensorsTimer = millis();
+  while (millis() - startTime < 100) {
+    if (getAllBME680Data(temp, hum, pres, gas) && temp > 1) break;
+    delay(1);
   }
+  if (temp > 1) temperature = temp;
+  if (hum > 1) humidity = hum;
+  if (pres > 0) pressure = pres;
+  if (gas > 0) gasResistance = gas;
+
+  startTime = millis();
+  while (millis() - startTime < 100) {
+    cellVoltage = getBatteryVoltage();
+    cellPercent = getBatteryPercentage();
+    if (cellVoltage > 0) break;
+    delay(1);
+  }
+  if (cellVoltage <= 0) {
+    Serial.println("Warning: Battery voltage reading failed or invalid during sensor refresh");
+  }
+  if (cellPercent > 100) {
+    cellPercent = 100;
+  }
+  if (cellVoltage > 0 && cellVoltage < 3.5) {
+    displayLowBatteryWarning();
+    Serial.println("LOW BATTERY: Device halted to protect battery.");
+    while (1) {
+      delay(1000);
+    }
+  }
+
+  startTime = millis();
+  float luxReading = -1;
+  int luxAttempts = 0;
+  while (millis() - startTime < 100) {
+    luxReading = getLux();
+    if (luxReading >= 0) break;
+    delay(1);
+    luxAttempts++;
+  }
+  if (luxReading < 0 && luxAttempts > 2) {
+    if (reinitializeLightSensor()) {
+      delay(1);
+      luxReading = getLux();
+    }
+  }
+  if (luxReading >= 0) {
+    lux = luxReading;
+  }
+
+  startTime = millis();
+  float whiteReading = -1;
+  int whiteAttempts = 0;
+  while (millis() - startTime < 100) {
+    whiteReading = getWhite();
+    if (whiteReading >= 0) break;
+    delay(1);
+    whiteAttempts++;
+  }
+  if (whiteReading < 0 && whiteAttempts > 2) {
+    if (reinitializeLightSensor()) {
+      delay(1);
+      whiteReading = getWhite();
+    }
+  }
+  if (whiteReading >= 0) {
+    white = whiteReading;
+  }
+
+  pollSensorsTimer = millis();
 }
 
-/**
- * Prints current memory status for debugging memory leaks
- */
-void FED4::printMemoryStatus() {
-    Serial.printf("Memory Status - Free: %d, Size: %d, MinFree: %d, Fragmentation: %.1f%%\n",
-                  ESP.getFreeHeap(),
-                  ESP.getHeapSize(),
-                  ESP.getMinFreeHeap(),
-                  (float)(ESP.getHeapSize() - ESP.getFreeHeap()) / ESP.getHeapSize() * 100.0);
-    
-    // Additional memory info for debugging small leaks
-    Serial.printf("Memory Details - Largest Block: %d, Allocated: %d, Fragments: %d\n",
-                  ESP.getMaxAllocHeap(),
-                  ESP.getHeapSize() - ESP.getFreeHeap(),
-                  ESP.getHeapSize() - ESP.getFreeHeap() - ESP.getMaxAllocHeap());
+void FED4::pollSensors(int minToUpdateSensors) {
+  (void)minToUpdateSensors;
+  refreshSensors();
 }
 
 /**

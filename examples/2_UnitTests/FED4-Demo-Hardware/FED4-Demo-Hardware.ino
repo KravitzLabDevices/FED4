@@ -1,0 +1,1663 @@
+/*
+ * FED4 Demo Hardware v1.0.4
+ *
+ * Full hardware sweep on Kyocera TN0216 MIP display (standalone, no FED4.h).
+ * Target board: FED4 v1.7.0 — see FED4_DemoHardwareVersion.h to bump version.
+ *
+ * Architecture (event-driven reference patterns for future FED4 dev):
+ *   - Buttons, INT_OR: GPIO interrupts set volatile flags; loop consumes.
+ *     B1 backlight is polled with debounce (toggle on release). ISRs never touch I2C.
+ *   - Touch: FED4_TouchHelpers (IDF 5.5+ NG direct driver). Boot idle baseline +
+ *     rise fraction for strip brightness and poke detection.
+ *   - ToF: continuous ranging; getRangeStatus() + optional narrow ROI (TOF_USE_NARROW_ROI).
+ *   - BME680: async beginReading()/endReading() — no blocking gas-heater wait.
+ *   - Audio: chunked I2S sequencer; while playing the loop skips display/SPI
+ *     work and serviceAudio() prefills + feeds ~64 ms per call (3 ms fades).
+ *   - Display: redrawn only when displayDirty is set (500 ms telemetry poll
+ *     or immediate UI changes).
+ *
+ * FUTURE DEV NOTES:
+ *   - Touch drift: the S3 benchmark auto-tracks slow drift in hardware.
+ *     Consider periodically logging NG benchmark vs boot idle to detect drift.
+ *   - INT_OR (GPIO 7) ORs device interrupts. Pattern: one CHANGE interrupt on
+ *     INT_OR, then query each source (LIS2DH INT, MCP23017 INTA/B, RTC alarm)
+ *     to identify and clear it. This demo only tracks the line state.
+ *   - Display: MIP panels accept per-line updates. Tracking dirty framebuffer
+ *     lines and transmitting only those would cut a full refresh (~45 ms SPI)
+ *     to a few lines for small changes.
+ *
+ * Flash with Tools -> "USB CDC On Boot" = ENABLED (GPIO 43/44 are display pins).
+ * Serial is optional: 1 s grace delay, then runs without a monitor attached.
+ *
+ * Buttons:
+ *   B1 — toggle display backlight (immediate)
+ *   B2 — hold for haptic (active while pressed)
+ *   B3 — play melody (non-blocking)
+ *
+ * Pokes: left/right → haptic + tone + dispense (L/R LEDs = touch glow only).
+ * Center poke → haptic + intro audio; full-strip rainbow while center pad held.
+ * STATUS_LED mirrors PIR; PIR does not trigger audio.
+ *
+ * Boot: embedded PCM startup clip (sounds/startup_sound.h, ~2.5 s TTS).
+ */
+
+// Set to 0 to disable poke tone / dispense (touch strip still active).
+#define ENABLE_FEED 1
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <SPI.h>
+#include <Stepper.h>
+#include <cmath>
+#include <Adafruit_GFX.h>
+#include <Adafruit_MCP23X17.h>
+#include <Adafruit_NeoPixel.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BME680.h>
+#include <Adafruit_VEML7700.h>
+#include <Adafruit_LIS3DH.h>
+#include <Adafruit_MAX1704X.h>
+#include <Preferences.h>
+#include <ESP_I2S.h>
+#include "SparkFun_VL53L1X.h"
+#include "RTClib.h"
+#include <Fonts/FreeSans9pt7b.h>
+#include <FED4_Pins.h>
+#include <FED4_DisplayOrient.h>
+#include "FED4_DemoHardwareVersion.h"
+#include <FED4_TouchHelpers.h>
+#include "sounds/startup_sound.h"
+
+#ifndef _swap_int16_t
+#define _swap_int16_t(a, b) \
+    {                       \
+        int16_t t = a;      \
+        a = b;              \
+        b = t;              \
+    }
+#endif
+
+// ---------------------------------------------------------------------------
+// Display (Kyocera TN0216)
+// ---------------------------------------------------------------------------
+
+static const uint16_t PANEL_WIDTH = 320;
+static const uint16_t PANEL_HEIGHT = 176;
+static const uint8_t PIXEL_BLACK = 0;
+static const uint8_t PIXEL_WHITE = 1;
+static const uint32_t SPI_HZ = 1000000;
+static const uint32_t POLL_MS = 500;
+static const uint32_t STRIP_MS = 8;     // LED fade animation tick
+static const uint32_t TOF_CHECK_MS = 25;
+static const uint32_t BUTTON_DEBOUNCE_MS = 80;
+// ESP32-S3: touch counts RISE when touched (values ~90k-170k idle, uint32_t).
+static const float TOUCH_TRIGGER_RISE = 0.05f;   // poke — conservative
+static const float TOUCH_LED_FULL_RISE = 0.06f;   // strip full brightness at 6% rise
+static const float TOUCH_DEADBAND = 0.015f;      // ignore noise within 1.5% of idle
+static const uint8_t TOUCH_LED_MIN_BRIGHT = 28;  // WS2812 floor — below ~10% often invisible
+// Motor (28BYJ-48 + ULN2003; match FED4-Motor.ino pin order IN1,IN3,IN2,IN4)
+static const uint16_t MOTOR_STEPS = 2048;
+static const uint8_t MOTOR_SPEED_RPM = 8;
+// S3 touch tuning (see FED4_TouchHelpers / FED4-Touch-Light-Sleep-Multiple)
+static const uint32_t POKE_ARM_MS = 1500; // ignore poke edges until after boot settle
+static const uint32_t PELLET_WIPE_MS = 1000; // full strip wipe duration (~1 s)
+static const uint32_t ORIENT_MS = 100;  // accel-based display rotation poll
+// VL53L1X: short mode for nose-port distances; reject reads when getRangeStatus() != 0.
+static const int16_t TOF_CALIBRATION_MM = 20; // match FED4_Prox.cpp offset
+// Narrow ROI test — 4×4 SPADs centered on die (tune TOF_ROI_CENTER for bore axis).
+static const uint8_t TOF_USE_NARROW_ROI = 1;
+static const uint8_t TOF_ROI_WIDTH = 4;
+static const uint8_t TOF_ROI_HEIGHT = 4;
+static const uint8_t TOF_ROI_CENTER = 199;
+
+// Called from display SPI refresh so audio/buttons stay serviced mid-transfer.
+void cooperativeYield();
+
+static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
+                             clr[] = {(uint8_t)~1,   (uint8_t)~2,   (uint8_t)~4,
+                                      (uint8_t)~8,   (uint8_t)~16,  (uint8_t)~32,
+                                      (uint8_t)~64,  (uint8_t)~128};
+
+class MIPDisplay : public Adafruit_GFX {
+public:
+  MIPDisplay() : Adafruit_GFX(PANEL_WIDTH, PANEL_HEIGHT) {}
+
+  bool begin() {
+    const uint32_t bufferSize = (uint32_t)PANEL_WIDTH * PANEL_HEIGHT / 8;
+    if (frameBuffer) {
+      free(frameBuffer);
+      frameBuffer = nullptr;
+    }
+    frameBuffer = (uint8_t *)malloc(bufferSize);
+    if (!frameBuffer) return false;
+    memset(frameBuffer, 0x00, bufferSize);
+    setRotation(FED4_DISPLAY_ROTATION_NATIVE);
+    return true;
+  }
+
+  void clearBlack() {
+    memset(frameBuffer, 0x00, (uint32_t)PANEL_WIDTH * PANEL_HEIGHT / 8);
+  }
+
+  void refresh() {
+    vcomState = !vcomState;
+    digitalWrite(DISPLAY_VCOM, vcomState ? HIGH : LOW);
+    delay(4);
+    delayMicroseconds(30);
+    digitalWrite(DISPLAY_CS, HIGH);
+    delay(5);
+
+    SPI.beginTransaction(SPISettings(SPI_HZ, LSBFIRST, SPI_MODE0));
+    const uint8_t bytesPerLine = PANEL_WIDTH / 8;
+    for (uint8_t line = 0; line < PANEL_HEIGHT; line++) {
+      SPI.transfer(line);
+      const uint8_t *row = frameBuffer + (uint32_t)line * bytesPerLine;
+      for (uint8_t b = 0; b < bytesPerLine; b++) SPI.transfer(row[b]);
+      SPI.transfer(0x00);
+      SPI.transfer(0x00);
+      SPI.transfer(0x00);
+      SPI.transfer(0x00);
+      if ((line & 7) == 7) cooperativeYield();
+    }
+    SPI.endTransaction();
+    delay(2);
+    digitalWrite(DISPLAY_CS, LOW);
+  }
+
+  void drawPixel(int16_t x, int16_t y, uint16_t color) override {
+    if ((x < 0) || (x >= _width) || (y < 0) || (y >= _height)) return;
+    int16_t px = x, py = y;
+    switch (rotation) {
+      case 1:
+        _swap_int16_t(px, py);
+        px = PANEL_WIDTH - 1 - px;
+        break;
+      case 2:
+        px = PANEL_WIDTH - 1 - px;
+        py = PANEL_HEIGHT - 1 - py;
+        break;
+      case 3:
+        _swap_int16_t(px, py);
+        py = PANEL_HEIGHT - 1 - py;
+        break;
+      default:
+        break;
+    }
+    if (color)
+      frameBuffer[(py * PANEL_WIDTH + px) / 8] |= pgm_read_byte(&set[px & 7]);
+    else
+      frameBuffer[(py * PANEL_WIDTH + px) / 8] &= pgm_read_byte(&clr[px & 7]);
+  }
+
+private:
+  uint8_t *frameBuffer = nullptr;
+  bool vcomState = false;
+};
+
+// ---------------------------------------------------------------------------
+// Globals
+// ---------------------------------------------------------------------------
+
+Adafruit_MCP23X17 mcp;
+MIPDisplay display;
+Adafruit_BME680 bme;
+Adafruit_VEML7700 veml;
+SFEVL53L1X tofSensor(Wire);
+RTC_DS3231 rtc;
+Adafruit_MAX17048 maxlipo;
+Adafruit_LIS3DH accel = Adafruit_LIS3DH();
+I2SClass i2s;
+
+#define NUM_STRIP_LEDS 8
+Adafruit_NeoPixel strip(NUM_STRIP_LEDS, RGB_STRIP, NEO_GRB + NEO_KHZ800);
+Stepper stepper(MOTOR_STEPS, MOTOR_PIN_1, MOTOR_PIN_3, MOTOR_PIN_2, MOTOR_PIN_4);
+
+struct Telemetry {
+  bool rtcOk = false, batOk = false, batReady = false, bmeOk = false, luxOk = false;
+  bool tofOk = false, accelOk = false;
+  uint8_t hour = 0, minute = 0, second = 0;
+  float voltage = NAN, percent = NAN;
+  float tempC = NAN, humidity = NAN, pressureHpa = NAN, gasKOhm = NAN, lux = NAN;
+  int tofMm = -1;
+  uint8_t tofRangeStatus = 255;
+  bool tofValid = false;
+  float accelX = NAN, accelY = NAN, accelZ = NAN;
+  uint32_t touchL = 0, touchC = 0, touchR = 0;
+  bool pgC = false, pgL = false, pgR = false, pgP = false;
+  bool pirHigh = false, intOrLow = false;
+  bool dispLedOn = true;
+  uint32_t pokeCount = 0, pelletCount = 0;
+};
+
+Telemetry telem;
+uint8_t stripBrightRight = 0, stripBrightCenter = 0, stripBrightLeft = 0;
+
+// Pellet / motor state (ported from FED4_Feed.cpp + FED4_Motor.cpp)
+bool dropSensorAvailable = false;
+bool feedBusy = false;
+bool stripAnimBusy = false;
+uint32_t motorTurns = 0;
+
+// ISR-shared state (set in interrupt context, consumed in loop).
+// ISRs must never do I2C — MCP23017 writes happen in loop context only.
+volatile bool b3Pressed = false;
+volatile uint32_t b3EdgeMs = 0;
+volatile bool b2Level = false;      // BUTTON_2 level, tracked on CHANGE
+volatile bool intOrLevelLow = false; // INT_OR line, tracked on CHANGE
+
+// Poke edge tracking — software baseline rise (same idle as LEDs), not ISR.
+bool touchPokePrevL = false, touchPokePrevR = false, touchPokePrevC = false;
+unsigned long pokeReadyMs = 0;
+
+bool displayLedOn = true;
+bool displayDirty = true;
+
+// Non-blocking sensor state
+bool tofRanging = false;
+bool bmePending = false;
+unsigned long bmeReadyMs = 0;
+
+unsigned long lastPollMs = 0;
+unsigned long lastOrientMs = 0;
+unsigned long lastStripMs = 0;
+unsigned long lastTofMs = 0;
+unsigned long lastVcomMs = 0;
+
+// ---------------------------------------------------------------------------
+// VCOM keepalive (between display refreshes)
+// ---------------------------------------------------------------------------
+
+void vcomKeepAlive() {
+  if (millis() - lastVcomMs >= 500) {
+    lastVcomMs = millis();
+    static bool vcom = false;
+    vcom = !vcom;
+    digitalWrite(DISPLAY_VCOM, vcom ? HIGH : LOW);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Display helpers
+// ---------------------------------------------------------------------------
+
+void displayReset() {
+  mcp.pinMode(EXP_DISPLAY_RESET, OUTPUT);
+  pinMode(DISPLAY_VCOM, OUTPUT);
+  digitalWrite(DISPLAY_VCOM, LOW);
+  mcp.digitalWrite(EXP_DISPLAY_RESET, HIGH);
+  delay(10);
+  mcp.digitalWrite(EXP_DISPLAY_RESET, LOW);
+  delay(10);
+}
+
+void displayLight(bool on) {
+  mcp.pinMode(EXP_DISPLAY_LED, OUTPUT);
+  mcp.digitalWrite(EXP_DISPLAY_LED, on ? HIGH : LOW);
+  displayLedOn = on;
+  telem.dispLedOn = on;
+}
+
+void drawGateDot(int16_t x, int16_t y, bool blocked) {
+  if (blocked)
+    display.fillCircle(x, y, 3, PIXEL_WHITE);
+  else
+    display.drawCircle(x, y, 3, PIXEL_WHITE);
+}
+
+uint8_t touchRiseToBrightness(uint32_t raw, uint32_t idle);
+void drawTouchBarRow(int16_t y, char pad, uint32_t raw, uint32_t idle);
+void drawHeaderBattery();
+
+// GFX FreeFont cursor Y is the baseline; default font Y is the top edge.
+static const int16_t HEADER_H = 20;
+static const int16_t HEADER_TEXT_Y = 5; // padding within white header bar (matches footer)
+static const int16_t CONTENT_TOP = 28;
+static const int16_t LABEL_BASELINE = 12; // offset from section top to 9pt baseline
+static const int16_t LABEL_BLOCK_H = 15;
+static const int16_t DATA_LINE_H = 10;
+static const int16_t SECTION_GAP = 5;
+static const int16_t FOOTER_Y = 302;
+static const int16_t FOOTER_TEXT_Y = FOOTER_Y + 5;
+
+void drawSectionLabel(int16_t y, const char *label) {
+  display.setFont(&FreeSans9pt7b);
+  display.setTextColor(PIXEL_WHITE);
+  display.setCursor(4, y + LABEL_BASELINE);
+  display.print(label);
+}
+
+void drawDashboard() {
+  display.clearBlack();
+
+  // Header bar
+  display.fillRect(0, 0, display.width(), HEADER_H, PIXEL_WHITE);
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setTextColor(PIXEL_BLACK);
+  display.setCursor(4, HEADER_TEXT_Y);
+  if (telem.rtcOk)
+    display.printf("%02u:%02u:%02u", telem.hour, telem.minute, telem.second);
+  else
+    display.print("--:--:--");
+
+  drawHeaderBattery();
+
+  int16_t y = CONTENT_TOP;
+
+  // ENV
+  drawSectionLabel(y, "ENV");
+  y += LABEL_BLOCK_H;
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setTextColor(PIXEL_WHITE);
+  display.setCursor(4, y);
+  if (telem.bmeOk)
+    display.printf("%.1fC %.0f%% %.0fhPa", telem.tempC, telem.humidity, telem.pressureHpa);
+  else
+    display.print("BME680 --");
+  y += DATA_LINE_H;
+  display.setCursor(4, y);
+  if (telem.luxOk && !isnan(telem.lux) && telem.lux >= 0.0f)
+    display.printf("%.1f lux", telem.lux);
+  else
+    display.print("LUX --");
+  y += DATA_LINE_H + SECTION_GAP;
+
+  // DISTANCE
+  drawSectionLabel(y, "DISTANCE");
+  y += LABEL_BLOCK_H;
+  display.setFont(nullptr);
+  display.setTextSize(2);
+  display.setCursor(4, y);
+  if (telem.tofOk && telem.tofValid)
+    display.printf("%4d", telem.tofMm);
+  else
+    display.print("  --");
+  display.setTextSize(1);
+  display.print(" mm");
+  y += 18 + SECTION_GAP;
+
+  // GATES
+  drawSectionLabel(y, "GATES");
+  y += LABEL_BLOCK_H;
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(4, y);
+  display.print("C");
+  display.setCursor(22, y);
+  display.print("L");
+  display.setCursor(40, y);
+  display.print("R");
+  display.setCursor(58, y);
+  display.print("P");
+  drawGateDot(12, y + 10, telem.pgC);
+  drawGateDot(30, y + 10, telem.pgL);
+  drawGateDot(48, y + 10, telem.pgR);
+  drawGateDot(66, y + 10, telem.pgP);
+  y += DATA_LINE_H + 10 + SECTION_GAP;
+
+  // TOUCH
+  drawSectionLabel(y, "TOUCH");
+  y += LABEL_BLOCK_H;
+  display.setTextColor(PIXEL_WHITE);
+  drawTouchBarRow(y, 'L', telem.touchL, fed4TouchIdleL);
+  y += DATA_LINE_H;
+  drawTouchBarRow(y, 'C', telem.touchC, fed4TouchIdleC);
+  y += DATA_LINE_H;
+  drawTouchBarRow(y, 'R', telem.touchR, fed4TouchIdleR);
+  y += DATA_LINE_H + SECTION_GAP;
+
+  // POKE
+  drawSectionLabel(y, "POKE");
+  y += LABEL_BLOCK_H;
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(4, y);
+  display.printf("Pokes: %lu", (unsigned long)telem.pokeCount);
+  y += DATA_LINE_H;
+  display.setCursor(4, y);
+  display.printf("Pellets: %lu", (unsigned long)telem.pelletCount);
+  if (feedBusy)
+    display.print(" BUSY");
+  y += DATA_LINE_H + SECTION_GAP;
+
+  // ACCEL
+  drawSectionLabel(y, "ACCEL");
+  y += LABEL_BLOCK_H;
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(4, y);
+  if (telem.accelOk)
+    display.printf("X%+.1f Y%+.1f Z%+.1f", telem.accelX, telem.accelY, telem.accelZ);
+  else
+    display.print("LIS2DH --");
+  y += DATA_LINE_H + SECTION_GAP;
+
+  display.setCursor(4, y);
+  display.printf("PIR:%s", telem.pirHigh ? "HI" : "LO");
+  display.setCursor(72, y);
+  display.printf("INT:%s", telem.intOrLow ? "LO" : "HI");
+
+  // Footer
+  display.fillRect(0, FOOTER_Y, display.width(), 18, PIXEL_WHITE);
+  display.setTextColor(PIXEL_BLACK);
+  display.setCursor(4, FOOTER_TEXT_Y);
+  display.printf("v%s", FED4_DEMO_HW_VERSION_STR);
+  if (telem.batReady && !isnan(telem.voltage) && telem.voltage > 0.0f) {
+    char vBuf[12];
+    snprintf(vBuf, sizeof(vBuf), "%.2fV", telem.voltage);
+    display.setCursor(display.width() - 4 - (int16_t)strlen(vBuf) * 6,
+                      FOOTER_TEXT_Y);
+    display.print(vBuf);
+  } else {
+    display.setCursor(display.width() - 22, FOOTER_TEXT_Y);
+    display.print("--V");
+  }
+
+  display.drawRect(0, 0, display.width() - 1, display.height() - 1, PIXEL_WHITE);
+}
+
+void refreshDisplay() {
+  display.refresh();
+  lastVcomMs = millis();
+}
+
+// Device X (g) → MIP rotation; native at boot, 180° flip when X < 0.
+bool orientDemoScreen() {
+  if (!telem.accelOk)
+    return false;
+
+  sensors_event_t event;
+  if (!accel.getEvent(&event))
+    return false;
+
+  telem.accelX = fed4DeviceAccelXG(event);
+  telem.accelY = event.acceleration.x / FED4_GRAVITY_MS2;
+  telem.accelZ = event.acceleration.z / FED4_GRAVITY_MS2;
+
+  const uint8_t rot = fed4DisplayRotationForAccelX(telem.accelX);
+  if (display.getRotation() == rot)
+    return false;
+
+  display.setRotation(rot);
+  display.clearBlack();
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// STATUS_LED mirrors PIR_MOTION (see FED4-PIR-Sensor.ino)
+// ---------------------------------------------------------------------------
+
+void serviceStatusLed() {
+  analogWrite(STATUS_LED, digitalRead(PIR_MOTION) ? 255 : 0);
+}
+
+// ---------------------------------------------------------------------------
+// Touch — FED4_TouchHelpers boot idle baseline + rise fraction polling
+// ---------------------------------------------------------------------------
+
+bool initTouchPads() {
+  if (!fed4TouchInitPads()) {
+    Serial.println("Touch idle FAIL");
+    return false;
+  }
+
+  Serial.printf("Touch idle L:%lu C:%lu R:%lu (OK)\n",
+                (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
+                (unsigned long)fed4TouchIdleR);
+  fed4TouchPrintDriverConfig();
+  return true;
+}
+
+void armPokeDetection() {
+  readTouchPads();
+  touchPokePrevL = touchPadAbovePokeThreshold(telem.touchL, fed4TouchIdleL);
+  touchPokePrevR = touchPadAbovePokeThreshold(telem.touchR, fed4TouchIdleR);
+  touchPokePrevC = touchPadAbovePokeThreshold(telem.touchC, fed4TouchIdleC);
+  pokeReadyMs = millis();
+}
+
+bool pokeDetectionReady() {
+  return millis() - pokeReadyMs >= POKE_ARM_MS;
+}
+
+bool touchPadAbovePokeThreshold(uint32_t raw, uint32_t idle) {
+  return fed4TouchRiseFraction(raw, idle) >= TOUCH_TRIGGER_RISE;
+}
+
+void readTouchPads() {
+  telem.touchL = fed4TouchRead(TOUCH_PAD_LEFT);
+  delayMicroseconds(800);
+  telem.touchC = fed4TouchRead(TOUCH_PAD_CENTER);
+  delayMicroseconds(800);
+  telem.touchR = fed4TouchRead(TOUCH_PAD_RIGHT);
+}
+
+// S3: touch RAISES the count. Rise above idle maps to strip brightness.
+uint8_t touchRiseToBrightness(uint32_t raw, uint32_t idle) {
+  if (!idle || raw <= idle) return 0;
+
+  const float rise = (float)(raw - idle) / (float)idle;
+  if (rise < TOUCH_DEADBAND) return 0;
+
+  const float span = TOUCH_LED_FULL_RISE - TOUCH_DEADBAND;
+  float t = (rise - TOUCH_DEADBAND) / span;
+  if (t > 1.0f) t = 1.0f;
+  // Slight gamma so mid-range touches feel more responsive.
+  t = powf(t, 0.75f);
+
+  uint8_t bright = (uint8_t)(t * 255.0f);
+  if (bright > 0 && bright < TOUCH_LED_MIN_BRIGHT)
+    bright = TOUCH_LED_MIN_BRIGHT;
+  return bright;
+}
+
+void drawTouchBarRow(int16_t y, char pad, uint32_t raw, uint32_t idle) {
+  static const int16_t BAR_X = 64;
+  static const int16_t BAR_W = 252;
+  static const int16_t BAR_H = 6;
+
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setCursor(4, y);
+  display.printf("%c:%lu", pad, (unsigned long)raw);
+
+  const int16_t barY = y + 2;
+  display.drawRect(BAR_X, barY, BAR_W, BAR_H, PIXEL_WHITE);
+
+  const uint8_t level = touchRiseToBrightness(raw, idle);
+  if (level == 0)
+    return;
+
+  int16_t fillW = (int16_t)((level * (BAR_W - 2) + 127) / 255);
+  if (fillW < 1)
+    fillW = 1;
+  display.fillRect(BAR_X + 1, barY + 1, fillW, BAR_H - 2, PIXEL_WHITE);
+}
+
+void drawHeaderBattery() {
+  static const int16_t BAR_W = 40;
+  static const int16_t BAR_H = 7;
+  static const int16_t MARGIN = 4;
+  static const int16_t GAP = 4;
+
+  const int16_t w = display.width();
+  const int16_t barX = w - MARGIN - BAR_W;
+  const int16_t barY = (HEADER_H - BAR_H) / 2;
+  const int16_t textY = barY;
+
+  display.setFont(nullptr);
+  display.setTextSize(1);
+  display.setTextColor(PIXEL_BLACK);
+
+  const bool havePct =
+      telem.batReady && !isnan(telem.percent) && telem.percent >= 0.0f;
+  char pctBuf[8];
+  if (havePct)
+    snprintf(pctBuf, sizeof(pctBuf), "%.0f%%", telem.percent);
+  else
+    snprintf(pctBuf, sizeof(pctBuf), "--%%");
+
+  const int16_t pctW = (int16_t)strlen(pctBuf) * 6;
+  const int16_t pctX = barX - GAP - pctW;
+
+  display.setCursor(pctX, textY);
+  display.print(pctBuf);
+
+  display.drawRect(barX, barY, BAR_W, BAR_H, PIXEL_BLACK);
+
+  if (havePct) {
+    float level = telem.percent / 100.0f;
+    if (level < 0.0f)
+      level = 0.0f;
+    else if (level > 1.0f)
+      level = 1.0f;
+    int16_t fillW = (int16_t)(level * (BAR_W - 2) + 0.5f);
+    if (fillW < 1 && level > 0.0f)
+      fillW = 1;
+    if (fillW > 0)
+      display.fillRect(barX + 1, barY + 1, fillW, BAR_H - 2, PIXEL_BLACK);
+  }
+}
+
+uint8_t emaBrightness(uint8_t current, uint8_t target) {
+  if (target > current)
+    return (uint8_t)((current + target * 3) / 4);
+  return (uint8_t)((current * 3 + target) / 4);
+}
+
+uint32_t scaleColor(uint8_t r, uint8_t g, uint8_t b, uint8_t bright) {
+  return strip.Color(r * bright / 255, g * bright / 255, b * bright / 255);
+}
+
+uint32_t stripColorWheel(byte wheelPos) {
+  wheelPos = 255 - wheelPos;
+  if (wheelPos < 85)
+    return strip.Color(255 - wheelPos * 3, 0, wheelPos * 3);
+  if (wheelPos < 170) {
+    wheelPos -= 85;
+    return strip.Color(0, wheelPos * 3, 255 - wheelPos * 3);
+  }
+  wheelPos -= 170;
+  return strip.Color(wheelPos * 3, 255 - wheelPos * 3, 0);
+}
+
+// Full-strip rainbow theater chase while the center pad is touched.
+void updateCenterRainbowDemo() {
+  static uint8_t hue = 0;
+  hue += 4;
+  for (int i = 0; i < NUM_STRIP_LEDS; i++)
+    strip.setPixelColor(i, stripColorWheel((uint8_t)(hue + i * 32)));
+  strip.show();
+}
+
+bool centerPadTouched() {
+  return fed4TouchRiseFraction(telem.touchC, fed4TouchIdleC) >= TOUCH_DEADBAND;
+}
+
+// Animation tick: poll raw rise from boot baseline every STRIP_MS (not ISR-gated).
+void updateTouchStrip() {
+  if (feedBusy || stripAnimBusy) return;
+
+  telem.touchL = fed4TouchRead(TOUCH_PAD_LEFT);
+  telem.touchC = fed4TouchRead(TOUCH_PAD_CENTER);
+  telem.touchR = fed4TouchRead(TOUCH_PAD_RIGHT);
+
+  if (centerPadTouched()) {
+    updateCenterRainbowDemo();
+    return;
+  }
+
+  const uint8_t targetL = touchRiseToBrightness(telem.touchL, fed4TouchIdleL);
+  const uint8_t targetC = touchRiseToBrightness(telem.touchC, fed4TouchIdleC);
+  const uint8_t targetR = touchRiseToBrightness(telem.touchR, fed4TouchIdleR);
+
+  stripBrightRight = emaBrightness(stripBrightRight, targetR);
+  stripBrightCenter = emaBrightness(stripBrightCenter, targetC);
+  stripBrightLeft = emaBrightness(stripBrightLeft, targetL);
+
+  // 0-2 right (blue), 3-4 center (green), 5-7 left (red) — touch glow only.
+  for (int i = 0; i < 3; i++)
+    strip.setPixelColor(i, scaleColor(0, 0, 255, stripBrightRight));
+  for (int i = 3; i < 5; i++)
+    strip.setPixelColor(i, scaleColor(0, 255, 0, stripBrightCenter));
+  for (int i = 5; i < 8; i++)
+    strip.setPixelColor(i, scaleColor(255, 0, 0, stripBrightLeft));
+  strip.show();
+}
+
+// ---------------------------------------------------------------------------
+// Audio — non-blocking chunked I2S sequencer
+// A queue of parallel {freq, ms} arrays (freq 0 = silence). serviceAudio()
+// writes one ~5 ms chunk per call; while playing, i2s.write() paces the loop
+// to real time but never blocks longer than one chunk.
+// (Parallel arrays instead of a struct: the Arduino builder emits function
+// prototypes above type definitions, so custom types can't appear in
+// .ino function signatures.)
+// ---------------------------------------------------------------------------
+
+static const uint32_t AUDIO_RATE = 48000;
+static const size_t AUDIO_CHUNK = 256; // samples (~5.3 ms)
+static const float AUDIO_AMPLITUDE = 0.22f;
+static const int AUDIO_CHUNKS_PER_SERVICE = 12; // ~64 ms per serviceAudio() call
+static const int AUDIO_PREFILL_CHUNKS = 8;    // prime DMA right after amp enable
+static const uint32_t AUDIO_FADE_MS = 3;       // attack/release per note segment
+
+static const int AUDIO_MAX_NOTES = 16;
+uint16_t audioQueueFreq[AUDIO_MAX_NOTES]; // 0 = silence
+uint16_t audioQueueDur[AUDIO_MAX_NOTES];  // ms
+int audioQueueLen = 0;
+int audioNoteIdx = 0;
+uint32_t audioSamplesLeft = 0;
+uint32_t audioNoteTotalSamples = 0;
+uint32_t audioNoteSamplesDone = 0;
+float audioPhase = 0.0f;
+bool audioActive = false;
+
+static void audioBeginNote() {
+  audioNoteTotalSamples = audioSamplesLeft;
+  audioNoteSamplesDone = 0;
+}
+
+static void audioAdvanceNote() {
+  audioNoteIdx++;
+  if (audioNoteIdx >= audioQueueLen) return;
+  audioSamplesLeft = (AUDIO_RATE * audioQueueDur[audioNoteIdx]) / 1000;
+  audioPhase = 0.0f;
+  audioBeginNote();
+}
+
+static float audioEnvelope() {
+  if (audioNoteTotalSamples == 0) return 1.0f;
+  uint32_t fadeSamples = (AUDIO_RATE * AUDIO_FADE_MS) / 1000;
+  if (fadeSamples > audioNoteTotalSamples / 4)
+    fadeSamples = audioNoteTotalSamples / 4;
+  if (fadeSamples < 1) return 1.0f;
+
+  if (audioNoteSamplesDone < fadeSamples)
+    return (float)audioNoteSamplesDone / (float)fadeSamples;
+  if (audioNoteSamplesDone + fadeSamples > audioNoteTotalSamples)
+    return (float)(audioNoteTotalSamples - audioNoteSamplesDone) / (float)fadeSamples;
+  return 1.0f;
+}
+
+static size_t audioFillChunk(int16_t *buf) {
+  size_t n = 0;
+  while (n < AUDIO_CHUNK) {
+    if (audioSamplesLeft == 0) {
+      audioAdvanceNote();
+      if (audioNoteIdx >= audioQueueLen) break;
+    }
+
+    uint16_t f = audioQueueFreq[audioNoteIdx];
+    if (f == 0) {
+      buf[n++] = 0;
+    } else {
+      float env = audioEnvelope();
+      buf[n++] = (int16_t)(AUDIO_AMPLITUDE * env * sinf(audioPhase) * 32767.0f);
+      audioPhase += 2.0f * (float)M_PI * (float)f / (float)AUDIO_RATE;
+      if (audioPhase > 2.0f * (float)M_PI) audioPhase -= 2.0f * (float)M_PI;
+    }
+    audioSamplesLeft--;
+    audioNoteSamplesDone++;
+  }
+  return n;
+}
+
+static void audioShutdownAmp() {
+  int16_t silence[AUDIO_CHUNK] = {0};
+  i2s.write((uint8_t *)silence, sizeof(silence));
+  delayMicroseconds(500);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
+}
+
+static int audioComputePrefillChunks() {
+  uint32_t totalSamples = 0;
+  for (int i = 0; i < audioQueueLen; i++)
+    totalSamples += (AUDIO_RATE * audioQueueDur[i]) / 1000;
+  int totalChunks = (totalSamples + AUDIO_CHUNK - 1) / AUDIO_CHUNK;
+  int budget = totalChunks / 4;
+  if (budget < 2) budget = 2;
+  if (budget > AUDIO_PREFILL_CHUNKS) budget = AUDIO_PREFILL_CHUNKS;
+  return budget;
+}
+
+static void audioPrimeOutput() {
+  int16_t silence[AUDIO_CHUNK] = {0};
+  i2s.write((uint8_t *)silence, sizeof(silence));
+  i2s.write((uint8_t *)silence, sizeof(silence));
+}
+
+void audioStartQueue(const uint16_t *freqHz, const uint16_t *durMs, int count) {
+  if (audioActive || count <= 0) return;
+  if (count > AUDIO_MAX_NOTES) count = AUDIO_MAX_NOTES;
+  memcpy(audioQueueFreq, freqHz, count * sizeof(uint16_t));
+  memcpy(audioQueueDur, durMs, count * sizeof(uint16_t));
+  audioQueueLen = count;
+  audioNoteIdx = 0;
+  audioSamplesLeft = (AUDIO_RATE * audioQueueDur[0]) / 1000;
+  audioPhase = 0.0f;
+  audioActive = true;
+  audioBeginNote();
+  audioPrimeOutput();
+  mcp.digitalWrite(EXP_AMP_SD, HIGH);
+  delay(5);
+  audioWriteChunks(audioComputePrefillChunks());
+}
+
+static void audioWriteChunks(int maxChunks) {
+  int16_t buf[AUDIO_CHUNK];
+  for (int c = 0; c < maxChunks && audioActive; c++) {
+    size_t n = audioFillChunk(buf);
+    if (n > 0) i2s.write((uint8_t *)buf, n * sizeof(int16_t));
+    if (audioNoteIdx >= audioQueueLen) {
+      audioActive = false;
+      audioShutdownAmp();
+    }
+  }
+}
+
+void serviceAudio() {
+  if (!audioActive) return;
+  audioWriteChunks(AUDIO_CHUNKS_PER_SERVICE);
+}
+
+void startMelody() {
+  // Leading silence lets the amp settle after SD enable (avoids pop)
+  const uint16_t freqs[] = {0, 523, 0, 659, 0, 784, 0, 988, 0, 1175, 0, 1319, 0, 1568};
+  const uint16_t durs[] = {5, 120, 30, 120, 30, 120, 30, 120, 30, 120, 30, 120, 30, 280};
+  audioStartQueue(freqs, durs, sizeof(freqs) / sizeof(freqs[0]));
+}
+
+void startChirp() {
+  // Longer leading silence than melody: short clips need ≥1 chunk of settle
+  // after amp enable so the tone does not start mid-buffer with a pop.
+  const uint16_t freqs[] = {0, 1200};
+  const uint16_t durs[] = {15, 45};
+  audioStartQueue(freqs, durs, sizeof(freqs) / sizeof(freqs[0]));
+}
+
+static const uint16_t POKE_TONE_LEFT_HZ = 5000;  // high — left poke
+static const uint16_t POKE_TONE_RIGHT_HZ = 2000; // low — right poke
+static const uint16_t POKE_TONE_MS = 100;
+
+void audioWaitUntilDone() {
+  while (audioActive)
+    cooperativeYield();
+}
+
+void playPokeTone(bool leftPoke) {
+  audioWaitUntilDone();
+
+  const uint16_t freq = leftPoke ? POKE_TONE_LEFT_HZ : POKE_TONE_RIGHT_HZ;
+  const uint16_t freqs[] = {0, freq};
+  const uint16_t durs[] = {15, POKE_TONE_MS};
+  audioStartQueue(freqs, durs, 2);
+  audioWaitUntilDone();
+}
+
+// Blocking boot clip — PCM from PROGMEM, same I2S path as runtime audio.
+void playStartupSound() {
+  mcp.digitalWrite(EXP_AMP_SD, HIGH);
+  delay(5);
+
+  int16_t buf[AUDIO_CHUNK];
+  for (size_t i = 0; i < STARTUP_PCM_SAMPLES;) {
+    size_t n = min(AUDIO_CHUNK, STARTUP_PCM_SAMPLES - i);
+    memcpy_P(buf, &STARTUP_PCM[i], n * sizeof(int16_t));
+    i2s.write((uint8_t *)buf, n * sizeof(int16_t));
+    i += n;
+  }
+
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
+}
+
+// ---------------------------------------------------------------------------
+// GPIO ISRs — set flags/levels only; work happens in loop context
+// ---------------------------------------------------------------------------
+
+void IRAM_ATTR onButton2() {
+  b2Level = (digitalRead(BUTTON_2) == HIGH);
+}
+
+void IRAM_ATTR onButton3() {
+  uint32_t now = millis();
+  if (now - b3EdgeMs > BUTTON_DEBOUNCE_MS) {
+    b3EdgeMs = now;
+    b3Pressed = true;
+  }
+}
+
+// Track the ORed interrupt line state by interrupt instead of polling.
+// FUTURE DEV: on assertion, query each source behind INT_OR (LIS2DH INT,
+// MCP23017 INTA/B, RTC alarm) to identify and clear the interrupt.
+void IRAM_ATTR onIntOr() {
+  intOrLevelLow = (digitalRead(INT_OR) == LOW);
+}
+
+// ---------------------------------------------------------------------------
+// Event consumers (loop context — safe for I2C)
+// ---------------------------------------------------------------------------
+
+// B1: polled debounce, toggle backlight on debounced release (one click = one toggle).
+void serviceButton1Backlight() {
+  static bool lastReading = false;
+  static bool stableHigh = false;
+  static uint32_t lastChangeMs = 0;
+
+  const bool reading = (digitalRead(BUTTON_1) == HIGH);
+  const uint32_t now = millis();
+
+  if (reading != lastReading) {
+    lastChangeMs = now;
+    lastReading = reading;
+  }
+
+  if (now - lastChangeMs < BUTTON_DEBOUNCE_MS)
+    return;
+
+  if (reading == stableHigh)
+    return;
+
+  const bool wasHigh = stableHigh;
+  stableHigh = reading;
+
+  if (wasHigh && !stableHigh) {
+    displayLedOn = !displayLedOn;
+    displayLight(displayLedOn);
+    displayDirty = true;
+  }
+}
+
+void serviceButtons() {
+  serviceButton1Backlight();
+  if (b3Pressed) {
+    b3Pressed = false;
+    if (!audioActive) startMelody();
+  }
+}
+
+// Haptic follows B2 level; MCP written only on change (I2C from loop only)
+void serviceHaptic() {
+  static bool applied = false;
+  bool level = b2Level;
+  if (level != applied) {
+    applied = level;
+    mcp.digitalWrite(EXP_HAPTIC, level ? HIGH : LOW);
+  }
+}
+
+void pokeHapticPulse(uint16_t ms = 80) {
+  mcp.digitalWrite(EXP_HAPTIC, HIGH);
+  delayCooperative(ms);
+  mcp.digitalWrite(EXP_HAPTIC, b2Level ? HIGH : LOW);
+}
+
+void cooperativeYield() {
+  serviceAudio();
+  serviceButtons();
+  serviceHaptic();
+}
+
+void delayCooperative(uint32_t ms) {
+  const unsigned long start = millis();
+  while (millis() - start < ms) {
+    cooperativeYield();
+    delay(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Motor + pellet dispense (ported from FED4_Motor.cpp / FED4_Feed.cpp)
+// ---------------------------------------------------------------------------
+
+void releaseMotor() {
+  digitalWrite(MOTOR_PIN_1, LOW);
+  digitalWrite(MOTOR_PIN_2, LOW);
+  digitalWrite(MOTOR_PIN_3, LOW);
+  digitalWrite(MOTOR_PIN_4, LOW);
+}
+
+void minorJamClear() {
+  Serial.println("MinorJam");
+  stepper.step(200);
+  delayCooperative(1000);
+}
+
+void vibrateJamClear() {
+  Serial.println("VibrateJam");
+  for (int i = 0; i < 35; i++) {
+    stepper.step(10);
+    delayCooperative(10);
+    stepper.step(-20);
+    delayCooperative(10);
+  }
+}
+
+void handleDemoJams() {
+  if (motorTurns % 100 == 0)
+    minorJamClear();
+  if (motorTurns % 200 == 0)
+    vibrateJamClear();
+  if (motorTurns > 2000) {
+    Serial.println("Dispense timeout (jam)");
+    releaseMotor();
+  }
+}
+
+bool checkForPellet() {
+  return digitalRead(PHOTOGATE_1) == LOW;
+}
+
+bool didPelletDrop() {
+  if (dropSensorAvailable)
+    return digitalRead(PHOTOGATE_4) == LOW;
+  return false;
+}
+
+bool initializeDropSensor() {
+  dropSensorAvailable = (digitalRead(PHOTOGATE_4) == HIGH);
+  return dropSensorAvailable;
+}
+
+bool initMotor() {
+  pinMode(MOTOR_PIN_1, OUTPUT);
+  pinMode(MOTOR_PIN_2, OUTPUT);
+  pinMode(MOTOR_PIN_3, OUTPUT);
+  pinMode(MOTOR_PIN_4, OUTPUT);
+  releaseMotor();
+  stepper.setSpeed(MOTOR_SPEED_RPM);
+  Serial.println("OK: Motor (28BYJ-48, 2048 steps/rev)");
+  return true;
+}
+
+void demoDispense() {
+  bool pelletPresent = checkForPellet();
+  bool pelletDropped = false;
+
+  while (!pelletPresent && !pelletDropped && motorTurns <= 2000) {
+    pelletDropped = didPelletDrop();
+    pelletPresent = checkForPellet();
+
+    stepper.step(-10);
+    cooperativeYield();
+    delay(2);
+    motorTurns++;
+
+    if (motorTurns % 25 == 0) {
+      Serial.print("Dispensing... ");
+      Serial.println(motorTurns / 25);
+      releaseMotor();
+      delayCooperative(1000);
+    }
+
+    handleDemoJams();
+    pelletPresent = checkForPellet();
+    pelletDropped = didPelletDrop();
+  }
+
+  releaseMotor();
+}
+
+void demoWaitForPelletSettling() {
+  const unsigned long startWait = millis();
+  while (millis() - startWait < 500) {
+    if (checkForPellet())
+      return;
+    delayCooperative(10);
+  }
+}
+
+void stripColorWipe(uint8_t r, uint8_t g, uint8_t b, uint16_t stepMs = 30) {
+  stripAnimBusy = true;
+  for (int i = 0; i < NUM_STRIP_LEDS; i++) {
+    strip.clear();
+    strip.setPixelColor(i, strip.Color(r, g, b));
+    strip.show();
+    delayCooperative(stepMs);
+  }
+  delayCooperative(stepMs * 2);
+  strip.clear();
+  strip.show();
+  stripAnimBusy = false;
+}
+
+void serviceFeed() {
+  if (!pokeDetectionReady() || feedBusy)
+    return;
+
+  readTouchPads();
+
+  const bool lNow = touchPadAbovePokeThreshold(telem.touchL, fed4TouchIdleL);
+  const bool rNow = touchPadAbovePokeThreshold(telem.touchR, fed4TouchIdleR);
+  const bool lPoke = lNow && !touchPokePrevL;
+  const bool rPoke = rNow && !touchPokePrevR;
+  touchPokePrevL = lNow;
+  touchPokePrevR = rNow;
+
+  if (!lPoke && !rPoke)
+    return;
+
+  bool isLeft;
+  if (lPoke && rPoke) {
+    // Crosstalk — use whichever pad rose more above baseline.
+    isLeft = fed4TouchRiseFraction(telem.touchL, fed4TouchIdleL) >=
+             fed4TouchRiseFraction(telem.touchR, fed4TouchIdleR);
+  } else {
+    isLeft = lPoke;
+  }
+
+  telem.pokeCount++;
+  feedBusy = true;
+  displayDirty = true;
+  Serial.println(isLeft ? "Poke LEFT — dispense" : "Poke RIGHT — dispense");
+
+  pokeHapticPulse();
+  playPokeTone(isLeft);
+  demoDispense();
+  demoWaitForPelletSettling();
+
+  // Green wipe only when the center-well photogate sees the pellet.
+  if (checkForPellet()) {
+    telem.pelletCount++;
+    Serial.println("Pellet gate — LED wipe");
+    stripColorWipe(180, 255, 180,
+                   PELLET_WIPE_MS / (NUM_STRIP_LEDS + 2));
+  } else {
+    Serial.println("Pellet not detected in well");
+  }
+
+  motorTurns = 0;
+  feedBusy = false;
+  displayDirty = true;
+}
+
+void serviceCenterPoke() {
+  if (!pokeDetectionReady() || feedBusy || stripAnimBusy || audioActive)
+    return;
+
+  readTouchPads();
+
+  const bool cNow = touchPadAbovePokeThreshold(telem.touchC, fed4TouchIdleC);
+  const bool cPoke = cNow && !touchPokePrevC;
+  touchPokePrevC = cNow;
+
+  if (!cPoke)
+    return;
+
+  telem.pokeCount++;
+  feedBusy = true;
+  displayDirty = true;
+  Serial.println("Poke CENTER — intro");
+
+  pokeHapticPulse();
+  audioWaitUntilDone();
+  playStartupSound();
+
+  feedBusy = false;
+  displayDirty = true;
+}
+
+// ---------------------------------------------------------------------------
+// Non-blocking sensor services
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// I2C helpers — ESP32 uses Wire.setTimeOut() (not Stream setTimeout)
+// ---------------------------------------------------------------------------
+
+bool i2cProbe(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  const uint8_t err = Wire.endTransmission(true);
+  return err == 0;
+}
+
+void i2cRecoverBus() {
+  Wire.end();
+  pinMode(SCL, INPUT_PULLUP);
+  pinMode(SDA, INPUT_PULLUP);
+  delay(1);
+
+  pinMode(SCL, OUTPUT);
+  digitalWrite(SCL, HIGH);
+  for (int i = 0; i < 9 && digitalRead(SDA) == LOW; i++) {
+    digitalWrite(SCL, LOW);
+    delayMicroseconds(5);
+    digitalWrite(SCL, HIGH);
+    delayMicroseconds(5);
+  }
+
+  pinMode(SCL, INPUT_PULLUP);
+  pinMode(SDA, INPUT_PULLUP);
+  Wire.begin(SDA, SCL, 100000);
+  Wire.setTimeOut(50);
+}
+
+// Returns false if SDA still stuck low after clock stretching recovery.
+bool i2cBusHealthy() {
+  pinMode(SDA, INPUT_PULLUP);
+  pinMode(SCL, INPUT_PULLUP);
+  return digitalRead(SDA) == HIGH && digitalRead(SCL) == HIGH;
+}
+
+// Probe then optional begin. On any failure: WARN, recover bus, continue.
+// Returns true only if probe + beginOk both succeed.
+bool initI2cDevice(const char *name, uint8_t addr, bool (*beginFn)()) {
+  Serial.printf("  %s @ 0x%02X... ", name, addr);
+  Serial.flush();
+
+  if (!i2cProbe(addr)) {
+    Serial.println("not on bus");
+    Serial.flush();
+    i2cRecoverBus();
+    return false;
+  }
+
+  if (!beginFn()) {
+    Serial.println("begin failed");
+    Serial.flush();
+    i2cRecoverBus();
+    return false;
+  }
+
+  Serial.println("OK");
+  Serial.flush();
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// ToF helpers
+// ---------------------------------------------------------------------------
+
+static bool beginToFDevice() {
+  if (tofSensor.begin() != 0)
+    return false;
+
+  tofSensor.setDistanceModeShort();
+  tofSensor.setTimingBudgetInMs(50);
+  tofSensor.setIntermeasurementPeriod(100);
+
+  if (TOF_USE_NARROW_ROI)
+    tofSensor.setROI(TOF_ROI_WIDTH, TOF_ROI_HEIGHT, TOF_ROI_CENTER);
+
+  return true;
+}
+
+bool initToF() {
+  return beginToFDevice();
+}
+
+// ToF runs in continuous ranging mode; harvest when ready and validate status.
+// getRangeStatus(): 0 = good; 1 sigma fail; 2 signal fail; 7 wrap (see SparkFun Ex3).
+void serviceToF() {
+  if (!tofRanging) return;
+  if (millis() - lastTofMs < TOF_CHECK_MS) return;
+  lastTofMs = millis();
+
+  if (!tofSensor.checkForDataReady()) return;
+
+  telem.tofRangeStatus = tofSensor.getRangeStatus();
+  const int rawMm = (int)tofSensor.getDistance();
+  tofSensor.clearInterrupt();
+
+  if (telem.tofRangeStatus != 0) {
+    telem.tofValid = false;
+    telem.tofMm = -1;
+    return;
+  }
+
+  int mm = rawMm - TOF_CALIBRATION_MM;
+  if (mm < 0) mm = 0;
+  telem.tofValid = true;
+  telem.tofMm = mm;
+}
+
+// BME680 async: beginReading() kicks off the (slow) gas measurement;
+// endReading() harvests it once ready — no blocking wait
+void serviceBme() {
+  if (!bmePending || millis() < bmeReadyMs) return;
+  bmePending = false;
+  if (bme.endReading()) {
+    telem.tempC = bme.temperature;
+    telem.humidity = bme.humidity;
+    telem.pressureHpa = bme.pressure / 100.0f;
+    telem.gasKOhm = bme.gas_resistance / 1000.0f;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sensor polling (500 ms) — screen-only values; no blocking calls
+// ---------------------------------------------------------------------------
+
+void pollSensors() {
+  if (telem.rtcOk) {
+    DateTime now = rtc.now();
+    telem.hour = now.hour();
+    telem.minute = now.minute();
+    telem.second = now.second();
+  }
+
+  telem.batReady = telem.batOk && maxlipo.isDeviceReady();
+  if (telem.batReady) {
+    telem.voltage = maxlipo.cellVoltage();
+    telem.percent = maxlipo.cellPercent();
+  } else {
+    telem.voltage = NAN;
+    telem.percent = NAN;
+  }
+
+  if (telem.bmeOk && !bmePending && !feedBusy) {
+    unsigned long readyAt = bme.beginReading();
+    if (readyAt != 0) {
+      bmeReadyMs = readyAt;
+      bmePending = true;
+    }
+  }
+
+  if (telem.luxOk) {
+    float lux = veml.readLux();
+    telem.lux = (isnan(lux) || lux < 0.0f) ? NAN : lux;
+  }
+
+  telem.pgC = (digitalRead(PHOTOGATE_1) == LOW);
+  telem.pgL = (digitalRead(PHOTOGATE_2) == LOW);
+  telem.pgR = (digitalRead(PHOTOGATE_3) == LOW);
+  telem.pgP = (digitalRead(PHOTOGATE_4) == LOW);
+
+  readTouchPads();
+
+  if (telem.accelOk) {
+    sensors_event_t event;
+    if (accel.getEvent(&event)) {
+      telem.accelX = fed4DeviceAccelXG(event);
+      telem.accelY = event.acceleration.x / FED4_GRAVITY_MS2;
+      telem.accelZ = event.acceleration.z / FED4_GRAVITY_MS2;
+    }
+  }
+
+  telem.pirHigh = (digitalRead(PIR_MOTION) == HIGH);
+  telem.intOrLow = intOrLevelLow;
+
+  displayDirty = true;
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+static const char *DEMO_PREFS_NS = "FED4Demo";
+
+static String demoCompileDateTime() {
+  static char buf[25];
+  snprintf(buf, sizeof(buf), "%s %s", __DATE__, __TIME__);
+  return String(buf);
+}
+
+static void demoAdjustRtcFromCompileTime() {
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+}
+
+// DS3231 OSF (lostPower) only set when the oscillator actually stopped.
+// USB-powered runs without a coin cell keep ticking — also sync on new flash.
+static bool beginRtcDevice() {
+  if (!rtc.begin(&Wire))
+    return false;
+
+  bool setFromCompile = false;
+  if (rtc.lostPower()) {
+    Serial.println();
+    Serial.println("RTC OSF set — oscillator had stopped, using compile time");
+    setFromCompile = true;
+  }
+
+  Preferences prefs;
+  if (prefs.begin(DEMO_PREFS_NS, false)) {
+    const String compileNow = demoCompileDateTime();
+    const String compileStored = prefs.getString("compileTime", "");
+    if (compileStored != compileNow) {
+      Serial.println();
+      Serial.println("New firmware build — syncing RTC to compile time");
+      setFromCompile = true;
+      prefs.putString("compileTime", compileNow);
+    }
+    prefs.end();
+  } else {
+    Serial.println();
+    Serial.println("WARN: RTC prefs unavailable — compile-time sync skipped");
+  }
+
+  if (setFromCompile)
+    demoAdjustRtcFromCompileTime();
+
+  const DateTime now = rtc.now();
+  Serial.printf(" (%s %04u-%02u-%02u %02u:%02u:%02u)",
+                setFromCompile ? "set" : "kept", now.year(), now.month(),
+                now.day(), now.hour(), now.minute(), now.second());
+  return true;
+}
+
+bool initRtcDemo() {
+  return beginRtcDevice();
+}
+
+static bool beginBmeDevice() {
+  if (!bme.begin(I2C_ADDR_BME680, &Wire))
+    return false;
+  bme.setTemperatureOversampling(BME680_OS_8X);
+  bme.setHumidityOversampling(BME680_OS_2X);
+  bme.setPressureOversampling(BME680_OS_4X);
+  bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
+  bme.setGasHeater(320, 150);
+  return true;
+}
+
+static bool beginVemlDevice() {
+  if (!veml.begin(&Wire))
+    return false;
+  veml.setGain(VEML7700_GAIN_2);
+  veml.setIntegrationTime(VEML7700_IT_100MS);
+  veml.powerSaveEnable(false);
+  veml.enable(true);
+  return true;
+}
+
+static bool beginBatteryDevice() {
+  if (!maxlipo.begin())
+    return false;
+  telem.batReady = maxlipo.isDeviceReady();
+  if (!telem.batReady)
+    Serial.print(" (chip only — gauge not ready)");
+  return true;
+}
+
+static bool beginAccelDevice() {
+  if (!accel.begin(I2C_ADDR_ACCEL))
+    return false;
+  accel.setRange(LIS3DH_RANGE_2_G);
+  accel.setDataRate(LIS3DH_DATARATE_50_HZ);
+  accel.setPerformanceMode(LIS3DH_MODE_HIGH_RESOLUTION);
+  return true;
+}
+
+bool initSensors() {
+  Wire.setTimeOut(50);
+
+  Serial.println("Init sensors...");
+  Serial.flush();
+
+  if (!i2cBusHealthy()) {
+    Serial.println("WARN: I2C bus not idle at start — recovering");
+    Serial.flush();
+    i2cRecoverBus();
+  }
+
+  telem.bmeOk = initI2cDevice("BME680", I2C_ADDR_BME680, beginBmeDevice);
+  telem.luxOk = initI2cDevice("VEML7700", I2C_ADDR_LIGHT, beginVemlDevice);
+
+  Serial.printf("  VL53L1X @ 0x%02X... ", I2C_ADDR_TOF);
+  Serial.flush();
+  if (!i2cProbe(I2C_ADDR_TOF)) {
+    telem.tofOk = false;
+    Serial.println("not on bus");
+    i2cRecoverBus();
+  } else if (!beginToFDevice()) {
+    telem.tofOk = false;
+    Serial.println("begin failed");
+    i2cRecoverBus();
+  } else {
+    telem.tofOk = true;
+    Serial.println("OK");
+  }
+  Serial.flush();
+
+  Serial.printf("  DS3231 @ 0x%02X... ", I2C_ADDR_RTC);
+  Serial.flush();
+  if (!i2cProbe(I2C_ADDR_RTC)) {
+    telem.rtcOk = false;
+    Serial.println("not on bus");
+    i2cRecoverBus();
+  } else if (!beginRtcDevice()) {
+    telem.rtcOk = false;
+    Serial.println("begin failed");
+    i2cRecoverBus();
+  } else {
+    telem.rtcOk = true;
+    Serial.println();
+  }
+  Serial.flush();
+
+  telem.batOk = false;
+  telem.batReady = false;
+  Serial.printf("  MAX17048 @ 0x%02X... ", I2C_ADDR_MAX17048);
+  Serial.flush();
+  if (!i2cProbe(I2C_ADDR_MAX17048)) {
+    Serial.println("not on bus");
+    i2cRecoverBus();
+  } else if (!beginBatteryDevice()) {
+    Serial.println("begin failed");
+    i2cRecoverBus();
+  } else {
+    telem.batOk = true;
+    Serial.println("OK");
+  }
+  Serial.flush();
+
+  telem.accelOk = initI2cDevice("LIS2DH", I2C_ADDR_ACCEL, beginAccelDevice);
+
+  if (!i2cBusHealthy()) {
+    Serial.println("WARN: I2C still stuck after sensor init — recovering once more");
+    Serial.flush();
+    i2cRecoverBus();
+  }
+
+  Serial.println("Init sensors done (continuing regardless of WARNs).");
+  Serial.flush();
+  return true;
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  Serial.printf("FED4 Demo Hardware v%s (board %s)\n", FED4_DEMO_HW_VERSION_STR,
+                FED4_DEMO_HW_TARGET_BOARD_STR);
+
+  Wire.begin(SDA, SCL, 100000);
+  Wire.setTimeOut(50);
+
+  if (!mcp.begin_I2C()) {
+    Serial.println("FAIL: MCP23017");
+    while (1) delay(10);
+  }
+
+  mcp.pinMode(EXP_PSV2_EN, OUTPUT);
+  mcp.pinMode(EXP_PSV3_EN, OUTPUT);
+  mcp.digitalWrite(EXP_PSV2_EN, LOW);
+  mcp.digitalWrite(EXP_PSV3_EN, LOW);
+  delay(5);
+
+  mcp.pinMode(EXP_AMP_SD, OUTPUT);
+  mcp.digitalWrite(EXP_AMP_SD, LOW);
+  mcp.pinMode(EXP_HAPTIC, OUTPUT);
+  mcp.digitalWrite(EXP_HAPTIC, LOW);
+
+  SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
+  pinMode(DISPLAY_CS, OUTPUT);
+  digitalWrite(DISPLAY_CS, LOW);
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+
+  displayReset();
+  displayLight(true);
+
+  if (!display.begin()) {
+    Serial.println("FAIL: display framebuffer");
+    while (1) delay(10);
+  }
+  display.clearBlack();
+  display.refresh();
+
+  initSensors();
+
+  pinMode(BUTTON_1, INPUT_PULLDOWN);
+  pinMode(BUTTON_2, INPUT_PULLDOWN);
+  pinMode(BUTTON_3, INPUT_PULLDOWN);
+  pinMode(PHOTOGATE_1, INPUT_PULLUP);
+  pinMode(PHOTOGATE_2, INPUT_PULLUP);
+  pinMode(PHOTOGATE_3, INPUT_PULLUP);
+  pinMode(PHOTOGATE_4, INPUT_PULLUP);
+  pinMode(PIR_MOTION, INPUT_PULLDOWN);
+  pinMode(INT_OR, INPUT_PULLUP);
+  pinMode(STATUS_LED, OUTPUT);
+  analogWrite(STATUS_LED, 0);
+
+  attachInterrupt(digitalPinToInterrupt(BUTTON_2), onButton2, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(BUTTON_3), onButton3, RISING);
+  attachInterrupt(digitalPinToInterrupt(INT_OR), onIntOr, CHANGE);
+  b2Level = (digitalRead(BUTTON_2) == HIGH);
+  intOrLevelLow = (digitalRead(INT_OR) == LOW);
+
+  i2s.setPins(AMP_BCLK, AMP_LRCLK, AMP_DIN);
+  i2s.begin(I2S_MODE_STD, 48000, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO);
+  playStartupSound();
+
+  strip.begin();
+  strip.setBrightness(120);
+  strip.clear();
+  strip.show();
+
+  if (!initTouchPads())
+    Serial.println("WARN: touch init — keep pads clear at boot");
+  armPokeDetection();
+
+  initMotor();
+  if (initializeDropSensor())
+    Serial.println("OK: Drop sensor (PHOTOGATE_4)");
+  else
+    Serial.println("WARN: Drop sensor absent or blocked at boot");
+
+  // Start continuous ranging once; serviceToF() harvests results
+  if (telem.tofOk) {
+    tofSensor.startRanging();
+    tofRanging = true;
+  }
+
+  lastStripMs = millis();
+  lastPollMs = millis();
+  lastOrientMs = millis();
+  pollSensors();
+  if (orientDemoScreen())
+    displayDirty = true;
+  Serial.println("Demo ready.");
+  Serial.printf("  version %s | board %s\n", FED4_DEMO_HW_VERSION_STR,
+                FED4_DEMO_HW_TARGET_BOARD_STR);
+}
+
+void loop() {
+  serviceButtons();
+  serviceHaptic();
+#if ENABLE_FEED
+  serviceFeed();
+  serviceCenterPoke();
+#endif
+
+  // While tones play, keep the loop I2S-heavy — display SPI and sensor
+  // polls were starving DMA and causing crackle on the melody.
+  if (audioActive) {
+    serviceAudio();
+    serviceStatusLed();
+    serviceToF();
+    serviceBme();
+    vcomKeepAlive();
+    serviceAudio();
+    return;
+  }
+
+  serviceAudio();
+  serviceStatusLed();
+  serviceToF();
+  serviceBme();
+  vcomKeepAlive();
+
+  if (millis() - lastStripMs >= STRIP_MS) {
+    lastStripMs = millis();
+    updateTouchStrip();
+  }
+
+  if (millis() - lastOrientMs >= ORIENT_MS) {
+    lastOrientMs = millis();
+    if (orientDemoScreen())
+      displayDirty = true;
+  }
+
+  if (millis() - lastPollMs >= POLL_MS) {
+    lastPollMs = millis();
+    pollSensors();
+  }
+
+  if (displayDirty) {
+    displayDirty = false;
+    drawDashboard();
+    refreshDisplay();
+  }
+}

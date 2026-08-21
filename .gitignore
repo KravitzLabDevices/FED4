@@ -20,6 +20,8 @@ Release/
 # IDE specific files
 .vscode/
 .idea/
+.clangd
+compile_commands.json
 *.swp
 *.swo
 *~

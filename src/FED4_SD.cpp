@@ -430,7 +430,7 @@ bool FED4::logData(const String &newEvent)
 
     File dataFile;
     SPI.setBitOrder(MSBFIRST);
-    cyanPix(1); //dim cyan every time logData is called
+    redPix(1); // dim status LED flash on each logData call
 
     DateTime now = rtc.now();
     float currentSeconds = round((millis() / 1000.000) * 1000) / 1000.0; // Get current seconds rounded to 3 decimals
@@ -474,6 +474,7 @@ bool FED4::logData(const String &newEvent)
             if (!SD.begin(SD_CS, SPI, 4000000)) { 
                 Serial.println("Failed");
                 digitalWrite(SD_CS, HIGH);
+                reclaimSpiForDisplay();
                 return false;
             }
         }
@@ -484,6 +485,7 @@ bool FED4::logData(const String &newEvent)
         if (!SD.exists(filename)) {
             Serial.println("File not found after reinit");
             digitalWrite(SD_CS, HIGH);
+            reclaimSpiForDisplay();
             return false;
         }
 
@@ -511,6 +513,7 @@ bool FED4::logData(const String &newEvent)
             }
             digitalWrite(SD_CS, HIGH);
             noPix();
+            reclaimSpiForDisplay();
             return false;
         }
         Serial.println("Success!");
@@ -546,57 +549,57 @@ bool FED4::logData(const String &newEvent)
     dataFile.printf("%d,%d,%d,%d,", pelletCount, leftCount, rightCount, centerCount);
     dataFile.printf("%d,%d,", blockPelletCount, blockPokeCount);
 
-    // Write motor turns for events where motor has been running
-    if (event == "PelletTaken") {
-        // Write retrievalTime as string to avoid conversion issues
-        if (retrievalTime > 19.9)
+    // Motor / retrieval columns on terminal feed outcomes
+    if (event == "PelletTaken" || event == "LatePelletTaken" ||
+        event == "PelletNotDetected" || event == "DispenseError")
+    {
+        if (event == "PelletTaken" || event == "LatePelletTaken")
         {
-            dataFile.print("TimedOut");
+            // Numeric seconds always (late takes may be >> 20 s; no TimedOut string)
+            dataFile.printf("%.3f,", retrievalTime);
+            dataFile.printf("%.3f,", pokeDuration);
+            dataFile.write(dispenseError ? '1' : '0');
+        }
+        else if (event == "PelletNotDetected")
+        {
+            dataFile.print("0,");
+            dataFile.printf("%.3f,", pokeDuration);
+            dataFile.write('1'); // settle miss
         }
         else
         {
-            dataFile.printf("%.3f", retrievalTime); // Use printf instead of String conversion
+            // DispenseError — hard jam give-up only (not during jam-clear moves)
+            dataFile.print("0,");
+            dataFile.printf("%.3f,", pokeDuration);
+            dataFile.write('1');
         }
         dataFile.write(',');
-        dataFile.printf("%.3f", pokeDuration); // PokeDuration
+        dataFile.print(int(motorTurns / 25));
         dataFile.write(',');
-        dataFile.write(dispenseError ? '1' : '0'); // Write single character
-        dataFile.write(',');
-        dataFile.print(int(motorTurns/25)); // MotorTurns
-        dataFile.write(',');
-        motorTurns = 0; // Reset after logging
+        motorTurns = 0;
     }
-    else {
+    else
+    {
         dataFile.print(",,,,"); // RetrievalTime, PokeDuration, DispenseError, MotorTurns
     }
 
-    // Write counters and status
-    if (event == "Status" || event == "Startup" || event == "Activity") {
-        // Write Activity% (motionPercentage) with 1 decimal place, or "DISABLED" if motion sensor is disabled
-        if (!useMotionSensor || isnan(motionPercentage)) {
-            dataFile.print("Disabled,");
-        } else {
-            dataFile.printf("%.1f,", motionPercentage);
-        }
-
-        // Write environmental data
-        dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
-                        temperature, humidity, pressure, gasResistance, lux, white);
-
-        // Write system stats
-        dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
-                        ESP.getFreeHeap(),
-                        ESP.getHeapSize(),
-                        ESP.getMinFreeHeap(),
-                        wakeCount,
-                        cellVoltage,
-                        cellPercent);
+    // Cached members — refreshed by refreshSensors() in update(), not polled here.
+    if (!useMotionSensor || isnan(motionPercentage)) {
+        dataFile.print("Disabled,");
     } else {
-        // Fill empty cells for all data fields when Event is not "Status"
-        // Added 2 more commas for pressure and gas resistance
-        dataFile.print(",,,,,,,,,,,,,,,");
-        dataFile.println();
+        dataFile.printf("%.1f,", motionPercentage);
     }
+
+    dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
+                    temperature, humidity, pressure, gasResistance, lux, white);
+
+    dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
+                    ESP.getFreeHeap(),
+                    ESP.getHeapSize(),
+                    ESP.getMinFreeHeap(),
+                    wakeCount,
+                    cellVoltage,
+                    cellPercent);
 
     // Clean up
     dataFile.flush();  // Force write to SD card
@@ -612,20 +615,17 @@ bool FED4::logData(const String &newEvent)
         dataFile.close();
         digitalWrite(SD_CS, HIGH);
         noPix();
+        reclaimSpiForDisplay();
         return false;
     }
     
     dataFile.close();
     digitalWrite(SD_CS, HIGH);
     noPix();
-    
-    // update screen counters when logging except at startup and not in ActivityMonitor
-    if (program != "ActivityMonitor" && (leftCount > 0 || rightCount > 0 || centerCount > 0)) {
-      displayIndicators();
-      displayCounters();
-    }
 
-    refresh();
+    // Do not refresh here — shared SPI was at SD rates; waitUntil/feed callers
+    // paint once via update()/updateDisplay(). Reclaim bus for a following MIP write.
+    reclaimSpiForDisplay();
 
     return true;
 }
@@ -806,76 +806,85 @@ void FED4::setAge(String age)
 }
 
 /**
- * Handles SD card errors by playing 2 clicks, blinking red LEDs, 
- * displaying error message, and waiting for Button1 press to continue
+ * SD init / log-file failure: alert UI on Kyocera MIP (logical 176×320 portrait),
+ * blink strip red, wait for BUTTON_1 (bottom) to continue without logging.
  */
 void FED4::handleSDCardError()
 {
     Serial.println("SD Card Error - Data won't be saved. Continue?");
-    
-    // Play 2 clicks
+
     playTone(1000, 8, 0.5);
     delay(100);
     playTone(1000, 8, 0.5);
     delay(100);
-    
-    // Start blinking red LEDs
+
     bool ledsOn = true;
     unsigned long lastBlinkTime = 0;
-    const unsigned long blinkInterval = 500; // 500ms blink interval
-    
-    // Clear display and show error message
+    const unsigned long blinkInterval = 500;
+
     clearDisplay();
-    
-    // Fill the entire display area with black background
-    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
-    
-    setFont(&Org_01);
+    const int16_t w = width();
+    const int16_t h = height();
+    fillRect(0, 0, w, h, DISPLAY_BLACK);
+
+    setFont(nullptr);
     setTextSize(2);
-    setTextColor(DISPLAY_WHITE); // Use white text on black background
-    
-    // Display error message with corrected coordinates for 144x168 display
-    setCursor(5, 30);
-    print("Card error,");
-    setCursor(5, 50);
-    print("data won't");
-    setCursor(5, 70);
+    setTextColor(DISPLAY_WHITE);
+    setCursor(8, 36);
+    print("SD card");
+    setCursor(8, 60);
+    print("error");
+
+    setTextSize(1);
+    setCursor(8, 100);
+    print("Data will not");
+    setCursor(8, 116);
     print("be saved.");
-    setCursor(5, 100);
-    print("Continue?");
+    setCursor(8, 148);
+    print("Check that a");
+    setCursor(8, 164);
+    print("card is seated.");
+    setCursor(8, 220);
+    print("Bottom button:");
+    setCursor(8, 236);
+    print("Continue");
     refresh();
-    
-    // Blink red LEDs and wait for Button1 press
-    while (digitalRead(BUTTON_1) == LOW) {
-        unsigned long currentTime = millis();
-        
-        if (currentTime - lastBlinkTime >= blinkInterval) {
-            if (ledsOn) {
-                colorWipe("red", 0); // Turn all LEDs red
-            } else {
-                lightsOff(); // Turn all LEDs off
+
+    while (digitalRead(BUTTON_1) == LOW)
+    {
+        const unsigned long currentTime = millis();
+        if (currentTime - lastBlinkTime >= blinkInterval)
+        {
+            if (ledsOn)
+            {
+                colorWipe("red", 0);
+            }
+            else
+            {
+                lightsOff();
             }
             ledsOn = !ledsOn;
             lastBlinkTime = currentTime;
         }
-        
-        delay(10); // Small delay to prevent excessive CPU usage
+        delay(10);
     }
-    
-    // Button1 was pressed, play highBeep and stop blinking
+    while (digitalRead(BUTTON_1) == HIGH)
+    {
+        delay(10);
+    }
+
     lowBeep();
     lightsOff();
-    
-    // Clear display and show continuing message
+
     clearDisplay();
-    
-    // Fill the entire display area with black background
-    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
-    
-    setCursor(5, 80);
+    fillRect(0, 0, w, h, DISPLAY_BLACK);
+    setFont(nullptr);
+    setTextSize(1);
+    setTextColor(DISPLAY_WHITE);
+    setCursor(8, 150);
     print("Continuing...");
     refresh();
-    delay(1000);
-    
+    delay(800);
+
     Serial.println("User chose to continue without SD card");
 }

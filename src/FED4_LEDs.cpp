@@ -3,11 +3,21 @@
 /********************************************************
  * FED4 LED Control Functions
  *
- * This file combines both NeoPixel (single LED) and LED Strip control.
- * All LED functions now support both traditional RGB values and
- * string-based color names.
+ * Two independent LED systems:
  *
- * Available Colors:
+ * 1. RGB LED Strip (WS2812B, 8 LEDs, PSV3 rail, FastLED)
+ *    Full RGB color control via string names or uint32_t values.
+ *    Available colors: "red", "green", "blue", "white", "black",
+ *                      "yellow", "purple", "cyan", "orange"
+ *
+ *    leftLight("blue");            // Left poke LEDs blue
+ *    leftLight("blue", 100);       // Left poke LEDs blue, brightness 100
+ *    centerLight("yellow");        // Center poke LEDs yellow
+ *    rightLight("red", 200);       // Right poke LEDs red, brightness 200
+ *    setStripPixel(0, "green");    // Individual LED green
+ *    colorWipe("white", 10);       // Wipe animation
+ *
+ *  Available Colors:
  * - "red"    (255, 0, 0)
  * - "green"  (0, 255, 0)
  * - "blue"   (0, 0, 255)
@@ -16,39 +26,30 @@
  * - "yellow" (255, 255, 0)
  * - "purple" (128, 0, 128)
  * - "cyan"   (0, 255, 255)
- * - "orange" (255, 165, 0)
+ * - "orange" (255, 165, 0) 
  *
- * Usage Examples:
+ * 2. Status LED (single red LED, GPIO STATUS_LED, always-on 3.3V rail)
+ *    Brightness-only control via PWM (0–255 duty cycle).
  *
- * 1. Single NeoPixel:
- *    setPixColor("red");           // Default brightness (64)
- *    setPixColor("red", 255);      // Custom brightness
- *    setPixColor("blue", 128);     // Half brightness blue
+ *    redPix(5);     // Dim red indicator
+ *    redPix(128);   // Half brightness
+ *    noPix();       // Off
  *
- * 2. LED Strip:
- *    setStripPixel(0, "green");    // First LED green
- *    leftLight("blue");            // Left poke blue
- *    leftLight("blue", 100);       // Left poke blue with brightness 100
- *    centerLight("yellow");        // Center poke yellow
- *    centerLight("yellow", 50);    // Center poke yellow with brightness 50
- *    rightLight("red");            // Right poke red
- *    rightLight("red", 200);       // Right poke red with brightness 200
- *
- * Note: If an unrecognized color is provided, the LED(s)
- * will default to off.
+ * Note: If an unrecognized color name is passed to a strip function
+ * the LED(s) default to off.
  ********************************************************/
 
-// STRIP FUNCTIONS
+// ── RGB LED STRIP (WS2812B, 8 LEDs, PSV3 rail) ──────────────────────────────
 
 // Initialize the strip
 bool FED4::initializeStrip()
 {
-    // Ensure front LED power rail is enabled before initializing
-    LDO3_ON();
+    // Ensure PSV3 rail (front LED strip) is enabled before initializing
+    PSV3_ON();
     delay(2);
 
     // Explicit WS2812B + GRB order for front strip reliability
-    FastLED.addLeds<WS2812B, RGB_STRIP_PIN, GRB>(strip_leds, NUM_STRIP_LEDS);
+    FastLED.addLeds<WS2812B, RGB_STRIP, GRB>(strip_leds, NUM_STRIP_LEDS);
     setStripBrightness(50); // Default brightness
     
     // Test the strip by setting all pixels to red briefly
@@ -484,130 +485,32 @@ void FED4::rightLight(const char *colorName, uint8_t brightness)
     rightLight(getColorFromString(colorName), brightness);
 }
 
-// Example usage:
-// Initialize the NeoPixel:
-// FED4.initializePixel();    // Sets up the NeoPixel with default brightness
+// ── STATUS LED ──────────────────────────────────────────────────────────────
+// Single red LED on GPIO STATUS_LED — digital on/off only (no analogWrite).
+// ESP32-S3 LEDC timers share one clock with VCOM KEEP_ALIVE; PWM here would
+// fight DISPLAY_VCOM LEDC (see FED4-VCOM-LEDC-Light-Sleep).
+// API: redPix(brightness) lights if brightness > 0; noPix() turns off.
+
 bool FED4::initializePixel()
 {
-    pixels.begin(); // Initialize NeoPixel
-    delay(1);
-    pixels.clear();
-    pixels.setBrightness(50); // Set a default brightness
-    noPix();
+    pinMode(STATUS_LED, OUTPUT);
+    digitalWrite(STATUS_LED, LOW);
+    statusLedBrightness = 0;
     return true;
 }
 
-// Example usage:
-// Set NeoPixel brightness:
-// setPixBrightness(100);    // Set brightness to 100 (max 255)
-// setPixBrightness(25);     // Set brightness to 25 (dimmer)
-void FED4::setPixBrightness(uint8_t brightness)
-{
-    pixels.setBrightness(brightness);
-}
-
-// Example usage:
-// Set NeoPixel color with RGB values and brightness:
-// setPixColor(255, 0, 0, 100);    // Set to red with brightness 100
-// setPixColor(0, 255, 0, 50);     // Set to green with brightness 50
-void FED4::setPixColor(uint8_t r, uint8_t g, uint8_t b, uint8_t brightness)
-{
-    setPixBrightness(brightness);
-    pixels.setPixelColor(0, pixels.Color(g, r, b));
-    pixels.show();
-}
-
-// Example usage:
-// Set NeoPixel to blue with custom brightness:
-// bluePix(100);    // Set blue with brightness 100
-// bluePix(50);     // Set blue with brightness 50
-void FED4::bluePix(uint8_t brightness)
-{
-    setPixColor(0, 0, 255, brightness);
-}
-
-// Example usage:
-// Set NeoPixel to green with custom brightness:
-// greenPix(100);    // Set green with brightness 100
-// greenPix(50);     // Set green with brightness 50
-void FED4::greenPix(uint8_t brightness)
-{
-    setPixColor(0, 255, 0, brightness);
-}
-
-// Example usage:
-// Set NeoPixel to red with custom brightness:
-// redPix(100);    // Set red with brightness 100
-// redPix(50);     // Set red with brightness 50
+// Lights the red LED when brightness > 0 (digital; brightness value not PWM).
 void FED4::redPix(uint8_t brightness)
 {
-    setPixColor(255, 0, 0, brightness);
+    statusLedBrightness = brightness;
+    digitalWrite(STATUS_LED, brightness > 0 ? HIGH : LOW);
 }
 
-// Example usage:
-// Set NeoPixel to purple with custom brightness:
-// purplePix(100);    // Set purple with brightness 100
-// purplePix(50);     // Set purple with brightness 50
-void FED4::purplePix(uint8_t brightness)
-{
-    setPixColor(128, 0, 128, brightness);
-}
-
-// Example usage:
-// Set NeoPixel to yellow with custom brightness:
-// yellowPix(100);    // Set yellow with brightness 100
-// yellowPix(50);     // Set yellow with brightness 50
-void FED4::yellowPix(uint8_t brightness)
-{
-    setPixColor(255, 255, 0, brightness);
-}
-
-// Example usage:
-// Set NeoPixel to cyan with custom brightness:
-// cyanPix(100);    // Set cyan with brightness 100
-// cyanPix(50);     // Set cyan with brightness 50
-void FED4::cyanPix(uint8_t brightness)
-{
-    setPixColor(0, 255, 255, brightness);
-}
-
-// Example usage:
-// Set NeoPixel to white with custom brightness:
-// whitePix(100);    // Set white with brightness 100
-// whitePix(50);     // Set white with brightness 50
-void FED4::whitePix(uint8_t brightness)
-{
-    setPixColor(255, 255, 255, brightness);
-}
-
-// Example usage:
-// Set NeoPixel to orange with custom brightness:
-// orangePix(100);    // Set orange with brightness 100
-// orangePix(50);     // Set orange with brightness 50
-void FED4::orangePix(uint8_t brightness)
-{
-    setPixColor(255, 165, 0, brightness);
-}
-
-// Example usage:
-// Turn off NeoPixel:
-// noPix();    // Sets pixel to black (off)
+// Turns the status LED off.
 void FED4::noPix()
 {
-    setPixColor(0, 0, 0, 255);
-}
-
-// Example usage:
-// Set NeoPixel color using color name and brightness:
-// setPixColor("red", 100);      // Set to red with brightness 100
-// setPixColor("green", 50);     // Set to green with brightness 50
-void FED4::setPixColor(const char *colorName, uint8_t brightness)
-{
-    uint32_t color = getColorFromString(colorName);
-    uint8_t r = (color >> 16) & 0xFF;
-    uint8_t g = (color >> 8) & 0xFF;
-    uint8_t b = color & 0xFF;
-    setPixColor(r, g, b, brightness);
+    statusLedBrightness = 0;
+    digitalWrite(STATUS_LED, LOW);
 }
 
 // Example usage:

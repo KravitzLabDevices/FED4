@@ -24,21 +24,22 @@ void FED4::menu() {
 void FED4::menuStart() {
     Serial.println("********** MENU **********");
 
-    //clear display area below mouse ID
-    fillRect(0, 65, 144, 145, DISPLAY_WHITE);   
-    // // draw line to split on screen text 
-    drawLine(0,59,168,59, DISPLAY_WHITE);  
-    drawLine(0,60,168,60, DISPLAY_WHITE);   
+    // Match program status layout (divider @ y=70)
+    fillRect(0, 68, 176, 252, DISPLAY_WHITE);
+    drawLine(0, 69, 175, 69, DISPLAY_WHITE);
+    drawLine(0, 70, 175, 70, DISPLAY_WHITE);
     refresh();
     displayDateTime();
+    displayEnvironmental();
+    displayBattery();
     displayTask();
     displayMouseId();
     displaySex();
     displayStrain();
     displayAge();
     displayAudio();
-    refresh();    
-    delay (500); // more debounce
+    refresh();
+    delay(500); // more debounce
 }
 
 void FED4::menuProgram() {
@@ -70,38 +71,42 @@ void FED4::menuProgram() {
     
     bool menuActive = true;
     while (menuActive) {
-        fillRect(50, 20, 110, 20, DISPLAY_WHITE); // Clear area for task name
-        refresh();
-        delay(100);
-        displayTask();
-        refresh();
-        delay(100);
+        bool changed = false;
 
-        // Wait for button press
         if (digitalRead(BUTTON_1) == HIGH) {
             currentTaskIndex = (currentTaskIndex - 1 + numTasks) % numTasks;
             currentProgram = taskOptions[currentTaskIndex];
             setProgram(currentProgram);
             program = currentProgram;
-
             Serial.print("Current Task: ");
             Serial.println(currentProgram);
+            changed = true;
+            delay(200);
         }
         else if (digitalRead(BUTTON_3) == HIGH) {
             currentTaskIndex = (currentTaskIndex + 1) % numTasks;
             currentProgram = taskOptions[currentTaskIndex];
             setProgram(currentProgram);
             program = currentProgram;
-
             Serial.print("Current Task: ");
             Serial.println(currentProgram);
+            changed = true;
+            delay(200);
         }
         else if (digitalRead(BUTTON_2) == HIGH) {
             click();
-            // Save and exit
             menuActive = false;
-            delay(200); // Debounce
+            delay(200);
             displayTask();
+            refresh();
+        } else {
+            delay(50);
+        }
+
+        if (changed) {
+            fillRect(70, 20, 100, 20, DISPLAY_WHITE);
+            displayTask();
+            refresh();
         }
     }
 }
@@ -374,26 +379,29 @@ void FED4::menuRTC() {
             lastBlink = currentTime;
             
             // Clear the entire date-time area and redraw
-            fillRect(0, 146, 144, 22, DISPLAY_BLACK);
+            fillRect(0, 296, 176, 24, DISPLAY_BLACK);
             refresh();
             
             if (timeVisible) {
-                // Display the full date and time
-                setFont(&Org_01);
-                setTextSize(2);
+                // Demo body font for dense footer text
+                setFont(nullptr);
+                setTextSize(1);
                 setTextColor(DISPLAY_WHITE);
                 
                 // Display date
-                setCursor(5, 160);
+                setCursor(5, 307);
                 char dateStr[9];
                 snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
                          currentMonth, currentDay, currentYear - 2000);
                 print(dateStr);
                 
                 // Display time
-                setCursor(94, 160);
-                char timeStr[6];
-                snprintf(timeStr, sizeof(timeStr), "%02d:%02d", currentHour, currentMinute);
+                setCursor(100, 307);
+                int h12 = currentHour % 12;
+                if (h12 == 0) h12 = 12;
+                char timeStr[10];
+                snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
+                         (currentHour >= 12) ? "PM" : "AM");
                 print(timeStr);
                 refresh();
             }
@@ -447,22 +455,25 @@ void FED4::menuRTC() {
                     rtc.adjust(newTime);
                     
                     // Update display in real-time
-                    fillRect(0, 146, 144, 22, DISPLAY_BLACK);
-                    setFont(&Org_01);
+                    fillRect(0, 296, 176, 24, DISPLAY_BLACK);
+                    setFont(nullptr);
                     setTextSize(2);
                     setTextColor(DISPLAY_WHITE);
                     
                     // Display date
-                    setCursor(5, 160);
+                    setCursor(5, 307);
                     char dateStr[9];
                     snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
                              currentMonth, currentDay, currentYear - 2000);
                     print(dateStr);
                     
                     // Display time
-                    setCursor(94, 160);
-                    char timeStr[6];
-                    snprintf(timeStr, sizeof(timeStr), "%02d:%02d", currentHour, currentMinute);
+                    setCursor(100, 307);
+                    int h12 = currentHour % 12;
+                    if (h12 == 0) h12 = 12;
+                    char timeStr[10];
+                    snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
+                             (currentHour >= 12) ? "PM" : "AM");
                     print(timeStr);
                     refresh();
                     
@@ -526,22 +537,25 @@ void FED4::menuRTC() {
                     rtc.adjust(newTime);
                     
                     // Update display in real-time
-                    fillRect(0, 146, 144, 22, DISPLAY_BLACK);
-                    setFont(&Org_01);
+                    fillRect(0, 296, 176, 24, DISPLAY_BLACK);
+                    setFont(nullptr);
                     setTextSize(2);
                     setTextColor(DISPLAY_WHITE);
                     
                     // Display date
-                    setCursor(5, 160);
+                    setCursor(5, 307);
                     char dateStr[9];
                     snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
                              currentMonth, currentDay, currentYear - 2000);
                     print(dateStr);
                     
                     // Display time
-                    setCursor(94, 160);
-                    char timeStr[6];
-                    snprintf(timeStr, sizeof(timeStr), "%02d:%02d", currentHour, currentMinute);
+                    setCursor(100, 307);
+                    int h12 = currentHour % 12;
+                    if (h12 == 0) h12 = 12;
+                    char timeStr[10];
+                    snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
+                             (currentHour >= 12) ? "PM" : "AM");
                     print(timeStr);
                     refresh();
                     
@@ -564,22 +578,25 @@ void FED4::menuRTC() {
             delay(200); // Debounce
             
             // Show final date and time without blinking
-            fillRect(0, 146, 144, 22, DISPLAY_BLACK);
-            setFont(&Org_01);
+            fillRect(0, 296, 176, 24, DISPLAY_BLACK);
+            setFont(nullptr);
             setTextSize(2);
             setTextColor(DISPLAY_WHITE);
             
             // Display date
-            setCursor(5, 160);
+            setCursor(5, 307);
             char dateStr[9];
             snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
                      currentMonth, currentDay, currentYear - 2000);
             print(dateStr);
             
             // Display time
-            setCursor(94, 160);
-            char timeStr[6];
-            snprintf(timeStr, sizeof(timeStr), "%02d:%02d", currentHour, currentMinute);
+            setCursor(100, 307);
+            int h12 = currentHour % 12;
+            if (h12 == 0) h12 = 12;
+            char timeStr[10];
+            snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
+                     (currentHour >= 12) ? "PM" : "AM");
             print(timeStr);
             refresh();
         }
@@ -589,19 +606,19 @@ void FED4::menuRTC() {
 }
 
 void FED4::menuEnd() {
-    // Fill display with black background
-    fillRect(0, 0, 144, 168, DISPLAY_BLACK);
+    // Full logical portrait clear
+    fillRect(0, 0, 176, 320, DISPLAY_BLACK);
     refresh();
-    // Set up for white text on black background
+    // Demo: FreeSans for short labels; default for dense body if needed
     setFont(&FreeSans9pt7b);
     setTextSize(1);
     setTextColor(DISPLAY_WHITE);
-    setCursor(15, 30);
+    setCursor(15, 40);
     print("Menu saved.");
-    setCursor(15, 51);
+    setCursor(15, 70);
     print("Restarting...");
     refresh();
-    delay(1000); // Show the message for 1 second before restarting
+    delay(1000);
     resetJingle();
     esp_restart();
 }

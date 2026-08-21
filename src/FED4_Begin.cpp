@@ -1,6 +1,57 @@
 #include "FED4.h"
 
 /********************************************************
+ * I2C bus helpers — match Demo-Hardware resilient pattern
+ ********************************************************/
+
+void FED4::i2cReinitBus()
+{
+    Wire.begin(SDA, SCL);
+    Wire.setTimeOut(50);
+}
+
+bool FED4::i2cProbe(uint8_t addr)
+{
+    Wire.beginTransmission(addr);
+    return Wire.endTransmission(true) == 0;
+}
+
+void FED4::i2cRecoverBus()
+{
+    Wire.end();
+    pinMode(SCL, INPUT_PULLUP);
+    pinMode(SDA, INPUT_PULLUP);
+    delay(1);
+
+    pinMode(SCL, OUTPUT);
+    digitalWrite(SCL, HIGH);
+    for (int i = 0; i < 9 && digitalRead(SDA) == LOW; i++)
+    {
+        digitalWrite(SCL, LOW);
+        delayMicroseconds(5);
+        digitalWrite(SCL, HIGH);
+        delayMicroseconds(5);
+    }
+
+    pinMode(SCL, INPUT_PULLUP);
+    pinMode(SDA, INPUT_PULLUP);
+    delay(1);
+    i2cReinitBus();
+}
+
+// Idle-level check. Always restores Wire pin binding afterward — pinMode(SDA/SCL)
+// detaches the ESP32 I2C driver and must not be left that way.
+bool FED4::i2cBusHealthy()
+{
+    Wire.end();
+    pinMode(SDA, INPUT_PULLUP);
+    pinMode(SCL, INPUT_PULLUP);
+    const bool ok = digitalRead(SDA) == HIGH && digitalRead(SCL) == HIGH;
+    i2cReinitBus();
+    return ok;
+}
+
+/********************************************************
  * Initialization
  * Initializes all components and sets up the FED4 system
  *
@@ -11,14 +62,18 @@
 bool FED4::begin(const char *programName)
 {
     Serial.begin(115200);
-    
-    // Initialize state flags
-    motionSensorInitialized = false;
+    // USB CDC often needs ~2s after reset before the host enumerates
+    {
+        const unsigned long serialWaitMs = 2000;
+        const unsigned long startMs = millis();
+        while (millis() - startMs < serialWaitMs) {
+            if (Serial) {
+                break;
+            }
+            delay(10);
+        }
+    }
 
-    // Initialize LDO2 to provide power to I2C peripherals
-    pinMode(LDO2_ENABLE, OUTPUT);
-    digitalWrite(LDO2_ENABLE, HIGH);
-    delay(1); // Stabilization time
     Serial.println();
 
     // Structure to track component status
@@ -30,11 +85,10 @@ bool FED4::begin(const char *programName)
 
     // Use map to store status by component name
     std::map<const char *, ComponentStatus, std::less<>> statuses = {
-        {"LDOs", {false, ""}},
-        {"NeoPixel", {false, ""}},
+        {"Power Rails", {false, ""}},
+        {"Status LED", {false, ""}},
         {"LED Strip", {false, ""}},
         {"I2C Primary", {false, ""}},
-        {"I2C Secondary", {false, ""}},
         {"MCP23017", {false, ""}},
         {"RTC", {false, ""}},
         {"Battery Monitor", {false, ""}},
@@ -47,10 +101,10 @@ bool FED4::begin(const char *programName)
         {"Display", {false, ""}},
         {"Speaker", {false, ""}},
         {"Accelerometer", {false, ""}},
-        {"Magnet", {false, ""}},
-        {"Motion", {false, ""}},
         {"ToF Sensor", {false, ""}},
-        {"Drop Sensor", {false, ""}}
+        {"Drop Sensor", {false, ""}},
+        {"Solenoids", {false, ""}},
+        {"INT_OR", {false, ""}}
 #ifndef FED4_EXCLUDE_HUBLINK
         ,
         {"Hublink", {false, ""}}
@@ -60,12 +114,8 @@ bool FED4::begin(const char *programName)
     // Initialize SPI systems
     SPI.begin(SPI_SCK, SPI_MISO, SPI_MOSI);
     SPI.setFrequency(1000000); // Set SPI clock to 1MHz
-    
-    statuses["Display"].initialized = initializeDisplay();
-    Serial.println("Starting up...");
-    startupAnimation();
-    
-    // Initialize I2C buses
+
+    // Initialize primary I2C bus
     displayInitStatus("I2C Primary");
     statuses["I2C Primary"].initialized = Wire.begin(SDA, SCL);
     if (!statuses["I2C Primary"].initialized)
@@ -73,102 +123,195 @@ bool FED4::begin(const char *programName)
         Serial.println("I2C Error - check I2C Address");
         return false;
     }
-
-    displayInitStatus("I2C Secondary");
-    statuses["I2C Secondary"].initialized = I2C_2.begin(SDA_2, SCL_2);
-    if (!statuses["I2C Secondary"].initialized)
-    {
-        Serial.println("I2C_2 Error - check I2C Address");
-        return false;
-    }
-    // Both I2C buses run at 100kHz (ESP32 default) throughout initialization and operation
-    // This provides reliable operation for all sensors (BME680, battery monitor, ToF, light, motion)
-    
-    // Allow I2C buses to stabilize before accessing devices
+    Wire.setTimeOut(50);
+    // I2C bus runs at 100kHz (ESP32 default) for reliable operation across all sensors
     delay(2);
 
-    // Initialize MCP expander
+    if (!i2cBusHealthy())
+    {
+        Serial.println("WARN: I2C bus not idle at start — recovering");
+        i2cRecoverBus();
+    }
+
+    // Initialize MCP GPIO expander (required — power, display RST, haptic, amp)
+    // Do not gate on i2cProbe alone: Adafruit begin also needs a live Wire binding.
+    // Adafruit_I2CDevice::begin() calls Wire.begin() without pins — rebind after.
     displayInitStatus("GPIO expander");
     statuses["MCP23017"].initialized = mcp.begin_I2C();
+    i2cReinitBus();
     if (!statuses["MCP23017"].initialized)
     {
-        Serial.println("MCP error");
+        Serial.println("MCP error — cannot continue without GPIO expander");
+        i2cRecoverBus();
+        // One retry after bus recover
+        statuses["MCP23017"].initialized = mcp.begin_I2C();
+        i2cReinitBus();
+        if (!statuses["MCP23017"].initialized)
+        {
+            Serial.println("MCP23017 init failed");
+            return false;
+        }
     }
     
     // Allow MCP to stabilize before accessing other I2C devices
     delay(1);
 
-    // Initialize battery monitor immediately after MCP (library requirement)
-    // Retry logic like the working test script
-    displayInitStatus("Battery Monitor");
-    int maxRetries = 3;
-    int retryCount = 0;
-    Serial.println("Initializing Battery Monitor");
-    //Serial.println("Note: it is safe to ignore the three I2C warnings below");
-    while (!maxlipo.begin() && retryCount < maxRetries)
-    {
-        retryCount++;
-        Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
-        delay(10); // Wait before retry
-    }
-
-    statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
-    if (!statuses["Battery Monitor"].initialized)
-    {
-        Serial.println("Battery monitor initialization failed");
-    }
-    
-
-    Serial.println("Initializing LDOs");
+    // Enable PSV2 and PSV3 power rails via MCP expander
+    Serial.println("Initializing Power Rails");
     displayInitStatus("Power management");
-    // Initialize LDOs first
-    statuses["LDOs"].initialized = initializeLDOs();
+    statuses["Power Rails"].initialized = initializePower();
 
-    Serial.println("Initializing Front NeoPixels");
-    displayInitStatus("NeoPixels");
-    // Initialize LEDs
-    statuses["NeoPixel"].initialized = initializePixel();
-    redPix(1); // very dim red pix to indicate when FED4 is awake
+    // PIR is on always-on 3.3V — configure early so STATUS_LED can mirror it
+    pinMode(PIR_MOTION, INPUT_PULLDOWN);
 
-    // Initialize RTC
+    // Speaker as early as possible (needs MCP + PSV2 for amp SD) — Demo welcome clip
+    Serial.println("Initializing Speaker");
+    delay(1); // PSV2 settle (FED4-Speaker)
+    statuses["Speaker"].initialized = initializeSpeaker();
+    if (statuses["Speaker"].initialized) {
+        Serial.println("Playing startup sound...");
+        playStartup(); // "Welcome to FED4" PCM (~2.5 s); ignores audioSilenced
+        Serial.println("Startup sound done.");
+    } else {
+        Serial.println("Speaker init failed — startup sound skipped");
+    }
+
+    // Reset display; frontlight off by default (MIP is reflective; sketch can displayLight(true))
+    displayReset();
+    displayLight(false);
+
+    // Initialize display now that power rails and MCP are ready
+    statuses["Display"].initialized = initializeDisplay();
+    Serial.println("Starting up...");
+    startupAnimation();
+
+    // Initialize battery monitor (MAX17048 on VBATT rail)
+    displayInitStatus("Battery Monitor");
+    Serial.println("Initializing Battery Monitor");
+    statuses["Battery Monitor"].initialized = false;
+    if (!i2cProbe(I2C_ADDR_MAX17048))
+    {
+        Serial.println("Battery monitor not on bus");
+        i2cRecoverBus();
+    }
+    else
+    {
+        int maxRetries = 3;
+        int retryCount = 0;
+        while (!maxlipo.begin() && retryCount < maxRetries)
+        {
+            retryCount++;
+            Serial.printf("Battery monitor init attempt %d failed, retrying...\n", retryCount);
+            delay(10);
+        }
+        statuses["Battery Monitor"].initialized = (retryCount < maxRetries);
+        if (!statuses["Battery Monitor"].initialized)
+        {
+            Serial.println("Battery monitor initialization failed");
+            i2cRecoverBus();
+        }
+        else
+        {
+            i2cReinitBus(); // Adafruit_I2CDevice::begin() calls Wire.begin() without pins
+        }
+    }
+
+    // Initialize status LED (single red LED, always-on 3.3V rail)
+    Serial.println("Initializing Status LED");
+    displayInitStatus("Status LED");
+    statuses["Status LED"].initialized = initializePixel();
+    if (useMotionSensor) {
+        updateStatusLedFromMotion();
+    } else {
+        redPix(1); // dim awake indicator when PIR mirror is off
+    }
+
+    // Initialize RTC (behind TCA4307 on PSV2 rail - must be after PSV2_ON)
     Serial.println("Initializing RTC");
-    statuses["RTC"].initialized = initializeRTC();
+    displayInitStatus("RTC");
+    if (!i2cProbe(I2C_ADDR_RTC))
+    {
+        Serial.println("RTC not on bus");
+        i2cRecoverBus();
+        statuses["RTC"].initialized = false;
+    }
+    else
+    {
+        statuses["RTC"].initialized = initializeRTC();
+        if (!statuses["RTC"].initialized)
+        {
+            Serial.println("RTC initialization failed");
+            i2cRecoverBus();
+        }
+        else
+        {
+            i2cReinitBus();
+        }
+    }
 
     // Initialize temperature/humidity/pressure/gas sensor BME680
     displayInitStatus("Temp/Humidity");
     Serial.println("Initializing BME680 temperature/humidity/pressure/gas sensor");
-    statuses["Temp/Humidity"].initialized = bme.begin(0x76, &Wire);
-    if (!statuses["Temp/Humidity"].initialized)
+    if (!i2cProbe(I2C_ADDR_BME680))
     {
-        Serial.println("BME680 sensor initialization failed - check wiring on pins 8 & 9!");
+        Serial.println("BME680 not on bus");
+        i2cRecoverBus();
+        statuses["Temp/Humidity"].initialized = false;
+    }
+    else
+    {
+        statuses["Temp/Humidity"].initialized = bme.begin(I2C_ADDR_BME680, &Wire);
+        if (!statuses["Temp/Humidity"].initialized)
+        {
+            Serial.println("BME680 sensor initialization failed - check wiring on pins 8 & 9!");
+            i2cRecoverBus();
+        }
+        else
+        {
+            i2cReinitBus();
+        }
     }
 
     // Initialize light sensor
     Serial.println("Initializing Light Sensor");
     displayInitStatus("Light Sensor");
-    statuses["Light Sensor"].initialized = initializeLightSensor();
-    if (!statuses["Light Sensor"].initialized)
+    if (!i2cProbe(I2C_ADDR_LIGHT))
     {
-        Serial.println("Light sensor initialization failed");
+        Serial.println("Light sensor not on bus");
+        i2cRecoverBus();
+        statuses["Light Sensor"].initialized = false;
+    }
+    else
+    {
+        statuses["Light Sensor"].initialized = initializeLightSensor();
+        if (!statuses["Light Sensor"].initialized)
+        {
+            Serial.println("Light sensor initialization failed");
+            i2cRecoverBus();
+        }
+        else
+        {
+            i2cReinitBus();
+        }
     }
 
-    // startup front LEDs
-    Serial.println("Initializing Side LED");
+    // Initialize front LED strip (PSV3 rail)
+    Serial.println("Initializing LED Strip");
     statuses["LED Strip"].initialized = initializeStrip();
     stripRainbow(3, 1);
 
-    // Configure all GPIO pins
+    // Configure GPIO pins
     Serial.println("Initializing GPIO pins");
-    mcp.pinMode(EXP_PHOTOGATE_1, INPUT_PULLUP);
-    mcp.pinMode(1, OUTPUT);    // Configure ToF sensor XSHUT pin (pin 1, not EXP_XSHUT_1)
-    mcp.digitalWrite(1, HIGH); // Enable ToF sensor
+    // Photogates are on PSV2 rail - configure direct GPIO
+    pinMode(PHOTOGATE_1, INPUT_PULLUP);
+    pinMode(PHOTOGATE_4, INPUT_PULLUP);
+    // TRRS pins (always-on rail) - pulled up so they read HIGH when nothing is connected
     pinMode(AUDIO_TRRS_1, INPUT_PULLUP);
-    pinMode(AUDIO_TRRS_2, INPUT);
-    pinMode(AUDIO_TRRS_3, INPUT);
-    pinMode(USER_PIN_18, OUTPUT);
-    digitalWrite(USER_PIN_18, LOW);
+    pinMode(AUDIO_TRRS_2, INPUT_PULLUP);
+    pinMode(AUDIO_TRRS_3, INPUT_PULLUP);
+    // PIR already configured after power rails
 
-    // Configure haptic motor pin
+    // Configure haptic motor pin on expander (PSV2 rail)
     mcp.pinMode(EXP_HAPTIC, OUTPUT);
     mcp.digitalWrite(EXP_HAPTIC, LOW);
 
@@ -191,39 +334,47 @@ bool FED4::begin(const char *programName)
     statuses["Motor"].initialized = initializeMotor();
 
     displayInitStatus("Accelerometer");
-    statuses["Accelerometer"].initialized = initializeAccel();
-
-    displayInitStatus("Magnet sensor");
-    statuses["Magnet"].initialized = initializeMagnet();
-    if (!statuses["Magnet"].initialized)
+    if (!i2cProbe(I2C_ADDR_ACCEL))
     {
-        Serial.println("Magnet sensor initialization failed");
+        Serial.println("Accelerometer not on bus");
+        i2cRecoverBus();
+        statuses["Accelerometer"].initialized = false;
+    }
+    else
+    {
+        statuses["Accelerometer"].initialized = initializeAccel();
+        if (!statuses["Accelerometer"].initialized)
+        {
+            Serial.println("Accelerometer initialization failed");
+            i2cRecoverBus();
+        }
+        else
+        {
+            i2cReinitBus();
+        }
     }
 
     stripRainbow(3, 1);
 
-    // Initialize ToF sensor
+    // Initialize ToF sensor (always-on 3.3V, no XSHUT)
     displayInitStatus("Proximity Sensor");
-    statuses["ToF Sensor"].initialized = initializeToF();
-    if (!statuses["ToF Sensor"].initialized)
+    if (!i2cProbe(I2C_ADDR_TOF))
     {
-        Serial.println("ToF sensor initialization failed");
+        Serial.println("ToF sensor not on bus");
+        i2cRecoverBus();
+        statuses["ToF Sensor"].initialized = false;
     }
-
-    // Initialize Motion sensor (if enabled)
-    if (useMotionSensor) {
-        displayInitStatus("Motion sensor");
-        statuses["Motion"].initialized = initializeMotion();
-        if (!statuses["Motion"].initialized)
+    else
+    {
+        statuses["ToF Sensor"].initialized = initializeToF();
+        if (!statuses["ToF Sensor"].initialized)
         {
-            Serial.println("Motion sensor initialization failed");
+            Serial.println("ToF sensor initialization failed");
+            i2cRecoverBus();
         }
-    } else {
-        statuses["Motion"].initialized = true; // Mark as "initialized" (skipped)
-        Serial.println("Motion sensor (STHS34PF80) disabled by flag");
     }
 
-    // Initialize Drop sensor
+    // Initialize Drop sensor (photogate on PSV2 rail)
     displayInitStatus("Drop Sensor");
     statuses["Drop Sensor"].initialized = initializeDropSensor();
     if (!statuses["Drop Sensor"].initialized)
@@ -231,31 +382,45 @@ bool FED4::begin(const char *programName)
         Serial.println("Drop sensor not detected or not working");
     }
 
+    // Initialize solenoids
+    displayInitStatus("Solenoids");
+    statuses["Solenoids"].initialized = initializeSolenoids();
 
-    // Clear I2C buses to reset any stuck states before sensor polling
-    Wire.beginTransmission(0x00);
-    Wire.endTransmission();
-    I2C_2.beginTransmission(0x00);
-    I2C_2.endTransmission();
-    delay(5);
+    // Initialize INT_OR interrupt subsystem (active-LOW, scans ToF/RTC/BAT/Accel)
+    displayInitStatus("Interrupts");
+    statuses["INT_OR"].initialized = initializeInterrupts();
 
-    // check battery and environmental sensors
+    if (!i2cBusHealthy())
+    {
+        Serial.println("WARN: I2C still stuck after sensor init — recovering");
+        i2cRecoverBus();
+    }
+
+    // Check battery and environmental sensors
     startupPollSensors();
 
-    // Low battery check and warning
+    // Stale ToF/RTC/BAT/Accel latches hold INT_OR LOW → GPIO light-sleep wake spam.
+    // Diagnose, clear, re-check (PIR is on GPIO10, not on INT_OR).
+    printInterruptStatus("post-sensors");
+    uint8_t cleared = scanAndClearInterrupts();
+    if (cleared != INT_SRC_NONE) {
+        Serial.printf("Cleared INT_OR sources: 0x%02X\n", cleared);
+    }
+    // Force-clear all known latches even if scan missed a bit
+    clearInterrupts(INT_SRC_TOF | INT_SRC_RTC | INT_SRC_BATTERY | INT_SRC_ACCEL);
+    delay(1);
+    printInterruptStatus("after-clear");
+
+    // Low battery check — use sleep() so timer wake is enabled (not touch-only hang)
     float voltage = getBatteryVoltage();
     if (voltage > 0 && voltage < 3.55)
     {
         displayLowBatteryWarning();
         delay(50);
-        startSleep(); // Enter light sleep
+        sleep(sleepSeconds);
     }
 
-    // Initialize Speaker
-    Serial.println("Initializing Speaker");
-    displayInitStatus("Audio output");
-    statuses["Speaker"].initialized = initializeSpeaker();
-    playTone(1000, 8, 0.3); // first playTone doesn't play for some reason - need to call once to get it going?
+    // Speaker already initialized + welcome clip played early (after power rails)
 
     // Prepare SPI bus for SD card initialization
     // Ensure display CS is deselected (display uses LOW when inactive)
@@ -405,27 +570,20 @@ bool FED4::begin(const char *programName)
     Serial.println("================================\n");
 
     lightsOff();
-    
-    // temporarily unmute audio even if it is silenced
-    digitalWrite(AUDIO_SD, HIGH);
-    click();
-    delay (100);
-
-    click();
-    delay (100);
-
-    click();
-    delay (100);
+    noPix();
 
     clearDisplay();
 
     // Reset pollSensorsTimer so seconds display resets when data is written
     pollSensorsTimer = millis();
-    
+
+    // First program UI frame (sketches need not call update() in setup)
+    update();
+
     // Check if mouseId is 99 - if so, launch Pong game
     if (mouseId == "99" || mouseId == "0099") {
         Serial.println("MouseID 99 detected - launching Pong game!");
-        greenPix(5);
+        redPix(5);
         delay(200);
         
         // Launch Pong game 
