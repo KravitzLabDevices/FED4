@@ -45,7 +45,7 @@ class DateTime;
 // Sense TRRS TRIG+UART master (FED4_Submodule*) — TRRS2=TRIG, TRRS3=DATA.
 // Set to 1 here (library rebuild) to expose FED4::sense*.
 #ifndef FED4_ENABLE_SUBMODULE
-#define FED4_ENABLE_SUBMODULE 1
+#define FED4_ENABLE_SUBMODULE 0
 #endif
 
 // Set to 1 to skip waitUntil() poke logData (flicker A/B). 0 = normal SD logging.

@@ -26,23 +26,27 @@ void setup() {
     while (true) delay(10);
   }
 
-  Serial.printf("Idle L:%lu C:%lu R:%lu\n",
-                (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
-                (unsigned long)fed4TouchIdleR);
+  fed4TouchPrintCharacterization();
   fed4TouchPrintDriverConfig();
-  Serial.println("FED4 touch — smooth + rise every 100 ms");
+  Serial.println("FED4 touch — smooth + rise every 100 ms (active if rise>=thresh)");
 }
 
 void loop() {
   const uint32_t l = fed4TouchRead(TOUCH_PAD_LEFT);
   const uint32_t c = fed4TouchRead(TOUCH_PAD_CENTER);
   const uint32_t r = fed4TouchRead(TOUCH_PAD_RIGHT);
+  const float rl = fed4TouchRiseFraction(l, fed4TouchIdleL);
+  const float rc = fed4TouchRiseFraction(c, fed4TouchIdleC);
+  const float rr = fed4TouchRiseFraction(r, fed4TouchIdleR);
 
-  Serial.printf("L:%lu C:%lu R:%lu | rise L:%.3f C:%.3f R:%.3f\n",
-                (unsigned long)l, (unsigned long)c, (unsigned long)r,
-                fed4TouchRiseFraction(l, fed4TouchIdleL),
-                fed4TouchRiseFraction(c, fed4TouchIdleC),
-                fed4TouchRiseFraction(r, fed4TouchIdleR));
+  Serial.printf(
+      "L:%lu C:%lu R:%lu | rise L:%.3f%s C:%.3f%s R:%.3f%s | thr L:%.4f C:%.4f R:%.4f\n",
+      (unsigned long)l, (unsigned long)c, (unsigned long)r,
+      rl, (rl >= fed4TouchRiseThreshL) ? "*" : " ",
+      rc, (rc >= fed4TouchRiseThreshC) ? "*" : " ",
+      rr, (rr >= fed4TouchRiseThreshR) ? "*" : " ",
+      (double)fed4TouchRiseThreshL, (double)fed4TouchRiseThreshC,
+      (double)fed4TouchRiseThreshR);
 
   delay(PRINT_MS);
 }

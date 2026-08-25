@@ -23,10 +23,54 @@ void FED4::startSleep()
 {
   lastWakeSource = FedWakeSource::None;
 
-  // Wait for all touch pads to be released before sleeping
-  while (!fed4TouchPadsReleased(TOUCH_THRESHOLD))
+  // Wait for all touch pads to be released before sleeping.
+  // If idle drifted (false "touch"), re-characterize once after 2s so we
+  // don't hang forever — sampling the elevated baseline clears the stuck rise.
+  Serial.println("startSleep: waiting for pads released...");
+  Serial.flush();
   {
-    delay(1);
+    const uint32_t waitStartMs = millis();
+    uint32_t lastDiagMs = waitStartMs;
+    bool didRescueChar = false;
+    while (!fed4TouchPadsReleased(TOUCH_THRESHOLD))
+    {
+      const uint32_t nowMs = millis();
+      if (!didRescueChar && (nowMs - waitStartMs) >= 2000)
+      {
+        didRescueChar = true;
+        Serial.println("startSleep: pads stuck — re-characterizing baselines...");
+        Serial.flush();
+        (void)fed4TouchCharacterizePads();
+        continue;
+      }
+      if ((nowMs - lastDiagMs) >= 1000)
+      {
+        lastDiagMs = nowMs;
+        const uint32_t rawL = fed4TouchRead(TOUCH_PAD_LEFT);
+        const uint32_t rawC = fed4TouchRead(TOUCH_PAD_CENTER);
+        const uint32_t rawR = fed4TouchRead(TOUCH_PAD_RIGHT);
+        Serial.printf(
+            "startSleep: pads NOT released after %lu ms | "
+            "L raw=%lu idle=%lu rise=%.3f thr=%.3f | "
+            "C raw=%lu idle=%lu rise=%.3f thr=%.3f | "
+            "R raw=%lu idle=%lu rise=%.3f thr=%.3f\n",
+            (unsigned long)(nowMs - waitStartMs),
+            (unsigned long)rawL, (unsigned long)fed4TouchIdleL,
+            (double)fed4TouchRiseFraction(rawL, fed4TouchIdleL),
+            (double)fed4TouchRiseThreshL,
+            (unsigned long)rawC, (unsigned long)fed4TouchIdleC,
+            (double)fed4TouchRiseFraction(rawC, fed4TouchIdleC),
+            (double)fed4TouchRiseThreshC,
+            (unsigned long)rawR, (unsigned long)fed4TouchIdleR,
+            (double)fed4TouchRiseFraction(rawR, fed4TouchIdleR),
+            (double)fed4TouchRiseThreshR);
+        Serial.flush();
+      }
+      delay(1);
+    }
+    Serial.printf("startSleep: pads released after %lu ms\n",
+                  (unsigned long)(millis() - waitStartMs));
+    Serial.flush();
   }
 
   // Rare rebaseline (skip wakeCount==0 — first sleep already calibrated at begin)
@@ -84,6 +128,8 @@ void FED4::startSleep()
   startVcomLedc();
   esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
 
+  Serial.printf("startSleep: entering light sleep (%d s timer + touch/button wake)\n",
+                sleepSeconds);
   Serial.flush();
   esp_light_sleep_start();
 
@@ -91,6 +137,10 @@ void FED4::startSleep()
   const bool buttonHigh = digitalRead(BUTTON_1) == HIGH ||
                           digitalRead(BUTTON_2) == HIGH ||
                           digitalRead(BUTTON_3) == HIGH;
+
+  Serial.printf("startSleep: woke cause=%d buttonHigh=%d\n", (int)cause,
+                (int)buttonHigh);
+  Serial.flush();
 
   if (cause == ESP_SLEEP_WAKEUP_TOUCHPAD || fed4TouchAnyPadActive(TOUCH_THRESHOLD))
   {

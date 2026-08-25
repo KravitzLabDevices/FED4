@@ -1,6 +1,7 @@
 #include "FED4.h"
 #include "FED4_TouchHelpers.h"
 
+#include <math.h>
 #include "driver/touch_sens.h"
 
 // ---------------------------------------------------------------------------
@@ -13,6 +14,14 @@ static const uint16_t TOUCH_SLEEP_CYCLES = 500;
 uint32_t fed4TouchIdleL = 0;
 uint32_t fed4TouchIdleC = 0;
 uint32_t fed4TouchIdleR = 0;
+
+float fed4TouchStdL = 0.0f;
+float fed4TouchStdC = 0.0f;
+float fed4TouchStdR = 0.0f;
+
+float fed4TouchRiseThreshL = TOUCH_THRESHOLD;
+float fed4TouchRiseThreshC = TOUCH_THRESHOLD;
+float fed4TouchRiseThreshR = TOUCH_THRESHOLD;
 
 uint8_t FED4::wakePad = 0; // 0=none, 1=left, 2=center, 3=right (sync of FedPad; not an ISR latch)
 
@@ -122,44 +131,160 @@ static uint32_t fed4TouchNgReadChannel(uint8_t pin, touch_chan_data_type_t type)
   return value[0];
 }
 
-static uint32_t robustIdleAverage(uint8_t pad)
+typedef struct
 {
-  const int samples = 16;
-  uint64_t sum = 0;
-  uint32_t lo = UINT32_MAX, hi = 0;
-  for (int i = 0; i < samples; i++)
-  {
-    uint32_t v = fed4TouchNgReadChannel(pad, TOUCH_CHAN_DATA_TYPE_SMOOTH);
-    sum += v;
-    if (v < lo)
-      lo = v;
-    if (v > hi)
-      hi = v;
-    delay(5);
-  }
-  return (uint32_t)((sum - lo - hi) / (samples - 2));
+  uint32_t mean;
+  float stddev;
+  float riseThresh;
+} Fed4TouchPadStats;
+
+static float clampf(float v, float lo, float hi)
+{
+  if (v < lo)
+    return lo;
+  if (v > hi)
+    return hi;
+  return v;
 }
 
-/** Warm filter, measure idle, apply wake thresholds. Shared by init + calibrate. */
-static bool fed4TouchRefreshIdleBaselines(int warmPasses, int warmDelayMs)
+static void characterizeAllPads(Fed4TouchPadStats *outL, Fed4TouchPadStats *outC,
+                                Fed4TouchPadStats *outR)
 {
-  for (int i = 0; i < warmPasses; i++)
+  uint32_t samplesL[TOUCH_CHAR_SAMPLES];
+  uint32_t samplesC[TOUCH_CHAR_SAMPLES];
+  uint32_t samplesR[TOUCH_CHAR_SAMPLES];
+  uint64_t sumL = 0, sumC = 0, sumR = 0;
+
+  for (int i = 0; i < TOUCH_CHAR_SAMPLES; i++)
+  {
+    samplesL[i] = fed4TouchNgReadChannel(TOUCH_PAD_LEFT, TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    samplesC[i] = fed4TouchNgReadChannel(TOUCH_PAD_CENTER, TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    samplesR[i] = fed4TouchNgReadChannel(TOUCH_PAD_RIGHT, TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    sumL += samplesL[i];
+    sumC += samplesC[i];
+    sumR += samplesR[i];
+    delay(TOUCH_CHAR_INTERVAL_MS);
+  }
+
+  auto finishPad = [](uint32_t *samples, uint64_t sum, Fed4TouchPadStats *out) {
+    const double mean = (double)sum / (double)TOUCH_CHAR_SAMPLES;
+    double varAcc = 0.0;
+    for (int i = 0; i < TOUCH_CHAR_SAMPLES; i++)
+    {
+      const double d = (double)samples[i] - mean;
+      varAcc += d * d;
+    }
+    const float stddev = (float)sqrt(varAcc / (double)TOUCH_CHAR_SAMPLES);
+    // Absolute delta from noise — equal poke capacitance → similar wake ease
+    // across pads with very different baselines (Left ~220k vs C/R ~130–140k).
+    float absDelta = TOUCH_CHAR_SIGMA * stddev + TOUCH_CHAR_ABS_MARGIN;
+    if (absDelta < TOUCH_CHAR_ABS_MIN)
+      absDelta = TOUCH_CHAR_ABS_MIN;
+    const float rise =
+        (mean > 0.0) ? (absDelta / (float)mean) : TOUCH_RISE_MIN;
+    out->mean = (uint32_t)(mean + 0.5);
+    out->stddev = stddev;
+    out->riseThresh = clampf(rise, TOUCH_RISE_MIN, TOUCH_RISE_MAX);
+  };
+
+  finishPad(samplesL, sumL, outL);
+  finishPad(samplesC, sumC, outC);
+  finishPad(samplesR, sumR, outR);
+}
+
+static bool fed4TouchAbsorbResidualOffset(void)
+{
+  // If a pad still looks "active" vs the new mean (settle after sampling),
+  // lift idle to the current reading so release-wait cannot hang.
+  const uint8_t pads[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+  uint32_t *idles[3] = {&fed4TouchIdleL, &fed4TouchIdleC, &fed4TouchIdleR};
+  float *threshs[3] = {&fed4TouchRiseThreshL, &fed4TouchRiseThreshC,
+                       &fed4TouchRiseThreshR};
+  bool adjusted = false;
+
+  for (int i = 0; i < 3; i++)
+  {
+    const uint32_t raw = fed4TouchNgReadChannel(pads[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    const float rise = fed4TouchRiseFraction(raw, *idles[i]);
+    if (rise >= *threshs[i] && raw > *idles[i])
+    {
+      Serial.printf("Touch: pad %d residual rise=%.3f — absorbing into idle (%lu → %lu)\n",
+                    pads[i], (double)rise, (unsigned long)*idles[i],
+                    (unsigned long)raw);
+      *idles[i] = raw;
+      adjusted = true;
+    }
+  }
+  return adjusted;
+}
+
+/** Warm filter, characterize mean/std, set per-pad rise thresh + HW wake. */
+bool fed4TouchCharacterizePads(void)
+{
+  Serial.println("Touch: characterizing baselines (keep pads clear)...");
+  Serial.flush();
+
+  const uint32_t warmStart = millis();
+  while ((millis() - warmStart) < TOUCH_CHAR_WARM_MS)
   {
     fed4TouchRead(TOUCH_PAD_LEFT);
     fed4TouchRead(TOUCH_PAD_CENTER);
     fed4TouchRead(TOUCH_PAD_RIGHT);
-    delay(warmDelayMs);
+    delay(10);
   }
 
-  fed4TouchIdleL = robustIdleAverage(TOUCH_PAD_LEFT);
-  fed4TouchIdleC = robustIdleAverage(TOUCH_PAD_CENTER);
-  fed4TouchIdleR = robustIdleAverage(TOUCH_PAD_RIGHT);
-  if (!fed4TouchIdleL || !fed4TouchIdleC || !fed4TouchIdleR)
+  Fed4TouchPadStats statsL = {};
+  Fed4TouchPadStats statsC = {};
+  Fed4TouchPadStats statsR = {};
+  characterizeAllPads(&statsL, &statsC, &statsR);
+
+  if (!statsL.mean || !statsC.mean || !statsR.mean)
     return false;
 
-  return fed4TouchNgApplyThresholds(fed4TouchWakeThreshold(fed4TouchIdleL),
-                                    fed4TouchWakeThreshold(fed4TouchIdleC),
-                                    fed4TouchWakeThreshold(fed4TouchIdleR));
+  fed4TouchIdleL = statsL.mean;
+  fed4TouchIdleC = statsC.mean;
+  fed4TouchIdleR = statsR.mean;
+  fed4TouchStdL = statsL.stddev;
+  fed4TouchStdC = statsC.stddev;
+  fed4TouchStdR = statsR.stddev;
+  fed4TouchRiseThreshL = statsL.riseThresh;
+  fed4TouchRiseThreshC = statsC.riseThresh;
+  fed4TouchRiseThreshR = statsR.riseThresh;
+
+  if (fed4TouchAbsorbResidualOffset())
+  {
+    (void)fed4TouchAbsorbResidualOffset();
+  }
+
+  fed4TouchPrintCharacterization();
+
+  return fed4TouchNgApplyThresholds(
+      fed4TouchWakeThresholdForPad(fed4TouchIdleL, fed4TouchRiseThreshL),
+      fed4TouchWakeThresholdForPad(fed4TouchIdleC, fed4TouchRiseThreshC),
+      fed4TouchWakeThresholdForPad(fed4TouchIdleR, fed4TouchRiseThreshR));
+}
+
+void fed4TouchPrintCharacterization(void)
+{
+  const uint32_t wakeL =
+      fed4TouchWakeThresholdForPad(fed4TouchIdleL, fed4TouchRiseThreshL);
+  const uint32_t wakeC =
+      fed4TouchWakeThresholdForPad(fed4TouchIdleC, fed4TouchRiseThreshC);
+  const uint32_t wakeR =
+      fed4TouchWakeThresholdForPad(fed4TouchIdleR, fed4TouchRiseThreshR);
+  Serial.printf(
+      "Touch char L: idle=%lu std=%.1f riseThresh=%.4f wakeAbs=%lu\n",
+      (unsigned long)fed4TouchIdleL, (double)fed4TouchStdL,
+      (double)fed4TouchRiseThreshL, (unsigned long)wakeL);
+  Serial.printf(
+      "Touch char C: idle=%lu std=%.1f riseThresh=%.4f wakeAbs=%lu\n",
+      (unsigned long)fed4TouchIdleC, (double)fed4TouchStdC,
+      (double)fed4TouchRiseThreshC, (unsigned long)wakeC);
+  Serial.printf(
+      "Touch char R: idle=%lu std=%.1f riseThresh=%.4f wakeAbs=%lu\n",
+      (unsigned long)fed4TouchIdleR, (double)fed4TouchStdR,
+      (double)fed4TouchRiseThreshR, (unsigned long)wakeR);
+  Serial.flush();
 }
 
 float fed4TouchRiseFraction(uint32_t raw, uint32_t idle)
@@ -171,8 +296,13 @@ float fed4TouchRiseFraction(uint32_t raw, uint32_t idle)
 
 uint32_t fed4TouchWakeThreshold(uint32_t idle)
 {
-  // NG active_thresh is a delta above benchmark
-  return (uint32_t)(idle * TOUCH_THRESHOLD);
+  // NG active_thresh is a delta above benchmark (legacy helper uses floor).
+  return fed4TouchWakeThresholdForPad(idle, TOUCH_THRESHOLD);
+}
+
+uint32_t fed4TouchWakeThresholdForPad(uint32_t idle, float riseThresh)
+{
+  return (uint32_t)(idle * riseThresh);
 }
 
 uint32_t fed4TouchRead(uint8_t pin)
@@ -182,10 +312,23 @@ uint32_t fed4TouchRead(uint8_t pin)
 
 bool fed4TouchPadsReleased(float riseLimit)
 {
+  // Prefer characterized per-pad thresholds. riseLimit is only an override when
+  // it is *lower* (stricter release / more sensitive detect) — never a floor,
+  // or high-baseline pads (Left) stay stuck behind a large % of idle.
+  const float thrL =
+      (riseLimit > 0.0f && riseLimit < fed4TouchRiseThreshL) ? riseLimit
+                                                             : fed4TouchRiseThreshL;
+  const float thrC =
+      (riseLimit > 0.0f && riseLimit < fed4TouchRiseThreshC) ? riseLimit
+                                                             : fed4TouchRiseThreshC;
+  const float thrR =
+      (riseLimit > 0.0f && riseLimit < fed4TouchRiseThreshR) ? riseLimit
+                                                             : fed4TouchRiseThreshR;
+
   const float fl = fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_LEFT), fed4TouchIdleL);
   const float fc = fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_CENTER), fed4TouchIdleC);
   const float fr = fed4TouchRiseFraction(fed4TouchRead(TOUCH_PAD_RIGHT), fed4TouchIdleR);
-  return fl < riseLimit && fc < riseLimit && fr < riseLimit;
+  return fl < thrL && fc < thrC && fr < thrR;
 }
 
 bool fed4TouchAnyPadActive(float riseLimit)
@@ -200,7 +343,7 @@ bool fed4TouchInitPads(void)
     if (!fed4TouchNgCreateController())
       return false;
   }
-  return fed4TouchRefreshIdleBaselines(8, 10);
+  return fed4TouchCharacterizePads();
 }
 
 bool fed4TouchEnableTouchpadWakeup(void)
@@ -218,13 +361,32 @@ int fed4TouchIdentifyWakePadIndex(float triggerRise)
   const float fc = fed4TouchRiseFraction(c, fed4TouchIdleC);
   const float fr = fed4TouchRiseFraction(r, fed4TouchIdleR);
 
-  const float maxRise = max(max(fl, fc), fr);
-  if (maxRise < triggerRise)
+  const float thrL =
+      (triggerRise > 0.0f && triggerRise < fed4TouchRiseThreshL) ? triggerRise
+                                                                 : fed4TouchRiseThreshL;
+  const float thrC =
+      (triggerRise > 0.0f && triggerRise < fed4TouchRiseThreshC) ? triggerRise
+                                                                 : fed4TouchRiseThreshC;
+  const float thrR =
+      (triggerRise > 0.0f && triggerRise < fed4TouchRiseThreshR) ? triggerRise
+                                                                 : fed4TouchRiseThreshR;
+
+  const bool aL = fl >= thrL;
+  const bool aC = fc >= thrC;
+  const bool aR = fr >= thrR;
+  if (!aL && !aC && !aR)
     return 0;
 
-  if (fl >= fc && fl >= fr)
+  if (aL && fl >= fc && fl >= fr)
     return 1;
-  if (fc >= fr)
+  if (aC && fc >= fr)
+    return 2;
+  if (aR)
+    return 3;
+  // Fallback: strongest among those that cleared their thresh
+  if (aL)
+    return 1;
+  if (aC)
     return 2;
   return 3;
 }
@@ -246,7 +408,12 @@ const char *fed4TouchIdentifyWakePad(float triggerRise)
 
 void fed4TouchPrintDriverConfig(void)
 {
-  Serial.println("Touch: NG direct driver + BM IIR16 + BM denoise4 + debounce1");
+  Serial.println("Touch: NG driver + BM IIR16 + denoise4 + debounce1");
+  Serial.printf(
+      "Touch: char warm=%ums n=%d dt=%ums sigma=%.1f absMin=%.0f absMargin=%.0f\n",
+      (unsigned)TOUCH_CHAR_WARM_MS, TOUCH_CHAR_SAMPLES,
+      (unsigned)TOUCH_CHAR_INTERVAL_MS, (double)TOUCH_CHAR_SIGMA,
+      (double)TOUCH_CHAR_ABS_MIN, (double)TOUCH_CHAR_ABS_MARGIN);
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +443,10 @@ void FED4::calibrateTouchSensors(bool checkStability)
     }
   }
 
-  fed4TouchRefreshIdleBaselines(8, 5);
+  if (!fed4TouchCharacterizePads())
+  {
+    Serial.println("Touch: characterization FAILED");
+  }
   fed4TouchEnableTouchpadWakeup();
   wakePad = 0;
 }

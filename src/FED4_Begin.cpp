@@ -315,12 +315,14 @@ bool FED4::begin(const char *programName)
     mcp.pinMode(EXP_HAPTIC, OUTPUT);
     mcp.digitalWrite(EXP_HAPTIC, LOW);
 
-    // Initialize Touch
+    // Initialize Touch (full mean/std characterization — keep pads clear)
     Serial.println("Initializing Touch Sensors");
     displayInitStatus("Touch Sensors");
     statuses["Touch Sensors"].initialized = initializeTouch();
-    calibrateTouchSensors(true);  // Check stability at startup
-
+    if (!statuses["Touch Sensors"].initialized)
+    {
+        Serial.println("Touch initialization / characterization failed");
+    }
     // Initialize Buttons
     Serial.println("Initializing Buttons");
     statuses["Buttons"].initialized = initializeButtons();
