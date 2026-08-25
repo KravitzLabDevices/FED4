@@ -5,9 +5,12 @@ The FED4 uses a **Sharp Memory Display** (SPI, **DISPLAY_CS** = 17), **144×168*
 **Initialization and refresh**
 
 - **`initializeDisplay()`** — init display, allocate buffer, clear (called from `begin()`).
-- **`updateDisplay()`** — redraw status (task, mouse ID, env, battery, SD, counters, indicators, date/time). Called from `run()` and elsewhere.
+- **`updateDisplay()`** — full status redraw (task, mouse ID, env, battery, SD, counters, indicators, date/time). Used by `update(Full)`.
+- **`updateDisplayPoke()`** — counters + indicators only (no buffer clear). Used by `update(Poke)` after touch in `waitUntil()`.
 - **`refresh()`** — push the backing buffer to the display. Call after drawing.
 - **`clearDisplay()`** — clear buffer (white) and refresh.
+
+**`update()` modes** (`FedUpdateMode`): **Full** (default) = sensors + full UI + Hublink; **Poke** = skip sensors, patch counters/indicators, serial only. Timer wakes and post-`feed()` keep Full for research telemetry.
 
 **Status helpers (used by `updateDisplay`)**
 

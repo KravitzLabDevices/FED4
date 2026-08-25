@@ -73,14 +73,6 @@ void FED4::startSleep()
     Serial.flush();
   }
 
-  // Rare rebaseline (skip wakeCount==0 — first sleep already calibrated at begin)
-  if (wakeCount > 0 && wakeCount % 200 == 0)
-  {
-    calibrateTouchSensors();
-    Serial.println("********** Touch sensors calibrated **********");
-    delay(1);
-  }
-
   // Clear poke latches and push to MIP — panel retains pixels until refresh
   resetTouchFlags();
   wakePad = 0;
@@ -122,6 +114,7 @@ void FED4::startSleep()
   gpio_wakeup_enable((gpio_num_t)BUTTON_3, GPIO_INTR_HIGH_LEVEL);
   esp_sleep_enable_gpio_wakeup();
 
+  fed4TouchClearWakePadLatch();
   fed4TouchEnableTouchpadWakeup();
 
   // Continuous VCOM via LEDC through one full-duration light sleep
@@ -132,6 +125,9 @@ void FED4::startSleep()
                 sleepSeconds);
   Serial.flush();
   esp_light_sleep_start();
+
+  fed4PokeTimingReset();
+  fed4PokeTimingMark(FED4_POKE_T_WAKE);
 
   const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
   const bool buttonHigh = digitalRead(BUTTON_1) == HIGH ||
@@ -218,6 +214,14 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
     }
   }
 
+  fed4PokeTimingMark(FED4_POKE_T_CLASSIFIED);
+
+  // LED only when a poke pad was resolved (not timer / not touch-wake without ID)
+  if (event.source == FedWakeSource::Touch && event.pad != FedPad::None)
+  {
+    redPix(1);
+  }
+
 #if !FED4_DIAG_SKIP_SD_LOG
   if (event.source == FedWakeSource::Touch)
   {
@@ -240,8 +244,25 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
     Serial.println("DIAG: skip poke logData (FED4_DIAG_SKIP_SD_LOG)");
   }
 #endif
+  fed4PokeTimingMark(FED4_POKE_T_LOG_DONE);
 
-  update();
+  // Poke: skip sensors + full redraw (counters/indicators only). Timer/button: full.
+  const bool pokeFast = (event.source == FedWakeSource::Touch &&
+                         event.pad != FedPad::None);
+  update(pokeFast ? FedUpdateMode::Poke : FedUpdateMode::Full);
+  fed4PokeTimingMark(FED4_POKE_T_UPDATE_DONE);
+
+  if (event.source == FedWakeSource::Touch)
+  {
+    const char *padName = "none";
+    if (event.pad == FedPad::Left)
+      padName = "Left";
+    else if (event.pad == FedPad::Center)
+      padName = "Center";
+    else if (event.pad == FedPad::Right)
+      padName = "Right";
+    fed4PokeTimingPrint(padName);
+  }
 
   return event;
 }
@@ -249,6 +270,7 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
 void FED4::wakeUp()
 {
   wakeCount++;
+  fed4PokeTimingMark(FED4_POKE_T_WAKEUP);
 
   esp_sleep_wakeup_cause_t wakeCause = esp_sleep_get_wakeup_cause();
 
@@ -299,7 +321,9 @@ void FED4::wakeUp()
       lastWakeSource == FedWakeSource::Touch ||
       fed4TouchAnyPadActive(TOUCH_THRESHOLD))
   {
+    fed4PokeTimingMark(FED4_POKE_T_PRE_CAPTURE);
     capturePoke();
+    fed4PokeTimingMark(FED4_POKE_T_CAPTURE_DONE);
   }
 
   if (lastWakeSource == FedWakeSource::Button ||

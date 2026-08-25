@@ -71,6 +71,17 @@ void FED4::updateDisplay() {
   refresh();
 }
 
+void FED4::updateDisplayPoke()
+{
+  // Keep existing status frame; only patch poke-related regions then push panel.
+  setFont(nullptr);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+  displayCounters();
+  displayIndicators();
+  refresh();
+}
+
 void FED4::displayActivityMonitor() {
   // Use the same layout as normal FED4 display but replace counters and indicators
   displayTask();

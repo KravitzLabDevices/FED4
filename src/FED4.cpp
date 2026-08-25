@@ -62,9 +62,17 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
 /********************************************************
  * Core Functions
  ********************************************************/
-void FED4::update()
+void FED4::update(FedUpdateMode mode)
 {
     updateTime();
+
+    if (mode == FedUpdateMode::Poke)
+    {
+        updateDisplayPoke();
+        serialStatusReport();
+        return;
+    }
+
     refreshSensors();
     updateDisplay();
     serialStatusReport();

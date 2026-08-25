@@ -222,13 +222,6 @@ void FED4::finishFeeding()
     leftTouch = false;
     centerTouch = false;
     rightTouch = false;
-
-    reBaselineTouches = 3;
-    if ((leftCount + rightCount + centerCount) % reBaselineTouches == 0 &&
-        (leftCount + rightCount + centerCount) > 5)
-    {
-        calibrateTouchSensors();
-    }
 }
 
 /**

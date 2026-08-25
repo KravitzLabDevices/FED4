@@ -54,6 +54,11 @@ class DateTime;
 #define FED4_DIAG_SKIP_SD_LOG 0
 #endif
 
+// Set to 1 to print waitUntil poke-path micros marks (see docs/wiki/Poke-Functionality.md).
+#ifndef FED4_DIAG_POKE_TIMING
+#define FED4_DIAG_POKE_TIMING 1
+#endif
+
 // Board Version: v1.7
 #define FED4_BOARD_VERSION_STR "1.7.0"
 
@@ -88,6 +93,13 @@ enum class FedWakeSource : uint8_t
     Button,
     Timer,    // UI update interval deadline
     Interrupt // INT_OR GPIO (non-button)
+};
+
+/** How heavy update() should be (research: Full on timer / after feed; Poke after pad). */
+enum class FedUpdateMode : uint8_t
+{
+    Full = 0, // RTC + sensors + full status redraw + serial + Hublink
+    Poke = 1  // RTC + counters/indicators only + serial (skip sensors / full clear)
 };
 
 /** Touch pad identity for FedEvent::pad. */
@@ -138,8 +150,9 @@ public:
     // Corefunctions
     void feed();
     void run(); // legacy: update() + sleep(sleepSeconds)
-    /** Refresh clock/display/serial/hublink — call after feed() or when UI must change. */
-    void update();
+    /** Refresh UI/telemetry. Full = sensors + complete status screen (default).
+     *  Poke = skip sensors; redraw counters/indicators only (waitUntil touch path). */
+    void update(FedUpdateMode mode = FedUpdateMode::Full);
     /**
      * Light-sleep until touch, button, or updateIntervalSeconds.
      * MIP VCOM is kept alive by LEDC during sleep (no CPU wake chunks).
@@ -222,10 +235,10 @@ public:
     // Touch sensor management (defined in FED4_Touch.cpp; free helpers in FED4_TouchHelpers.h)
     bool initializeTouch();
     void calibrateTouchSensors(bool checkStability = false);
-    /** Identify active poke (rise fraction); sets flags/counts/pokeDuration/wakePad. */
+    /** Resolve poke pad + pokeDuration; HW wake channel after sleep, else rise identify. */
     bool capturePoke();
     void resetTouchFlags();
-    /** 0=none, 1=left, 2=center, 3=right — sync of FedPad after capturePoke; not an ISR latch. */
+    /** 0=none, 1=left, 2=center, 3=right — set by capturePoke (HW wake status or rise). */
     static uint8_t wakePad;
 
     // Status LED and Strip control (defined in FED4_LEDs.cpp)
@@ -264,6 +277,8 @@ public:
     // Display functions (defined in FED4_Display.cpp)
     bool initializeDisplay();
     void updateDisplay();
+    /** Counters + poke/pellet indicators only (no buffer clear / ENV redraw). */
+    void updateDisplayPoke();
     void displayTask();
     void displayMouseId();
     void displayStrain();
@@ -441,7 +456,6 @@ public:
     float retrievalTime;
     float pokeDuration = 0.0;
     int motorTurns;
-    int reBaselineTouches;
     char filename[32];
     bool sdCardAvailable = true; // Track if SD card operations are available
     bool audioSilenced = false;  // Track if audio has been silenced

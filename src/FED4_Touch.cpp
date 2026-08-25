@@ -23,7 +23,11 @@ float fed4TouchRiseThreshL = TOUCH_THRESHOLD;
 float fed4TouchRiseThreshC = TOUCH_THRESHOLD;
 float fed4TouchRiseThreshR = TOUCH_THRESHOLD;
 
-uint8_t FED4::wakePad = 0; // 0=none, 1=left, 2=center, 3=right (sync of FedPad; not an ISR latch)
+uint32_t fed4TouchWakeAbsL = 0;
+uint32_t fed4TouchWakeAbsC = 0;
+uint32_t fed4TouchWakeAbsR = 0;
+
+uint8_t FED4::wakePad = 0; // 0=none, 1=left, 2=center, 3=right
 
 static touch_sensor_handle_t sTouchSens = NULL;
 static touch_channel_handle_t sTouchChanLeft = NULL;
@@ -31,11 +35,50 @@ static touch_channel_handle_t sTouchChanCenter = NULL;
 static touch_channel_handle_t sTouchChanRight = NULL;
 static touch_channel_handle_t sTouchChanByPad[TOUCH_PAD_MAX] = {};
 
+// Light sleep: esp_sleep_get_touchpad_wakeup_status() is deep-sleep-only.
+// Latch the channel the NG driver reports active (ISR / post-wake).
+static volatile int sTouchActiveChanId = -1;
+static volatile uint32_t sTouchActiveMask = 0;
+static int sTouchLastResolvedChan = -1; // for POKE_TIMING (survives latch clear)
+
+static int fed4TouchChanIdToPadIndex(int chanId)
+{
+  if (chanId == TOUCH_PAD_LEFT)
+    return 1;
+  if (chanId == TOUCH_PAD_CENTER)
+    return 2;
+  if (chanId == TOUCH_PAD_RIGHT)
+    return 3;
+  return 0;
+}
+
+static bool IRAM_ATTR fed4TouchOnActive(touch_sensor_handle_t,
+                                        const touch_active_event_data_t *event,
+                                        void *)
+{
+  if (event)
+  {
+    sTouchActiveChanId = event->chan_id;
+    sTouchActiveMask = event->status_mask;
+  }
+  return false;
+}
+
+static void fed4TouchClearActiveLatch(void)
+{
+  sTouchActiveChanId = -1;
+  sTouchActiveMask = 0;
+}
+
 static touch_sensor_filter_config_t fed4TouchFilterConfig()
 {
+  // Prefer edge speed over heavy averaging — software rise uses smooth/raw
+  // vs characterized idle; HW wake still has BM + abs thresh for noise.
   touch_sensor_filter_config_t cfg = TOUCH_SENSOR_DEFAULT_FILTER_CONFIG();
-  cfg.benchmark.filter_mode = TOUCH_BM_IIR_FILTER_16;
-  cfg.benchmark.denoise_lvl = 4;
+  cfg.benchmark.filter_mode = TOUCH_BM_IIR_FILTER_8;
+  cfg.benchmark.denoise_lvl = 2;
+  cfg.data.smooth_filter = TOUCH_SMOOTH_NO_FILTER;
+  cfg.data.active_hysteresis = 1;
   cfg.data.debounce_cnt = 1;
   return cfg;
 }
@@ -80,6 +123,11 @@ static bool fed4TouchNgCreateController()
   if (!fed4TouchNgAddChannel(TOUCH_PAD_RIGHT, &sTouchChanRight))
     return false;
 
+  touch_event_callbacks_t cbs = {};
+  cbs.on_active = fed4TouchOnActive;
+  if (touch_sensor_register_callbacks(sTouchSens, &cbs, NULL) != ESP_OK)
+    return false;
+
 #if SOC_TOUCH_SUPPORT_SLEEP_WAKEUP
   touch_sleep_config_t sleep_cfg = TOUCH_SENSOR_DEFAULT_LSLP_CONFIG();
   if (touch_sensor_config_sleep_wakeup(sTouchSens, &sleep_cfg) != ESP_OK)
@@ -98,6 +146,10 @@ static bool fed4TouchNgApplyThresholds(uint32_t threshL, uint32_t threshC,
 {
   const int pads[] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
   const uint32_t thresh[] = {threshL, threshC, threshR};
+
+  fed4TouchWakeAbsL = threshL;
+  fed4TouchWakeAbsC = threshC;
+  fed4TouchWakeAbsR = threshR;
 
   if (!fed4TouchNgStopDisable())
     return false;
@@ -351,6 +403,84 @@ bool fed4TouchEnableTouchpadWakeup(void)
   return esp_sleep_enable_touchpad_wakeup() == ESP_OK;
 }
 
+void fed4TouchClearWakePadLatch(void)
+{
+  fed4TouchClearActiveLatch();
+}
+
+/**
+ * Resolve which pad the hardware considers active.
+ * Light sleep: esp_sleep_get_touchpad_wakeup_status() is deep-sleep-only — ignore it.
+ * Prefer on_active latch, then (smooth − benchmark) vs configured wakeAbs.
+ */
+int fed4TouchPadIndexFromHwWakeStatus(void)
+{
+  // 1) Driver latch (set when channel goes active — including after sleep wake)
+  int pad = fed4TouchChanIdToPadIndex(sTouchActiveChanId);
+  if (pad)
+  {
+    sTouchLastResolvedChan = sTouchActiveChanId;
+    return pad;
+  }
+
+  if (sTouchActiveMask)
+  {
+    // Prefer strongest among bits set in status_mask (BIT(chan_id))
+    int32_t bestDelta = -1;
+    int bestPad = 0;
+    int bestChan = -1;
+    const int chans[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+    for (int i = 0; i < 3; i++)
+    {
+      if (!(sTouchActiveMask & (1u << chans[i])))
+        continue;
+      const uint32_t sm =
+          fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+      const uint32_t bm =
+          fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+      const int32_t d = (int32_t)sm - (int32_t)bm;
+      if (d > bestDelta)
+      {
+        bestDelta = d;
+        bestPad = i + 1; // L=1,C=2,R=3
+        bestChan = chans[i];
+      }
+    }
+    if (bestPad)
+    {
+      sTouchLastResolvedChan = bestChan;
+      return bestPad;
+    }
+  }
+
+  // 2) Same model as HW wake: smooth − benchmark ≥ active_thresh
+  const uint8_t pins[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+  const uint32_t absThr[3] = {fed4TouchWakeAbsL, fed4TouchWakeAbsC,
+                              fed4TouchWakeAbsR};
+  int32_t bestDelta = -1;
+  int bestPad = 0;
+  int bestChan = -1;
+  for (int i = 0; i < 3; i++)
+  {
+    if (!absThr[i])
+      continue;
+    const uint32_t sm =
+        fed4TouchNgReadChannel(pins[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    const uint32_t bm =
+        fed4TouchNgReadChannel(pins[i], TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+    const int32_t d = (int32_t)sm - (int32_t)bm;
+    if (d >= (int32_t)absThr[i] && d > bestDelta)
+    {
+      bestDelta = d;
+      bestPad = i + 1;
+      bestChan = pins[i];
+    }
+  }
+  if (bestPad)
+    sTouchLastResolvedChan = bestChan;
+  return bestPad;
+}
+
 int fed4TouchIdentifyWakePadIndex(float triggerRise)
 {
   const uint32_t l = fed4TouchRead(TOUCH_PAD_LEFT);
@@ -408,13 +538,57 @@ const char *fed4TouchIdentifyWakePad(float triggerRise)
 
 void fed4TouchPrintDriverConfig(void)
 {
-  Serial.println("Touch: NG driver + BM IIR16 + denoise4 + debounce1");
+  Serial.println("Touch: NG driver + BM IIR8 + denoise2 + smooth=raw + debounce1");
   Serial.printf(
       "Touch: char warm=%ums n=%d dt=%ums sigma=%.1f absMin=%.0f absMargin=%.0f\n",
       (unsigned)TOUCH_CHAR_WARM_MS, TOUCH_CHAR_SAMPLES,
       (unsigned)TOUCH_CHAR_INTERVAL_MS, (double)TOUCH_CHAR_SIGMA,
       (double)TOUCH_CHAR_ABS_MIN, (double)TOUCH_CHAR_ABS_MARGIN);
 }
+
+#if FED4_DIAG_POKE_TIMING
+static uint32_t sPokeT0Us = 0;
+static uint32_t sPokeMarkUs[FED4_POKE_T_COUNT];
+static uint8_t sPokeMarkSet = 0;
+
+void fed4PokeTimingReset(void)
+{
+  sPokeT0Us = micros();
+  sPokeMarkSet = 0;
+  for (int i = 0; i < FED4_POKE_T_COUNT; i++)
+    sPokeMarkUs[i] = 0;
+}
+
+void fed4PokeTimingMark(int id)
+{
+  if (id < 0 || id >= FED4_POKE_T_COUNT)
+    return;
+  sPokeMarkUs[id] = micros() - sPokeT0Us;
+  sPokeMarkSet |= (uint8_t)(1u << id);
+}
+
+void fed4PokeTimingPrint(const char *note)
+{
+  auto us = [](int id) -> unsigned long {
+    return (unsigned long)sPokeMarkUs[id];
+  };
+  Serial.printf(
+      "POKE_TIMING %s us: wake=%lu wakeUp=%lu preCap=%lu id=%lu capDone=%lu "
+      "class=%lu log=%lu update=%lu | gpioChan=%d mask=0x%lx\n",
+      note ? note : "",
+      us(FED4_POKE_T_WAKE), us(FED4_POKE_T_WAKEUP), us(FED4_POKE_T_PRE_CAPTURE),
+      us(FED4_POKE_T_IDENTIFIED), us(FED4_POKE_T_CAPTURE_DONE),
+      us(FED4_POKE_T_CLASSIFIED), us(FED4_POKE_T_LOG_DONE),
+      us(FED4_POKE_T_UPDATE_DONE),
+      sTouchLastResolvedChan, (unsigned long)sTouchActiveMask);
+  Serial.flush();
+  (void)sPokeMarkSet;
+}
+#else
+void fed4PokeTimingReset(void) {}
+void fed4PokeTimingMark(int id) { (void)id; }
+void fed4PokeTimingPrint(const char *note) { (void)note; }
+#endif
 
 // ---------------------------------------------------------------------------
 // FED4 class API
@@ -452,8 +626,9 @@ void FED4::calibrateTouchSensors(bool checkStability)
 }
 
 /**
- * Identify an active poke via rise fraction (same model as unit tests).
- * After light sleep the NG smooth filter needs a few samples before rise is valid.
+ * Resolve poke pad + measure hold time (pokeDuration).
+ * After light-sleep touch wake: HW latch / (smooth−benchmark) — not esp_sleep
+ * touchpad status (deep-sleep only). Awake: same HW model, then rise fallback.
  */
 bool FED4::capturePoke()
 {
@@ -461,14 +636,30 @@ bool FED4::capturePoke()
   wakePad = 0;
   pokeDuration = 0.0f;
 
-  int padIndex = 0;
-  for (int attempt = 0; attempt < 25 && padIndex == 0; attempt++)
+  int padIndex = fed4TouchPadIndexFromHwWakeStatus();
+  if (padIndex == 0)
   {
-    delay(2);
-    padIndex = fed4TouchIdentifyWakePadIndex(TOUCH_THRESHOLD);
+    // Brief settle then re-check HW model (scanning resumes after sleep)
+    for (int attempt = 0; attempt < 8 && padIndex == 0; attempt++)
+    {
+      delay(1);
+      padIndex = fed4TouchPadIndexFromHwWakeStatus();
+    }
   }
   if (padIndex == 0)
+  {
+    padIndex = fed4TouchIdentifyWakePadIndex(TOUCH_THRESHOLD);
+    for (int attempt = 0; attempt < 8 && padIndex == 0; attempt++)
+    {
+      delay(1);
+      padIndex = fed4TouchIdentifyWakePadIndex(TOUCH_THRESHOLD);
+    }
+  }
+  fed4TouchClearActiveLatch();
+  if (padIndex == 0)
     return false;
+
+  fed4PokeTimingMark(FED4_POKE_T_IDENTIFIED);
 
   const unsigned long touchStartTime = millis();
   const unsigned long maxSamplingTime_ms = 500;

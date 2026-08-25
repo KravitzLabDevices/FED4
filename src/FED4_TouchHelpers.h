@@ -76,9 +76,31 @@ void fed4TouchPrintCharacterization(void);
 
 /** 0 = none, 1 = left, 2 = center, 3 = right (matches FedPad). */
 int fed4TouchIdentifyWakePadIndex(float triggerRise);
+/** Map active HW channel → FedPad index (0 if none).
+ *  Light sleep: uses on_active latch and/or smooth−benchmark vs wakeAbs
+ *  (esp_sleep_get_touchpad_wakeup_status is deep-sleep-only — not used). */
+int fed4TouchPadIndexFromHwWakeStatus(void);
+/** Clear on_active latch (call before entering light sleep). */
+void fed4TouchClearWakePadLatch(void);
 /** UT-friendly labels; nullptr if none. */
 const char *fed4TouchIdentifyWakePad(float triggerRise);
 void fed4TouchPrintDriverConfig(void);
+
+/** waitUntil latency marks (FED4_DIAG_POKE_TIMING). Ids match wiki table. */
+enum {
+  FED4_POKE_T_WAKE = 0,     // esp_light_sleep_start returned
+  FED4_POKE_T_WAKEUP,       // wakeUp() entered
+  FED4_POKE_T_PRE_CAPTURE,  // about to call capturePoke()
+  FED4_POKE_T_IDENTIFIED,   // pad index known inside capturePoke
+  FED4_POKE_T_CAPTURE_DONE, // capturePoke returned (after hold/release)
+  FED4_POKE_T_CLASSIFIED,   // FedEvent fields set + redPix
+  FED4_POKE_T_LOG_DONE,     // logData returned (or skipped)
+  FED4_POKE_T_UPDATE_DONE,  // update() returned
+  FED4_POKE_T_COUNT
+};
+void fed4PokeTimingReset(void);
+void fed4PokeTimingMark(int id);
+void fed4PokeTimingPrint(const char *note);
 
 #ifdef __cplusplus
 }
