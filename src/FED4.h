@@ -241,6 +241,12 @@ public:
     /** 0=none, 1=left, 2=center, 3=right — set by capturePoke (HW wake status or rise). */
     static uint8_t wakePad;
 
+    /** NVS touch cal (unit-test wizard / future begin hook). */
+    bool touchCalSave(const Fed4TouchCal &cal);
+    bool touchCalLoad(Fed4TouchCal *out);
+    bool touchCalClear();
+    bool touchCalApply(const Fed4TouchCal &cal);
+
     // Status LED and Strip control (defined in FED4_LEDs.cpp)
     // (strip - front RGB LEDs on PSV3 rail)
     bool initializeStrip();

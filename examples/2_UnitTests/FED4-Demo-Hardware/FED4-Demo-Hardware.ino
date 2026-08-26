@@ -1,5 +1,5 @@
 /*
- * FED4 Demo Hardware v1.0.4
+ * FED4 Demo Hardware v1.0.5
  *
  * Full hardware sweep on Kyocera TN0216 MIP display (standalone, no FED4.h).
  * Target board: FED4 v1.7.0 — see FED4_DemoHardwareVersion.h to bump version.
@@ -1193,36 +1193,56 @@ void i2cRecoverBus() {
   Wire.setTimeOut(50);
 }
 
-// Returns false if SDA still stuck low after clock stretching recovery.
+// Idle-level check. Always restores Wire afterward — pinMode(SDA/SCL) detaches
+// the ESP32 I2C driver. Leaving pins detached made the *first* probe (BME680)
+// fail with "not on bus" while later devices looked fine after i2cRecoverBus().
 bool i2cBusHealthy() {
+  Wire.end();
   pinMode(SDA, INPUT_PULLUP);
   pinMode(SCL, INPUT_PULLUP);
-  return digitalRead(SDA) == HIGH && digitalRead(SCL) == HIGH;
+  const bool ok = digitalRead(SDA) == HIGH && digitalRead(SCL) == HIGH;
+  Wire.begin(SDA, SCL, 100000);
+  Wire.setTimeOut(50);
+  return ok;
 }
 
-// Probe then optional begin. On any failure: WARN, recover bus, continue.
+// Probe then optional begin. On any failure: recover bus, one retry, then WARN.
 // Returns true only if probe + beginOk both succeed.
 bool initI2cDevice(const char *name, uint8_t addr, bool (*beginFn)()) {
   Serial.printf("  %s @ 0x%02X... ", name, addr);
   Serial.flush();
 
-  if (!i2cProbe(addr)) {
-    Serial.println("not on bus");
+  for (int attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      Serial.printf("retry... ");
+      Serial.flush();
+      i2cRecoverBus();
+    }
+
+    if (!i2cProbe(addr)) {
+      if (attempt == 0)
+        continue;
+      Serial.println("not on bus");
+      Serial.flush();
+      i2cRecoverBus();
+      return false;
+    }
+
+    if (!beginFn()) {
+      if (attempt == 0)
+        continue;
+      Serial.println("begin failed");
+      Serial.flush();
+      i2cRecoverBus();
+      return false;
+    }
+
+    Serial.println("OK");
     Serial.flush();
-    i2cRecoverBus();
-    return false;
+    return true;
   }
 
-  if (!beginFn()) {
-    Serial.println("begin failed");
-    Serial.flush();
-    i2cRecoverBus();
-    return false;
-  }
-
-  Serial.println("OK");
-  Serial.flush();
-  return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------

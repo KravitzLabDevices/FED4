@@ -45,6 +45,34 @@ extern "C" {
 #define TOUCH_RISE_MAX 0.12f
 #endif
 
+/** Fraction of measured poke delta used for HW/software wakeAbs. */
+#ifndef TOUCH_CAL_DELTA_FRAC
+#define TOUCH_CAL_DELTA_FRAC 0.4f
+#endif
+
+#define FED4_TOUCH_CAL_VER 1
+
+typedef struct
+{
+  uint32_t idleMean;
+  float idleStd;
+  uint32_t touchDelta; // touched − idle (counts)
+  uint32_t wakeAbs;    // derived absolute active_thresh
+  float riseThresh;    // wakeAbs / idleMean
+} Fed4TouchCalPad;
+
+typedef struct
+{
+  uint8_t ver;
+  uint8_t mapL;
+  uint8_t mapC;
+  uint8_t mapR;
+  Fed4TouchCalPad L;
+  Fed4TouchCalPad C;
+  Fed4TouchCalPad R;
+  uint32_t unixTime;
+} Fed4TouchCal;
+
 extern uint32_t fed4TouchIdleL;
 extern uint32_t fed4TouchIdleC;
 extern uint32_t fed4TouchIdleR;
@@ -73,6 +101,16 @@ bool fed4TouchEnableTouchpadWakeup(void);
 /** Full idle characterization: warm → sample mean/std → set idle + rise thresh + HW wake. */
 bool fed4TouchCharacterizePads(void);
 void fed4TouchPrintCharacterization(void);
+
+/** NVS touch calibration (follows device; schema FED4_TOUCH_CAL_VER). */
+void fed4TouchCalSetMap(Fed4TouchCal *cal);
+void fed4TouchCalDerivePad(Fed4TouchCalPad *pad);
+bool fed4TouchCalValid(const Fed4TouchCal *cal);
+bool fed4TouchCalSave(const Fed4TouchCal *cal);
+bool fed4TouchCalLoad(Fed4TouchCal *out);
+bool fed4TouchCalClear(void);
+bool fed4TouchCalApply(const Fed4TouchCal *cal);
+void fed4TouchCalPrint(const Fed4TouchCal *cal);
 
 /** 0 = none, 1 = left, 2 = center, 3 = right (matches FedPad). */
 int fed4TouchIdentifyWakePadIndex(float triggerRise);

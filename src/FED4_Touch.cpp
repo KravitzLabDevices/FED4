@@ -339,6 +339,183 @@ void fed4TouchPrintCharacterization(void)
   Serial.flush();
 }
 
+// ---------------------------------------------------------------------------
+// NVS touch calibration
+// ---------------------------------------------------------------------------
+
+static const char *kTouchCalVerKey = "tchVer";
+static const char *kTouchCalMapKey = "tchMap";
+static const char *kTouchCalBlobKey = "tchBlob";
+
+void fed4TouchCalSetMap(Fed4TouchCal *cal)
+{
+  if (!cal)
+    return;
+  cal->mapL = (uint8_t)TOUCH_PAD_LEFT;
+  cal->mapC = (uint8_t)TOUCH_PAD_CENTER;
+  cal->mapR = (uint8_t)TOUCH_PAD_RIGHT;
+}
+
+void fed4TouchCalDerivePad(Fed4TouchCalPad *pad)
+{
+  if (!pad || !pad->idleMean)
+  {
+    if (pad)
+    {
+      pad->wakeAbs = 0;
+      pad->riseThresh = TOUCH_RISE_MIN;
+    }
+    return;
+  }
+  float wake = TOUCH_CAL_DELTA_FRAC * (float)pad->touchDelta;
+  if (wake < TOUCH_CHAR_ABS_MIN)
+    wake = TOUCH_CHAR_ABS_MIN;
+  const float wakeMax = (float)pad->idleMean * TOUCH_RISE_MAX;
+  if (wake > wakeMax)
+    wake = wakeMax;
+  pad->wakeAbs = (uint32_t)(wake + 0.5f);
+  pad->riseThresh = (float)pad->wakeAbs / (float)pad->idleMean;
+  if (pad->riseThresh < TOUCH_RISE_MIN)
+    pad->riseThresh = TOUCH_RISE_MIN;
+  if (pad->riseThresh > TOUCH_RISE_MAX)
+    pad->riseThresh = TOUCH_RISE_MAX;
+  pad->wakeAbs = fed4TouchWakeThresholdForPad(pad->idleMean, pad->riseThresh);
+}
+
+bool fed4TouchCalValid(const Fed4TouchCal *cal)
+{
+  if (!cal || cal->ver != FED4_TOUCH_CAL_VER)
+    return false;
+  if (cal->mapL != (uint8_t)TOUCH_PAD_LEFT ||
+      cal->mapC != (uint8_t)TOUCH_PAD_CENTER ||
+      cal->mapR != (uint8_t)TOUCH_PAD_RIGHT)
+    return false;
+  if (!cal->L.idleMean || !cal->C.idleMean || !cal->R.idleMean)
+    return false;
+  if (!cal->L.touchDelta || !cal->C.touchDelta || !cal->R.touchDelta)
+    return false;
+  if (!cal->L.wakeAbs || !cal->C.wakeAbs || !cal->R.wakeAbs)
+    return false;
+  return true;
+}
+
+bool fed4TouchCalSave(const Fed4TouchCal *cal)
+{
+  if (!fed4TouchCalValid(cal))
+    return false;
+
+  Preferences prefs;
+  if (!prefs.begin(PREFS_NAMESPACE, false))
+    return false;
+
+  const uint32_t mapPacked =
+      ((uint32_t)cal->mapL) | ((uint32_t)cal->mapC << 8) | ((uint32_t)cal->mapR << 16);
+  const bool ok = prefs.putUChar(kTouchCalVerKey, cal->ver) > 0 &&
+                  prefs.putUInt(kTouchCalMapKey, mapPacked) > 0 &&
+                  prefs.putBytes(kTouchCalBlobKey, cal, sizeof(Fed4TouchCal)) ==
+                      sizeof(Fed4TouchCal);
+  prefs.end();
+  if (ok)
+    Serial.println("Touch cal: saved to NVS");
+  return ok;
+}
+
+bool fed4TouchCalLoad(Fed4TouchCal *out)
+{
+  if (!out)
+    return false;
+
+  Preferences prefs;
+  if (!prefs.begin(PREFS_NAMESPACE, true))
+    return false;
+
+  const uint8_t ver = prefs.getUChar(kTouchCalVerKey, 0);
+  Fed4TouchCal cal = {};
+  const size_t n = prefs.getBytes(kTouchCalBlobKey, &cal, sizeof(Fed4TouchCal));
+  prefs.end();
+
+  if (ver != FED4_TOUCH_CAL_VER || n != sizeof(Fed4TouchCal))
+    return false;
+  if (!fed4TouchCalValid(&cal))
+    return false;
+
+  *out = cal;
+  return true;
+}
+
+bool fed4TouchCalClear(void)
+{
+  Preferences prefs;
+  if (!prefs.begin(PREFS_NAMESPACE, false))
+    return false;
+  prefs.remove(kTouchCalVerKey);
+  prefs.remove(kTouchCalMapKey);
+  prefs.remove(kTouchCalBlobKey);
+  prefs.end();
+  Serial.println("Touch cal: cleared from NVS");
+  return true;
+}
+
+bool fed4TouchCalApply(const Fed4TouchCal *cal)
+{
+  if (!fed4TouchCalValid(cal))
+    return false;
+
+  fed4TouchIdleL = cal->L.idleMean;
+  fed4TouchIdleC = cal->C.idleMean;
+  fed4TouchIdleR = cal->R.idleMean;
+  fed4TouchStdL = cal->L.idleStd;
+  fed4TouchStdC = cal->C.idleStd;
+  fed4TouchStdR = cal->R.idleStd;
+  fed4TouchRiseThreshL = cal->L.riseThresh;
+  fed4TouchRiseThreshC = cal->C.riseThresh;
+  fed4TouchRiseThreshR = cal->R.riseThresh;
+
+  fed4TouchCalPrint(cal);
+  return fed4TouchNgApplyThresholds(cal->L.wakeAbs, cal->C.wakeAbs, cal->R.wakeAbs);
+}
+
+void fed4TouchCalPrint(const Fed4TouchCal *cal)
+{
+  if (!cal)
+    return;
+  Serial.printf("Touch cal v%u map L/C/R=%u/%u/%u unix=%lu\n", cal->ver, cal->mapL,
+                cal->mapC, cal->mapR, (unsigned long)cal->unixTime);
+  Serial.printf("  L idle=%lu std=%.1f delta=%lu wakeAbs=%lu rise=%.4f\n",
+                (unsigned long)cal->L.idleMean, (double)cal->L.idleStd,
+                (unsigned long)cal->L.touchDelta, (unsigned long)cal->L.wakeAbs,
+                (double)cal->L.riseThresh);
+  Serial.printf("  C idle=%lu std=%.1f delta=%lu wakeAbs=%lu rise=%.4f\n",
+                (unsigned long)cal->C.idleMean, (double)cal->C.idleStd,
+                (unsigned long)cal->C.touchDelta, (unsigned long)cal->C.wakeAbs,
+                (double)cal->C.riseThresh);
+  Serial.printf("  R idle=%lu std=%.1f delta=%lu wakeAbs=%lu rise=%.4f\n",
+                (unsigned long)cal->R.idleMean, (double)cal->R.idleStd,
+                (unsigned long)cal->R.touchDelta, (unsigned long)cal->R.wakeAbs,
+                (double)cal->R.riseThresh);
+  Serial.flush();
+}
+
+bool FED4::touchCalSave(const Fed4TouchCal &cal)
+{
+  return fed4TouchCalSave(&cal);
+}
+
+bool FED4::touchCalLoad(Fed4TouchCal *out)
+{
+  return fed4TouchCalLoad(out);
+}
+
+bool FED4::touchCalClear()
+{
+  return fed4TouchCalClear();
+}
+
+bool FED4::touchCalApply(const Fed4TouchCal &cal)
+{
+  return fed4TouchCalApply(&cal);
+}
+
 float fed4TouchRiseFraction(uint32_t raw, uint32_t idle)
 {
   if (!idle || raw <= idle)
