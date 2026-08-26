@@ -6,7 +6,7 @@ This page covers the **`waitUntil()` poke path only** — not `fed4.feed()`.
 
 **Sources:** [`FED4_Sleep.cpp`](../../src/FED4_Sleep.cpp), [`FED4_Touch.cpp`](../../src/FED4_Touch.cpp), [`FED4_SD.cpp`](../../src/FED4_SD.cpp), [`FED4.cpp`](../../src/FED4.cpp) (`update` modes).
 
-**GPIO map (face-on):** Left = GPIO2, Center = GPIO1, Right = GPIO3.
+**GPIO map (face-on):** Left = GPIO1, Center = GPIO3, Right = GPIO2.
 
 ---
 
@@ -45,13 +45,13 @@ Sketches act on **`FedEvent`** (`source` / `pad`); they do **not** need to call 
 
 **Members:** `leftTouch` / `centerTouch` / `rightTouch`, `leftCount` / `centerCount` / `rightCount`, `pokeDuration` (ms of hold after identify). Boot uses live idle characterization (`fed4TouchCharacterizePads`) unless an NVS cal is applied (see below).
 
-**Pad identity after light sleep:** `esp_sleep_get_touchpad_wakeup_status()` is **deep-sleep-only** — unused here. Order:
+**Pad identity after light sleep:** `esp_sleep_get_touchpad_wakeup_status()` is **deep-sleep-only** — unused here. Order in `capturePoke()`:
 
-1. NG `on_active` latch (`chan_id`)
-2. Else `(smooth − benchmark) ≥ wakeAbs` (same model as HW `active_thresh`)
-3. Else rise-vs-idle (also used awake, e.g. `feed()` well monitor)
+1. **Latch** — NG `on_active` `chan_id` / status_mask (who woke sleep)
+2. **Confirm** — ~30 ms absolute `(smooth − idle)` vs per-pad `wakeAbs`; need 3 agreeing samples and a clear margin vs #2
+3. **Arbiter** — latch==confirm → that pad; disagree → confirm; confirm-only or latch-only (quick tap) as fallbacks; neither → no poke
 
----
+Pins (face-on): Left=GPIO1, Center=GPIO3, Right=GPIO2. Rise% first-cross is **not** used for sleep ID (false Left hits on high baseline).
 
 ## NVS touch calibration (device-local)
 

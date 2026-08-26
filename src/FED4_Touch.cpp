@@ -228,7 +228,7 @@ static void characterizeAllPads(Fed4TouchPadStats *outL, Fed4TouchPadStats *outC
     }
     const float stddev = (float)sqrt(varAcc / (double)TOUCH_CHAR_SAMPLES);
     // Absolute delta from noise — equal poke capacitance → similar wake ease
-    // across pads with very different baselines (Left ~220k vs C/R ~130–140k).
+    // across pads with very different baselines (often Left/GPIO1 ~220k vs C/R ~130–140k).
     float absDelta = TOUCH_CHAR_SIGMA * stddev + TOUCH_CHAR_ABS_MARGIN;
     if (absDelta < TOUCH_CHAR_ABS_MIN)
       absDelta = TOUCH_CHAR_ABS_MIN;
@@ -593,42 +593,9 @@ void fed4TouchClearWakePadLatch(void)
 int fed4TouchPadIndexFromHwWakeStatus(void)
 {
   // 1) Driver latch (set when channel goes active — including after sleep wake)
-  int pad = fed4TouchChanIdToPadIndex(sTouchActiveChanId);
+  int pad = fed4TouchPadIndexFromLatchOnly();
   if (pad)
-  {
-    sTouchLastResolvedChan = sTouchActiveChanId;
     return pad;
-  }
-
-  if (sTouchActiveMask)
-  {
-    // Prefer strongest among bits set in status_mask (BIT(chan_id))
-    int32_t bestDelta = -1;
-    int bestPad = 0;
-    int bestChan = -1;
-    const int chans[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
-    for (int i = 0; i < 3; i++)
-    {
-      if (!(sTouchActiveMask & (1u << chans[i])))
-        continue;
-      const uint32_t sm =
-          fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
-      const uint32_t bm =
-          fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_BENCHMARK);
-      const int32_t d = (int32_t)sm - (int32_t)bm;
-      if (d > bestDelta)
-      {
-        bestDelta = d;
-        bestPad = i + 1; // L=1,C=2,R=3
-        bestChan = chans[i];
-      }
-    }
-    if (bestPad)
-    {
-      sTouchLastResolvedChan = bestChan;
-      return bestPad;
-    }
-  }
 
   // 2) Same model as HW wake: smooth − benchmark ≥ active_thresh
   const uint8_t pins[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
@@ -656,6 +623,148 @@ int fed4TouchPadIndexFromHwWakeStatus(void)
   if (bestPad)
     sTouchLastResolvedChan = bestChan;
   return bestPad;
+}
+
+/** on_active chan_id, else strongest among status_mask bits (no live BM). */
+int fed4TouchPadIndexFromLatchOnly(void)
+{
+  int pad = fed4TouchChanIdToPadIndex(sTouchActiveChanId);
+  if (pad)
+  {
+    sTouchLastResolvedChan = sTouchActiveChanId;
+    return pad;
+  }
+
+  if (!sTouchActiveMask)
+    return 0;
+
+  int32_t bestDelta = -1;
+  int bestPad = 0;
+  int bestChan = -1;
+  const int chans[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+  for (int i = 0; i < 3; i++)
+  {
+    if (!(sTouchActiveMask & (1u << chans[i])))
+      continue;
+    const uint32_t sm =
+        fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    const uint32_t bm =
+        fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+    const int32_t d = (int32_t)sm - (int32_t)bm;
+    if (d > bestDelta)
+    {
+      bestDelta = d;
+      bestPad = i + 1;
+      bestChan = chans[i];
+    }
+  }
+  if (bestPad)
+    sTouchLastResolvedChan = bestChan;
+  return bestPad;
+}
+
+/**
+ * Confirm pad by absolute (smooth − idle) over a short window.
+ * Avoids first-cross rise% false hits on high-baseline Left after sleep.
+ */
+int fed4TouchConfirmPadByAbsDelta(void)
+{
+  const uint8_t pins[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+  const uint32_t idles[3] = {fed4TouchIdleL, fed4TouchIdleC, fed4TouchIdleR};
+  const uint32_t floors[3] = {
+      fed4TouchWakeAbsL ? fed4TouchWakeAbsL : (uint32_t)TOUCH_CHAR_ABS_MIN,
+      fed4TouchWakeAbsC ? fed4TouchWakeAbsC : (uint32_t)TOUCH_CHAR_ABS_MIN,
+      fed4TouchWakeAbsR ? fed4TouchWakeAbsR : (uint32_t)TOUCH_CHAR_ABS_MIN};
+
+  int agreePad = 0;
+  int agreeCount = 0;
+  int bestPadOverall = 0;
+  int32_t bestDeltaOverall = -1;
+
+  const int maxSamples =
+      (TOUCH_ID_CONFIRM_DT_MS > 0)
+          ? (TOUCH_ID_CONFIRM_MS / TOUCH_ID_CONFIRM_DT_MS)
+          : 1;
+
+  for (int s = 0; s < maxSamples; s++)
+  {
+    if (s)
+      delay(TOUCH_ID_CONFIRM_DT_MS);
+
+    int32_t d[3] = {0, 0, 0};
+    int32_t bestD = -1;
+    int32_t secondD = -1;
+    int bestI = -1;
+
+    for (int i = 0; i < 3; i++)
+    {
+      if (!idles[i])
+        continue;
+      const uint32_t sm =
+          fed4TouchNgReadChannel(pins[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+      int32_t di = (int32_t)sm - (int32_t)idles[i];
+      if (di < 0)
+        di = 0;
+      d[i] = di;
+      if (di >= (int32_t)floors[i])
+      {
+        if (di > bestD)
+        {
+          secondD = bestD;
+          bestD = di;
+          bestI = i;
+        }
+        else if (di > secondD)
+        {
+          secondD = di;
+        }
+      }
+    }
+
+    int samplePad = 0;
+    if (bestI >= 0)
+    {
+      const bool marginOk =
+          (TOUCH_ID_CONFIRM_MARGIN <= 0.0f) || (secondD < 0) ||
+          ((float)bestD >= (float)secondD * (1.0f + TOUCH_ID_CONFIRM_MARGIN));
+      if (marginOk)
+        samplePad = bestI + 1;
+    }
+
+    if (samplePad)
+    {
+      if (samplePad == agreePad)
+        agreeCount++;
+      else
+      {
+        agreePad = samplePad;
+        agreeCount = 1;
+      }
+      if (bestD > bestDeltaOverall)
+      {
+        bestDeltaOverall = bestD;
+        bestPadOverall = samplePad;
+      }
+      if (agreeCount >= TOUCH_ID_CONFIRM_AGREE)
+      {
+        const int chans[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+        sTouchLastResolvedChan = chans[agreePad - 1];
+        return agreePad;
+      }
+    }
+    else
+    {
+      agreePad = 0;
+      agreeCount = 0;
+    }
+  }
+
+  if (bestPadOverall)
+  {
+    const int chans[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+    sTouchLastResolvedChan = chans[bestPadOverall - 1];
+  }
+  return bestPadOverall;
 }
 
 int fed4TouchIdentifyWakePadIndex(float triggerRise)
@@ -804,8 +913,8 @@ void FED4::calibrateTouchSensors(bool checkStability)
 
 /**
  * Resolve poke pad + measure hold time (pokeDuration).
- * After light-sleep touch wake: HW latch / (smooth−benchmark) — not esp_sleep
- * touchpad status (deep-sleep only). Awake: same HW model, then rise fallback.
+ * Latch (who woke sleep) + absolute-(smooth−idle) confirm over ~30 ms.
+ * Agree → latch; disagree → confirm; confirm only / latch only as fallbacks.
  */
 bool FED4::capturePoke()
 {
@@ -813,25 +922,35 @@ bool FED4::capturePoke()
   wakePad = 0;
   pokeDuration = 0.0f;
 
-  int padIndex = fed4TouchPadIndexFromHwWakeStatus();
-  if (padIndex == 0)
+  const int latchPad = fed4TouchPadIndexFromLatchOnly();
+  const int confirmPad = fed4TouchConfirmPadByAbsDelta();
+
+  int padIndex = 0;
+  if (latchPad && confirmPad)
   {
-    // Brief settle then re-check HW model (scanning resumes after sleep)
-    for (int attempt = 0; attempt < 8 && padIndex == 0; attempt++)
+    if (latchPad == confirmPad)
+      padIndex = latchPad;
+    else
     {
-      delay(1);
-      padIndex = fed4TouchPadIndexFromHwWakeStatus();
+      padIndex = confirmPad; // absolute Δ wins over stale/wrong latch
+#if FED4_DIAG_POKE_TIMING
+      Serial.printf("Touch ID: latch=%d confirm=%d (using confirm)\n", latchPad,
+                    confirmPad);
+#endif
     }
   }
-  if (padIndex == 0)
+  else if (confirmPad)
   {
-    padIndex = fed4TouchIdentifyWakePadIndex(TOUCH_THRESHOLD);
-    for (int attempt = 0; attempt < 8 && padIndex == 0; attempt++)
-    {
-      delay(1);
-      padIndex = fed4TouchIdentifyWakePadIndex(TOUCH_THRESHOLD);
-    }
+    padIndex = confirmPad;
   }
+  else if (latchPad)
+  {
+    padIndex = latchPad; // quick tap: finger gone, trust wake channel
+#if FED4_DIAG_POKE_TIMING
+    Serial.printf("Touch ID: latch=%d confirm=0 (using latch)\n", latchPad);
+#endif
+  }
+
   fed4TouchClearActiveLatch();
   if (padIndex == 0)
     return false;

@@ -3,10 +3,10 @@
  *
  * Prints smooth touch counts + rise fraction every 100 ms. No LEDs.
  *
- * Touch pads (FED4_Pins.h):
- *   LEFT   = GPIO 2
- *   CENTER = GPIO 1
- *   RIGHT  = GPIO 3
+ * Touch pads (FED4_Pins.h, face-on):
+ *   LEFT   = GPIO 1
+ *   CENTER = GPIO 3
+ *   RIGHT  = GPIO 2
  *
  * Uses library helpers (FED4_TouchHelpers.h) — NG touch_sens, uint32_t rise.
  */

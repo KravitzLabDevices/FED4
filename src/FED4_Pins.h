@@ -13,11 +13,10 @@
 #define BUTTON_3 39 // User Button 3 - top
 
 // Touch Sensor Pins (ESP32-S3: GPIO number == touch channel index for pads 1–14)
-// Face-on poke ports: Left=GPIO2, Center=GPIO1, Right=GPIO3
-// (Physical Right was firing while labeled Left when Left was on GPIO3.)
-#define TOUCH_PAD_LEFT 2   // GPIO2 / touch channel 2
-#define TOUCH_PAD_CENTER 1 // GPIO1 / touch channel 1
-#define TOUCH_PAD_RIGHT 3  // GPIO3 / touch channel 3
+// Face-on poke ports (verified FED4-Touch): Left=GPIO1, Center=GPIO3, Right=GPIO2
+#define TOUCH_PAD_LEFT 1   // GPIO1 / touch channel 1
+#define TOUCH_PAD_CENTER 3 // GPIO3 / touch channel 3
+#define TOUCH_PAD_RIGHT 2  // GPIO2 / touch channel 2
 
 // Photogate Pins
 #define PHOTOGATE_1 14 // Center

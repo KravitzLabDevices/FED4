@@ -27,7 +27,7 @@ extern "C" {
 #endif
 // Absolute wake/detect delta (counts): max(sigma*std + abs_margin, abs_min)
 // Then riseThresh = clamp(absDelta/mean, TOUCH_RISE_MIN, TOUCH_RISE_MAX).
-// Absolute (not % of idle) so high-baseline pads (e.g. Left ~220k) stay as
+// Absolute (not % of idle) so high-baseline pads (e.g. Left/GPIO1 ~220k) stay as
 // sensitive as lower-baseline pads for similar poke capacitance.
 #ifndef TOUCH_CHAR_SIGMA
 #define TOUCH_CHAR_SIGMA 8.0f
@@ -43,6 +43,21 @@ extern "C" {
 #endif
 #ifndef TOUCH_RISE_MAX
 #define TOUCH_RISE_MAX 0.12f
+#endif
+
+// Post-wake pad ID confirm (absolute Δ vs idle — not first-cross rise%)
+#ifndef TOUCH_ID_CONFIRM_MS
+#define TOUCH_ID_CONFIRM_MS 30
+#endif
+#ifndef TOUCH_ID_CONFIRM_DT_MS
+#define TOUCH_ID_CONFIRM_DT_MS 5
+#endif
+#ifndef TOUCH_ID_CONFIRM_AGREE
+#define TOUCH_ID_CONFIRM_AGREE 3
+#endif
+/** Confirm winner must beat #2 by at least this fraction of winner Δ (0 = off). */
+#ifndef TOUCH_ID_CONFIRM_MARGIN
+#define TOUCH_ID_CONFIRM_MARGIN 0.25f
 #endif
 
 /** Fraction of measured poke delta used for HW/software wakeAbs. */
@@ -118,6 +133,10 @@ int fed4TouchIdentifyWakePadIndex(float triggerRise);
  *  Light sleep: uses on_active latch and/or smooth−benchmark vs wakeAbs
  *  (esp_sleep_get_touchpad_wakeup_status is deep-sleep-only — not used). */
 int fed4TouchPadIndexFromHwWakeStatus(void);
+/** Latch only (on_active chan_id / status_mask) — no live BM scan. */
+int fed4TouchPadIndexFromLatchOnly(void);
+/** Sample absolute (smooth−idle) over TOUCH_ID_CONFIRM_* window; 0 if none. */
+int fed4TouchConfirmPadByAbsDelta(void);
 /** Clear on_active latch (call before entering light sleep). */
 void fed4TouchClearWakePadLatch(void);
 /** UT-friendly labels; nullptr if none. */
