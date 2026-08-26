@@ -65,8 +65,9 @@ Guided **idle + poke-delta** calibration stored in Preferences namespace `fed4` 
 
 `wakeAbs = clamp(0.4 × touchDelta, TOUCH_CHAR_ABS_MIN, idle × TOUCH_RISE_MAX)`.
 
-**Unit test wizard:** [`examples/2_UnitTests/FED4-Touch-Calibrate/`](../../examples/2_UnitTests/FED4-Touch-Calibrate/)
+**Unit test wizard (IN PROGRESS / WIP):** [`examples/2_UnitTests/FED4-Touch-Calibrate/`](../../examples/2_UnitTests/FED4-Touch-Calibrate/)
 
+- Not production-ready; wizard + NVS API exist, `begin()` does not auto-load yet
 - Display + strip + speaker cues
 - **BUTTON_1** confirms CLEAR (then ≥1.5 s quiet gate before sampling)
 - Auto onset/sustain/release on the **prompted** pad (×2 L→C→R cycles; deltas must agree within ~20%)
