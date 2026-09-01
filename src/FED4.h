@@ -59,6 +59,15 @@ class DateTime;
 #define FED4_DIAG_POKE_TIMING 1
 #endif
 
+// Touch diagnostic CSV (separate _T.CSV file — baselines, thresholds, poke
+// amplitude on every wake). Set here (library rebuild required) — a #define in
+// the .ino does NOT reach library sources under Arduino IDE, same caveat as
+// FED4_ENABLE_SUBMODULE. Diagnostic campaigns only: heartbeat rows add ~1440 SD
+// appends/day and poke rows add a second SD append to the wake path.
+#ifndef FED4_ENABLE_TOUCH_LOG
+#define FED4_ENABLE_TOUCH_LOG 1
+#endif
+
 // Board Version: v1.7
 #define FED4_BOARD_VERSION_STR "1.7.0"
 
@@ -335,6 +344,21 @@ public:
     bool createMetaJson();
     bool createLogFile();
     bool logData(const String &newEvent = "");
+
+    // Touch diagnostic log (FED4_ENABLE_TOUCH_LOG; separate <base>_T.CSV file so
+    // the behavioral CSV schema and downstream tooling stay untouched).
+    /** Create <base>_T.CSV next to the behavioral log and write its header. */
+    bool createTouchLogFile();
+    /** Append one touch row. rowType: BootChar | Heartbeat | Poke | TouchMiss | Rechar.
+     *  ProxMm is polled on Heartbeat/Rechar rows only (prox() blocks up to 100 ms
+     *  and must stay off the poke latency path). */
+    bool logTouch(const char *rowType);
+    /** Mode column — "LightSleep" (waitUntil arm) or "Awake" (physics arm). */
+    const char *touchLogMode = "LightSleep";
+    /** Set when startSleep()'s 2 s rescue characterization fired; cleared by waitUntil(). */
+    bool touchRecharPending = false;
+    bool isTouchLogAvailable() const { return touchLogAvailable; }
+
     String getMetaValue(const char *rootKey, const char *subKey);
     bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
     void setProgram(String program);
@@ -463,6 +487,7 @@ public:
     float pokeDuration = 0.0;
     int motorTurns;
     char filename[32];
+    char touchFilename[40] = {0}; // <base>_T.CSV (filename[32] is near capacity)
     bool sdCardAvailable = true; // Track if SD card operations are available
     bool audioSilenced = false;  // Track if audio has been silenced
 
@@ -565,6 +590,13 @@ private:
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
     bool pendingRetrieval = false;   // pellet still in well after awake 20 s window
     void monitorPelletInWell(uint32_t retrievalTimeoutSec);
+
+    // Touch diagnostic log state
+    bool touchLogAvailable = false;
+    // Per-device context from meta.json "context" — read once, stamped on BootChar
+    String touchCtxCage, touchCtxRackSlot, touchCtxOrientation;
+    String touchCtxFrontPlate, touchCtxBatterySide, touchCtxPokeModule;
+    void loadTouchContext();
 
     // RTC functions
     Preferences preferences;

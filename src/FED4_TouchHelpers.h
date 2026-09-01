@@ -101,8 +101,15 @@ extern float fed4TouchRiseThreshL;
 extern float fed4TouchRiseThreshC;
 extern float fed4TouchRiseThreshR;
 
+/** Absolute HW active_thresh currently programmed per pad (counts above benchmark). */
+extern uint32_t fed4TouchWakeAbsL;
+extern uint32_t fed4TouchWakeAbsC;
+extern uint32_t fed4TouchWakeAbsR;
+
 bool fed4TouchInitPads(void);
 uint32_t fed4TouchRead(uint8_t pin);
+/** NG hardware benchmark (what HW wake compares smooth against — auto-tracks drift). */
+uint32_t fed4TouchReadBenchmark(uint8_t pin);
 float fed4TouchRiseFraction(uint32_t raw, uint32_t idle);
 uint32_t fed4TouchWakeThreshold(uint32_t idle);
 uint32_t fed4TouchWakeThresholdForPad(uint32_t idle, float riseThresh);
@@ -142,6 +149,20 @@ void fed4TouchClearWakePadLatch(void);
 /** UT-friendly labels; nullptr if none. */
 const char *fed4TouchIdentifyWakePad(float triggerRise);
 void fed4TouchPrintDriverConfig(void);
+
+// --- Diagnostic snapshots (touch drift log; see FED4_SD.cpp logTouch) ---------
+/** Latch decision from the last capturePoke() (0 = none). */
+int fed4TouchLastLatchPad(void);
+/** Absolute-Δ confirm decision from the last capturePoke() (0 = none). */
+int fed4TouchLastConfirmPad(void);
+/** Peak smooth count seen on the resolved pad during the last poke hold. */
+uint32_t fed4TouchLastPeakSmooth(void);
+/** Times fed4TouchCharacterizePads() ran from the startSleep() rescue path. */
+uint32_t fed4TouchRecharCount(void);
+/** Called by the startSleep() rescue path — do not call from sketches. */
+void fed4TouchNoteRechar(void);
+/** Publish a software-detected poke (awake / bench arms have no capturePoke()). */
+void fed4TouchSetLastPoke(int latchPad, int confirmPad, uint32_t peakSmooth);
 
 /** waitUntil latency marks (FED4_DIAG_POKE_TIMING). Ids match wiki table. */
 enum {

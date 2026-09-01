@@ -504,6 +504,13 @@ bool FED4::begin(const char *programName)
             sdCardAvailable = false;
             handleSDCardError();
         }
+#if FED4_ENABLE_TOUCH_LOG
+        else
+        {
+            // Shares createLogFile()'s file number: <base>_T.CSV
+            createTouchLogFile();
+        }
+#endif
     }
 
     // Only pull JSON data from SD card if it's available
@@ -546,6 +553,12 @@ bool FED4::begin(const char *programName)
             age = "Unknown";
     }
     logData("Startup");
+#if FED4_ENABLE_TOUCH_LOG
+    // Per-device, per-port characterization table for this boot. Logged here
+    // rather than next to initializeTouch() because the SD card and log file do
+    // not exist yet at that point; the characterization globals are unchanged.
+    logTouch("BootChar");
+#endif
 
     stripRainbow(3, 1);
 

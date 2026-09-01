@@ -163,3 +163,127 @@ POKE_TIMING Right us: wake=… wakeUp=… preCap=… id=… capDone=… class=�
 Disable (`0`) for normal runs — Serial/`flush` adds a little overhead.
 
 API: `fed4PokeTimingReset` / `Mark` / `Print` in [`FED4_TouchHelpers.h`](../../src/FED4_TouchHelpers.h).
+
+---
+
+## Touch diagnostic log (`FED4_ENABLE_TOUCH_LOG`)
+
+Instrumentation for the drift-vs-sensitivity question. **Nothing about calibration changes** — `calibrateTouchSensors()`, the 2 s rescue characterization in `startSleep()`, and NVS cal loading are untouched. The rescue path is *logged as a hypothesis under test*, not modified.
+
+Two detection models already run concurrently and were never compared:
+
+| Model | Rule | Baseline |
+|-------|------|----------|
+| **Hardware** (light-sleep wake) | `smooth − benchmark >= wakeAbs` | `benchmark` — NG IIR8, **auto-tracks drift** |
+| **Software** (`fed4TouchPadsReleased`, confirm) | `smooth − idle >= riseThresh × idle` | `idle` — **frozen** at characterization |
+
+Logging both side by side is the core measurement: `Idle` is flat by construction, so `Bench` pulling away from `Idle` *is* the drift signal.
+
+### Enabling
+
+In [`FED4.h`](../../src/FED4.h):
+
+```cpp
+#define FED4_ENABLE_TOUCH_LOG 1
+```
+
+> **Library flag — rebuild required.** A `#define` in the `.ino` does **not** reach library sources under the Arduino IDE. Same caveat as `FED4_ENABLE_SUBMODULE`. Diagnostic builds only: heartbeat rows add ~1440 SD appends/day at 60 s, and poke rows add a **second** SD append to the wake path (roughly doubling the ~162 ms log stage in the table above). Note this when comparing `POKE_TIMING` traces against production.
+
+### File
+
+`createTouchLogFile()` runs immediately after `createLogFile()` and reuses its file number, so the pair always shares a suffix:
+
+```text
+/FED4_0001_20260901_00.CSV      behavioral (unchanged schema)
+/FED4_0001_20260901_00_T.CSV    touch diagnostic
+```
+
+Separate file by design — the behavioral CSV and any downstream tooling stay untouched. On write failure the touch log disables itself and returns; `logData()` owns SD hot-swap recovery.
+
+### Row types
+
+| `RowType` | Emitted from | Why it matters |
+|-----------|--------------|----------------|
+| `BootChar` | `begin()`, after `logData("Startup")` | Per-device, per-port characterization table + meta.json context |
+| `Heartbeat` | `waitUntil()` on a **Timer** wake | The **only** path that samples idle when nothing is happening — this is what makes drift visible |
+| `Poke` | `waitUntil()`, Touch + resolved pad | `PeakSmooth` + `PokeDuration` — the sensitivity metric |
+| `TouchMiss` | `waitUntil()`, Touch + **no** pad | Primary failure signature; the behavioral CSV writes **no row at all** for these |
+| `Rechar` | `waitUntil()`, after `startSleep()`'s 2 s rescue fired | Direct test of "recalibrated while a mouse was nearby" |
+
+`Mode` is `LightSleep` or `Awake`, set by the public `touchLogMode` member **before `begin()`** so the two example sketches self-label into one schema.
+
+### Schema
+
+| Group | Columns |
+|-------|---------|
+| Identity / context | `DateTime, ElapsedSeconds, DeviceUID, LibraryVer, Program, MouseID, RowType, Mode, WakeSource` |
+| Identification | `Pad, LatchPad, ConfirmPad` |
+| Live signal | `SmoothL, SmoothC, SmoothR` |
+| Hardware baseline | `BenchL, BenchC, BenchR` |
+| Software baseline | `IdleL, IdleC, IdleR, StdL, StdC, StdR` |
+| Thresholds | `RiseThreshL/C/R, WakeAbsL/C/R` |
+| Poke | `PeakSmooth, PokeDuration` |
+| State / covariates | `RecharCount, ProxMm, Motion, Temperature, Humidity, BatteryVoltage, BatteryPercent, WakeCount` |
+| Per-device context | `Cage, RackSlot, Orientation, FrontPlate, BatterySide, PokeModule` (`BootChar` rows only) |
+
+`DeviceUID` is `ESP.getEfuseMac()`, exactly as in the behavioral CSV — the join key across devices. Rise fractions are derived offline from `Smooth` and `Idle` rather than stored, to keep rows narrow.
+
+**Caveats to read the data with:**
+
+- **Environment and battery are stale on `Poke` rows.** `update(FedUpdateMode::Poke)` skips `refreshSensors()`, so `Temperature` / `Humidity` / `BatteryVoltage` / `BatteryPercent` / `Motion` are whatever the last **`update(Full)`** left cached — possibly many pokes old. `Heartbeat` rows carry the previous full update's snapshot (≤ one wake interval). Deliberately not re-polled: the poke path is latency-sensitive.
+- **`ProxMm` is `-1` except on `Heartbeat` and `Rechar` rows.** `prox()` blocks up to 100 ms and is kept off the poke path.
+- `LatchPad` is `0` on the awake arm — there is no interrupt latch when the device never sleeps.
+
+### Per-device context via meta.json
+
+No firmware schema change. Hand-add a `context` block to each device's `meta.json` ([example](../../extras/meta.json_examples/meta.json)); `getMetaValue()` returns empty for missing keys, so it is optional:
+
+```json
+"context": {
+  "cage": "standard-shoebox",
+  "rack_slot": "R2-C3",
+  "orientation": "front-facing",
+  "front_plate": "v1.7-acrylic",
+  "battery_side": "left",
+  "poke_module": "PM-014"
+}
+```
+
+Without this, module-specific and context-dependent causes cannot be separated from device-specific ones.
+
+### Example sketches
+
+| Sketch | Arm |
+|--------|-----|
+| [`TouchDriftLog_Sleep`](../../examples/3_Troubleshooting/TouchDriftLog_Sleep/) | Production-shaped cage arm — `waitUntil(60)`, left poke feeds, `Mode=LightSleep`. Reproduces the field failure. |
+| [`TouchDriftLog_Awake`](../../examples/3_Troubleshooting/TouchDriftLog_Awake/) | Physics arm — never sleeps; 1 Hz `Heartbeat` to SD, 10 Hz Serial, software-detected `Poke` rows, `Mode=Awake`. Reveals the real-time physics the interrupt path hides. |
+
+Both write the identical schema so the analysis script concatenates them.
+
+### Analysis
+
+[`extras/analysis/fed4_touch_analysis.py`](../../extras/analysis/fed4_touch_analysis.py) (`pip install -r requirements.txt`) globs `*_T.CSV`, keys on `DeviceUID` and pad, and emits five panels: baseline drift, poke sensitivity, cross-device/cross-port, failure signature, and sleep-vs-awake.
+
+```bash
+python fed4_touch_analysis.py /path/to/sd_dumps -o out/
+```
+
+### Interpretation table
+
+| Observation | Conclusion |
+|-------------|------------|
+| `Idle` flat, `Bench` rising, pokes dying | Hardware tracking absorbed the occupant or drift |
+| `Idle` jumps at a `Rechar` row, pokes die after | Recalibration with a mouse nearby — the predicted failure mode (check `ProxMm` / `Motion` on that row) |
+| Baselines stable, `PeakSmooth − Idle` shrinking | True sensitivity loss (coupling, debris, mechanical) |
+| One port dead across **all** devices | FED4-wide calibration issue for that port |
+| One port dead on **one** device | Poke module |
+| Only fails in the cage | Context — compare the `BootChar` context columns |
+| Awake arm healthy, sleep arm dying | Light-sleep, benchmark, or latch path — not the pad |
+| High `TouchMiss` rate | Identification failing, not detection |
+
+### Run protocol
+
+1. **Bench both arms, both devices:** empty desk → finger pokes → a hand deliberately lingering near a port → battery, orientation, and front-plate variations. Capture `BootChar` for every configuration. This is the device × port × context gate **before** any animal time.
+2. **Cage overnight** on the sleep arm with `context` filled in per device.
+3. Pull the SD, run the script, **review all five panels before changing any threshold.**
+4. Only then design the recalibration framework, using the measured `Rechar` and drift rates.

@@ -35,5 +35,13 @@
   },
   "device": {
     "id": "FED4-001"
+  },
+  "context": {
+    "cage": "standard-shoebox",
+    "rack_slot": "R2-C3",
+    "orientation": "front-facing",
+    "front_plate": "v1.7-acrylic",
+    "battery_side": "left",
+    "poke_module": "PM-014"
   }
 }

@@ -41,6 +41,12 @@ static volatile int sTouchActiveChanId = -1;
 static volatile uint32_t sTouchActiveMask = 0;
 static int sTouchLastResolvedChan = -1; // for POKE_TIMING (survives latch clear)
 
+// Diagnostic snapshots consumed by FED4::logTouch() (touch drift CSV).
+static int sTouchLastLatchPad = 0;
+static int sTouchLastConfirmPad = 0;
+static uint32_t sTouchLastPeakSmooth = 0;
+static uint32_t sTouchRecharCount = 0;
+
 static int fed4TouchChanIdToPadIndex(int chanId)
 {
   if (chanId == TOUCH_PAD_LEFT)
@@ -539,6 +545,28 @@ uint32_t fed4TouchRead(uint8_t pin)
   return fed4TouchNgReadChannel(pin, TOUCH_CHAN_DATA_TYPE_SMOOTH);
 }
 
+uint32_t fed4TouchReadBenchmark(uint8_t pin)
+{
+  return fed4TouchNgReadChannel(pin, TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+}
+
+int fed4TouchLastLatchPad(void) { return sTouchLastLatchPad; }
+
+int fed4TouchLastConfirmPad(void) { return sTouchLastConfirmPad; }
+
+uint32_t fed4TouchLastPeakSmooth(void) { return sTouchLastPeakSmooth; }
+
+uint32_t fed4TouchRecharCount(void) { return sTouchRecharCount; }
+
+void fed4TouchNoteRechar(void) { sTouchRecharCount++; }
+
+void fed4TouchSetLastPoke(int latchPad, int confirmPad, uint32_t peakSmooth)
+{
+  sTouchLastLatchPad = latchPad;
+  sTouchLastConfirmPad = confirmPad;
+  sTouchLastPeakSmooth = peakSmooth;
+}
+
 bool fed4TouchPadsReleased(float riseLimit)
 {
   // Prefer characterized per-pad thresholds. riseLimit is only an override when
@@ -925,6 +953,11 @@ bool FED4::capturePoke()
   const int latchPad = fed4TouchPadIndexFromLatchOnly();
   const int confirmPad = fed4TouchConfirmPadByAbsDelta();
 
+  // Snapshot the identification decision for the touch drift log
+  sTouchLastLatchPad = latchPad;
+  sTouchLastConfirmPad = confirmPad;
+  sTouchLastPeakSmooth = 0;
+
   int padIndex = 0;
   if (latchPad && confirmPad)
   {
@@ -962,8 +995,18 @@ bool FED4::capturePoke()
   const int minReleaseReadings = 2;
   int belowThresholdCount = 0;
 
+  // Poke amplitude on the resolved pad — the sensitivity metric (baselines alone
+  // cannot separate drift from coupling loss).
+  const uint8_t peakPin = (padIndex == 1)   ? TOUCH_PAD_LEFT
+                          : (padIndex == 2) ? TOUCH_PAD_CENTER
+                                            : TOUCH_PAD_RIGHT;
+
   while (millis() - touchStartTime < maxSamplingTime_ms)
   {
+    const uint32_t peakSample = fed4TouchRead(peakPin);
+    if (peakSample > sTouchLastPeakSmooth)
+      sTouchLastPeakSmooth = peakSample;
+
     if (fed4TouchPadsReleased(TOUCH_THRESHOLD))
     {
       belowThresholdCount++;

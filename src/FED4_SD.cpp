@@ -577,6 +577,14 @@ bool FED4::logData(const String &newEvent)
         dataFile.write(',');
         motorTurns = 0;
     }
+    else if (event == "Left" || event == "Center" || event == "Right")
+    {
+        // pokeDuration is measured in capturePoke() on every poke — record it
+        // here too so hold-time analysis works from the behavioral CSV alone.
+        dataFile.print(",");                    // RetrievalTime
+        dataFile.printf("%.3f,", pokeDuration); // PokeDuration
+        dataFile.print(",,");                   // DispenseError, MotorTurns
+    }
     else
     {
         dataFile.print(",,,,"); // RetrievalTime, PokeDuration, DispenseError, MotorTurns
@@ -628,6 +636,301 @@ bool FED4::logData(const String &newEvent)
 
     return true;
 }
+
+/********************************************************
+ * Touch diagnostic log (separate <base>_T.CSV)
+ *
+ * Instrumentation only — no calibration behaviour changes. Captures both
+ * detection models side by side on every wake:
+ *   hardware  smooth − benchmark >= wakeAbs   (benchmark auto-tracks drift)
+ *   software  smooth − idle      >= riseThresh × idle   (idle frozen at char)
+ * so drift can be separated from sensitivity loss offline.
+ ********************************************************/
+
+#if FED4_ENABLE_TOUCH_LOG
+
+/** Reads the optional meta.json "context" block (empty strings if absent). */
+void FED4::loadTouchContext()
+{
+    touchCtxCage = getMetaValue("context", "cage");
+    touchCtxRackSlot = getMetaValue("context", "rack_slot");
+    touchCtxOrientation = getMetaValue("context", "orientation");
+    touchCtxFrontPlate = getMetaValue("context", "front_plate");
+    touchCtxBatterySide = getMetaValue("context", "battery_side");
+    touchCtxPokeModule = getMetaValue("context", "poke_module");
+}
+
+/**
+ * Creates the touch diagnostic log next to the behavioral log, sharing its
+ * file number so the pair is unambiguous: /FED4_<id>_<YYYYMMDD>_<NN>_T.CSV
+ * Must be called after createLogFile() (derives its name from filename).
+ * @return true if the header was written
+ */
+bool FED4::createTouchLogFile()
+{
+    touchLogAvailable = false;
+    touchFilename[0] = '\0';
+
+    if (!sdCardAvailable || filename[0] == '\0')
+    {
+        Serial.println("Touch log: no behavioral log file — touch logging disabled");
+        return false;
+    }
+
+    // <base>.CSV -> <base>_T.CSV (shares createLogFile()'s chosen file number)
+    const size_t baseLen = strlen(filename);
+    const size_t extLen = 4; // ".CSV"
+    if (baseLen <= extLen || baseLen - extLen + 6 >= sizeof(touchFilename))
+    {
+        Serial.println("Touch log: cannot derive touch filename");
+        return false;
+    }
+    memcpy(touchFilename, filename, baseLen - extLen);
+    strcpy(touchFilename + (baseLen - extLen), "_T.CSV");
+
+    SPI.setBitOrder(MSBFIRST);
+    digitalWrite(SD_CS, LOW);
+
+    if (SD.exists(touchFilename))
+    {
+        SD.remove(touchFilename);
+        delay(10);
+    }
+
+    File touchFile = SD.open(touchFilename, FILE_WRITE);
+    if (!touchFile)
+    {
+        digitalWrite(SD_CS, HIGH);
+        Serial.print("WARNING: Failed to create touch log file: ");
+        Serial.println(touchFilename);
+        touchFilename[0] = '\0';
+        reclaimSpiForDisplay();
+        return false;
+    }
+
+    touchFile.print("DateTime,ElapsedSeconds,DeviceUID,LibraryVer,Program,MouseID,RowType,Mode,WakeSource,");
+    touchFile.print("Pad,LatchPad,ConfirmPad,");
+    touchFile.print("SmoothL,SmoothC,SmoothR,BenchL,BenchC,BenchR,");
+    touchFile.print("IdleL,IdleC,IdleR,StdL,StdC,StdR,");
+    touchFile.print("RiseThreshL,RiseThreshC,RiseThreshR,WakeAbsL,WakeAbsC,WakeAbsR,");
+    touchFile.print("PeakSmooth,PokeDuration,");
+    touchFile.print("RecharCount,ProxMm,Motion,Temperature,Humidity,BatteryVoltage,BatteryPercent,WakeCount,");
+    touchFile.println("Cage,RackSlot,Orientation,FrontPlate,BatterySide,PokeModule");
+
+    touchFile.flush();
+    if (touchFile.getWriteError())
+    {
+        Serial.print("WARNING: Failed to write touch log header: ");
+        Serial.println(touchFilename);
+        touchFile.close();
+        SD.remove(touchFilename);
+        digitalWrite(SD_CS, HIGH);
+        touchFilename[0] = '\0';
+        reclaimSpiForDisplay();
+        return false;
+    }
+
+    touchFile.close();
+    digitalWrite(SD_CS, HIGH);
+    delay(10);
+    reclaimSpiForDisplay();
+
+    touchLogAvailable = true;
+    Serial.print("New touch log created: ");
+    Serial.println(touchFilename);
+
+    loadTouchContext();
+    return true;
+}
+
+static const char *fed4TouchPadName(uint8_t padIndex)
+{
+    switch (padIndex)
+    {
+    case 1:
+        return "Left";
+    case 2:
+        return "Center";
+    case 3:
+        return "Right";
+    default:
+        return "None";
+    }
+}
+
+static const char *fed4WakeSourceName(FedWakeSource source)
+{
+    switch (source)
+    {
+    case FedWakeSource::Touch:
+        return "Touch";
+    case FedWakeSource::Button:
+        return "Button";
+    case FedWakeSource::Timer:
+        return "Timer";
+    case FedWakeSource::Interrupt:
+        return "Interrupt";
+    default:
+        return "None";
+    }
+}
+
+/**
+ * Appends one row to the touch diagnostic log.
+ * @param rowType BootChar | Heartbeat | Poke | TouchMiss | Rechar
+ * @return true if the row was written
+ *
+ * Environment / battery columns are the cached refreshSensors() snapshot — they
+ * are stale on Poke rows because update(FedUpdateMode::Poke) skips the sensor
+ * poll. Heartbeat rows carry the previous full update()'s values (≤ one wake
+ * interval old). Deliberately not re-polled: the poke path is latency-sensitive.
+ * On failure the touch log is disabled and the behavioral log owns SD recovery.
+ */
+bool FED4::logTouch(const char *rowType)
+{
+    if (!sdCardAvailable || !touchLogAvailable || touchFilename[0] == '\0')
+    {
+        return false;
+    }
+
+    // prox() blocks up to 100 ms — keep it off the poke path (wiki latency model)
+    const bool pollProx = (strcmp(rowType, "Heartbeat") == 0) ||
+                          (strcmp(rowType, "Rechar") == 0);
+    const int proxMm = pollProx ? prox() : -1;
+
+    const uint32_t smoothL = fed4TouchRead(TOUCH_PAD_LEFT);
+    const uint32_t smoothC = fed4TouchRead(TOUCH_PAD_CENTER);
+    const uint32_t smoothR = fed4TouchRead(TOUCH_PAD_RIGHT);
+    const uint32_t benchL = fed4TouchReadBenchmark(TOUCH_PAD_LEFT);
+    const uint32_t benchC = fed4TouchReadBenchmark(TOUCH_PAD_CENTER);
+    const uint32_t benchR = fed4TouchReadBenchmark(TOUCH_PAD_RIGHT);
+
+    SPI.setBitOrder(MSBFIRST);
+
+    DateTime now = rtc.now();
+    float currentSeconds = round((millis() / 1000.000) * 1000) / 1000.0;
+
+    digitalWrite(SD_CS, LOW);
+
+    File touchFile;
+    unsigned long timeout = millis() + 500;
+    do {
+        touchFile = SD.open(touchFilename, FILE_APPEND);
+        if (!touchFile) delay(10);
+    } while (!touchFile && millis() < timeout);
+
+    if (!touchFile)
+    {
+        // No SD reinit here — logData() owns hot-swap recovery. Stop touch
+        // logging rather than adding a second recovery path to the wake cycle.
+        Serial.print("WARNING: touch log unavailable, disabling: ");
+        Serial.println(touchFilename);
+        touchLogAvailable = false;
+        digitalWrite(SD_CS, HIGH);
+        reclaimSpiForDisplay();
+        return false;
+    }
+
+    char formattedMouseId[8];
+    int mouseIdValue = mouseId.toInt();
+    if (mouseIdValue <= 0 || mouseIdValue > 9999) {
+        snprintf(formattedMouseId, sizeof(formattedMouseId), "%.4s", mouseId.c_str());
+    } else {
+        snprintf(formattedMouseId, sizeof(formattedMouseId), "%04d", mouseIdValue);
+    }
+
+    // Identity and context
+    touchFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,%llX,%s,%s,%s,%s,%s,%s,",
+                     now.year(), now.month(), now.day(),
+                     now.hour(), now.minute(), now.second(),
+                     currentSeconds,
+                     ESP.getEfuseMac(),
+                     libraryVer,
+                     program.c_str(),
+                     formattedMouseId,
+                     rowType,
+                     touchLogMode ? touchLogMode : "",
+                     fed4WakeSourceName(lastWakeSource));
+
+    // Identification
+    touchFile.printf("%s,%d,%d,", fed4TouchPadName(wakePad),
+                     fed4TouchLastLatchPad(), fed4TouchLastConfirmPad());
+
+    // Live signal + hardware baseline (the two the HW wake actually compares)
+    touchFile.printf("%lu,%lu,%lu,%lu,%lu,%lu,",
+                     (unsigned long)smoothL, (unsigned long)smoothC,
+                     (unsigned long)smoothR, (unsigned long)benchL,
+                     (unsigned long)benchC, (unsigned long)benchR);
+
+    // Software baseline (frozen at characterization)
+    touchFile.printf("%lu,%lu,%lu,%.1f,%.1f,%.1f,",
+                     (unsigned long)fed4TouchIdleL, (unsigned long)fed4TouchIdleC,
+                     (unsigned long)fed4TouchIdleR,
+                     (double)fed4TouchStdL, (double)fed4TouchStdC,
+                     (double)fed4TouchStdR);
+
+    // Thresholds
+    touchFile.printf("%.5f,%.5f,%.5f,%lu,%lu,%lu,",
+                     (double)fed4TouchRiseThreshL, (double)fed4TouchRiseThreshC,
+                     (double)fed4TouchRiseThreshR,
+                     (unsigned long)fed4TouchWakeAbsL,
+                     (unsigned long)fed4TouchWakeAbsC,
+                     (unsigned long)fed4TouchWakeAbsR);
+
+    // Poke amplitude / hold time
+    touchFile.printf("%lu,%.3f,", (unsigned long)fed4TouchLastPeakSmooth(),
+                     pokeDuration);
+
+    // State and covariates (cached sensor snapshot — see note above)
+    touchFile.printf("%lu,%d,", (unsigned long)fed4TouchRecharCount(), proxMm);
+    if (!useMotionSensor || isnan(motionPercentage)) {
+        touchFile.print("Disabled,");
+    } else {
+        touchFile.printf("%.1f,", motionPercentage);
+    }
+    touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d,",
+                     temperature, humidity, cellVoltage, cellPercent, wakeCount);
+
+    // Per-device context — stamped on BootChar; joined per device offline
+    if (strcmp(rowType, "BootChar") == 0)
+    {
+        touchFile.printf("%s,%s,%s,%s,%s,%s\n",
+                         touchCtxCage.c_str(), touchCtxRackSlot.c_str(),
+                         touchCtxOrientation.c_str(), touchCtxFrontPlate.c_str(),
+                         touchCtxBatterySide.c_str(), touchCtxPokeModule.c_str());
+    }
+    else
+    {
+        touchFile.print(",,,,,\n");
+    }
+
+    touchFile.flush();
+
+    if (touchFile.getWriteError())
+    {
+        Serial.print("WARNING: Failed to write touch log row: ");
+        Serial.println(rowType);
+        touchFile.clearWriteError();
+        touchFile.close();
+        touchLogAvailable = false;
+        digitalWrite(SD_CS, HIGH);
+        reclaimSpiForDisplay();
+        return false;
+    }
+
+    touchFile.close();
+    digitalWrite(SD_CS, HIGH);
+    reclaimSpiForDisplay();
+    return true;
+}
+
+#else // !FED4_ENABLE_TOUCH_LOG
+
+void FED4::loadTouchContext() {}
+bool FED4::createTouchLogFile() { return false; }
+bool FED4::logTouch(const char *rowType) { (void)rowType; return false; }
+
+#endif // FED4_ENABLE_TOUCH_LOG
 
 /**
  * Retrieves a value from the meta.json configuration file

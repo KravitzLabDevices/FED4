@@ -41,6 +41,10 @@ void FED4::startSleep()
         Serial.println("startSleep: pads stuck — re-characterizing baselines...");
         Serial.flush();
         (void)fed4TouchCharacterizePads();
+        // Logged as a hypothesis under test ("recalibrated while a mouse was
+        // nearby"), not modified — waitUntil() emits the Rechar row on wake.
+        fed4TouchNoteRechar();
+        touchRecharPending = true;
         continue;
       }
       if ((nowMs - lastDiagMs) >= 1000)
@@ -245,6 +249,27 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   }
 #endif
   fed4PokeTimingMark(FED4_POKE_T_LOG_DONE);
+
+#if FED4_ENABLE_TOUCH_LOG
+  // Touch diagnostic rows — after the POKE_TIMING log mark so the wiki latency
+  // table still measures logData() alone.
+  if (touchRecharPending)
+  {
+    logTouch("Rechar");
+    touchRecharPending = false;
+  }
+  if (event.source == FedWakeSource::Touch)
+  {
+    // Unresolved touch wakes are a primary failure signature and are otherwise
+    // invisible — the behavioral CSV writes no row for them.
+    logTouch(event.pad != FedPad::None ? "Poke" : "TouchMiss");
+  }
+  else if (event.source == FedWakeSource::Timer)
+  {
+    // Only path that samples idle when nothing is happening — makes drift visible.
+    logTouch("Heartbeat");
+  }
+#endif
 
   // Poke: skip sensors + full redraw (counters/indicators only). Timer/button: full.
   const bool pokeFast = (event.source == FedWakeSource::Touch &&
