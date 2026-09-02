@@ -10,6 +10,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 VARIANT = os.environ.get("FED4_CLANGD_VARIANT", "esp32s3")
+# Pin the Arduino-ESP32 core so clangd matches the compiler, not "whatever is newest".
+PINNED_CORE = os.environ.get("FED4_CLANGD_CORE", "3.2.1")
 
 
 def arduino15() -> Path:
@@ -25,14 +27,49 @@ def arduino15() -> Path:
     return home / ".arduino15"
 
 
-def latest_core(arduino: Path) -> Path:
+def select_core(arduino: Path) -> Path:
     root = arduino / "packages" / "esp32" / "hardware" / "esp32"
     if not root.is_dir():
         raise SystemExit(f"error: ESP32 core not found at {root}")
+    pinned = root / PINNED_CORE
+    if pinned.is_dir():
+        return pinned
     versions = sorted((p for p in root.iterdir() if p.is_dir()), key=lambda p: p.name)
     if not versions:
         raise SystemExit(f"error: no ESP32 core versions in {root}")
+    print(
+        f"warning: pinned core {PINNED_CORE} not installed; using {versions[-1].name}",
+        file=sys.stderr,
+    )
     return versions[-1]
+
+
+def find_sdk(arduino: Path, core: Path) -> Path:
+    """Resolve precompiled IDF headers for VARIANT.
+
+    Arduino-ESP32 3.2.x ships:
+      tools/esp32-arduino-libs/idf-release_v5.4-*/{variant}/
+    Older 3.x cores used:
+      tools/{variant}-libs/{core.version}/
+    """
+    tools = arduino / "packages" / "esp32" / "tools"
+    bundled = tools / "esp32-arduino-libs"
+    if bundled.is_dir():
+        # Prefer the newest idf-release_* folder that contains this variant.
+        releases = sorted(
+            (p for p in bundled.iterdir() if p.is_dir()),
+            key=lambda p: p.name,
+        )
+        for release in reversed(releases):
+            candidate = release / VARIANT
+            if candidate.is_dir() and (candidate / "include").is_dir():
+                return candidate
+    legacy = tools / f"{VARIANT}-libs" / core.name
+    if legacy.is_dir():
+        return legacy
+    raise SystemExit(
+        f"error: ESP32 libs not found under {bundled} or {legacy}"
+    )
 
 
 # AVR/generic Arduino copies that shadow the ESP32 core (wrong SD.h, etc.)
@@ -183,21 +220,26 @@ def write_compile_commands(flags: list[str]) -> None:
     (ROOT / "compile_commands.json").write_text(json.dumps(db, indent=2) + "\n")
 
 
+def find_gxx(arduino: Path) -> str:
+    gcc = arduino / "packages" / "esp32" / "tools" / "esp-x32"
+    if gcc.is_dir():
+        bins = sorted(gcc.glob("*/bin/xtensa-esp32s3-elf-g++*"))
+        if bins:
+            return str(bins[-1])
+    return "clang++"
+
+
 def main() -> None:
     arduino = arduino15()
-    core = latest_core(arduino)
-    sdk = arduino / "packages" / "esp32" / "tools" / f"{VARIANT}-libs" / core.name
-    gcc = arduino / "packages" / "esp32" / "tools" / "esp-x32"
-    gcc_bins = sorted(gcc.glob("*/bin/xtensa-esp32s3-elf-g++")) if gcc.is_dir() else []
-    compiler = str(gcc_bins[-1]) if gcc_bins else "clang++"
-    if not sdk.is_dir():
-        raise SystemExit(f"error: ESP32 libs not found at {sdk}")
+    core = select_core(arduino)
+    sdk = find_sdk(arduino, core)
+    compiler = find_gxx(arduino)
     flags = compile_flags(core, sdk, compiler)
     write_clangd(flags)
     write_compile_commands(flags)
     print(
         f"Wrote {ROOT / '.clangd'} and compile_commands.json "
-        f"(esp32 {core.name}, {len(source_files())} files, {len(flags)} flags)"
+        f"(esp32 {core.name}, sdk {sdk}, {len(source_files())} files, {len(flags)} flags)"
     )
 
 

@@ -2,14 +2,15 @@
 #include "FED4_TouchHelpers.h"
 
 #include <math.h>
-#include "driver/touch_sens.h"
+#include "driver/touch_sensor.h"
 
 // ---------------------------------------------------------------------------
-// NG touch_sens driver (latest IDF only — no Arduino touchRead / legacy path)
+// Legacy touch_pad driver (Arduino-ESP32 3.2.1 / IDF 5.4 — no NG touch_sens)
 // ---------------------------------------------------------------------------
 
 static const uint16_t TOUCH_MEASURE_CYCLES = 2000;
-static const uint16_t TOUCH_SLEEP_CYCLES = 500;
+// ~32 us between scans (NG meas_interval_us) at RTC_SLOW ~136 kHz. IDF default is 15.
+static const uint16_t TOUCH_MEAS_INTERVAL_CYCLES = 4;
 
 uint32_t fed4TouchIdleL = 0;
 uint32_t fed4TouchIdleC = 0;
@@ -29,14 +30,11 @@ uint32_t fed4TouchWakeAbsR = 0;
 
 uint8_t FED4::wakePad = 0; // 0=none, 1=left, 2=center, 3=right
 
-static touch_sensor_handle_t sTouchSens = NULL;
-static touch_channel_handle_t sTouchChanLeft = NULL;
-static touch_channel_handle_t sTouchChanCenter = NULL;
-static touch_channel_handle_t sTouchChanRight = NULL;
-static touch_channel_handle_t sTouchChanByPad[TOUCH_PAD_MAX] = {};
+static bool sTouchInited = false;
+static bool sTouchChanEnabled[TOUCH_PAD_MAX] = {};
 
 // Light sleep: esp_sleep_get_touchpad_wakeup_status() is deep-sleep-only.
-// Latch the channel the NG driver reports active (ISR / post-wake).
+// Latch the channel the ACTIVE ISR reports (ISR / post-wake).
 static volatile int sTouchActiveChanId = -1;
 static volatile uint32_t sTouchActiveMask = 0;
 static int sTouchLastResolvedChan = -1; // for POKE_TIMING (survives latch clear)
@@ -58,16 +56,16 @@ static int fed4TouchChanIdToPadIndex(int chanId)
   return 0;
 }
 
-static bool IRAM_ATTR fed4TouchOnActive(touch_sensor_handle_t,
-                                        const touch_active_event_data_t *event,
-                                        void *)
+// IDF rtc_isr dispatcher is assumed to clear RTCCNTL.int_st after dispatch
+// (Arduino HAL never calls touch_pad_intr_clear either). If the ISR re-fires
+// continuously on hardware, add touch_pad_intr_clear(TOUCH_PAD_INTR_MASK_ACTIVE).
+static void IRAM_ATTR fed4TouchOnActive(void *)
 {
-  if (event)
-  {
-    sTouchActiveChanId = event->chan_id;
-    sTouchActiveMask = event->status_mask;
-  }
-  return false;
+  const uint32_t mask = touch_pad_read_intr_status_mask();
+  if (!(mask & TOUCH_PAD_INTR_MASK_ACTIVE))
+    return;
+  sTouchActiveChanId = (int)touch_pad_get_current_meas_channel();
+  sTouchActiveMask = touch_pad_get_status();
 }
 
 static void fed4TouchClearActiveLatch(void)
@@ -76,79 +74,68 @@ static void fed4TouchClearActiveLatch(void)
   sTouchActiveMask = 0;
 }
 
-static touch_sensor_filter_config_t fed4TouchFilterConfig()
+static touch_filter_config_t fed4TouchFilterConfig()
 {
   // Prefer edge speed over heavy averaging — software rise uses smooth/raw
   // vs characterized idle; HW wake still has BM + abs thresh for noise.
-  touch_sensor_filter_config_t cfg = TOUCH_SENSOR_DEFAULT_FILTER_CONFIG();
-  cfg.benchmark.filter_mode = TOUCH_BM_IIR_FILTER_8;
-  cfg.benchmark.denoise_lvl = 2;
-  cfg.data.smooth_filter = TOUCH_SMOOTH_NO_FILTER;
-  cfg.data.active_hysteresis = 1;
-  cfg.data.debounce_cnt = 1;
+  // smh_lvl OFF == NG TOUCH_SMOOTH_NO_FILTER (smooth equals raw).
+  // active_hysteresis has no v2 equivalent and is dropped.
+  touch_filter_config_t cfg = {};
+  cfg.mode = TOUCH_PAD_FILTER_IIR_8;
+  cfg.debounce_cnt = 1;
+  cfg.noise_thr = 2;
+  cfg.jitter_step = 0;
+  cfg.smh_lvl = TOUCH_PAD_SMOOTH_OFF;
   return cfg;
 }
 
-static bool fed4TouchNgStopDisable()
+static bool fed4TouchCreateController()
 {
-  touch_sensor_stop_continuous_scanning(sTouchSens);
-  return touch_sensor_disable(sTouchSens) == ESP_OK;
+  if (touch_pad_init() != ESP_OK)
+    return false;
+
+  touch_pad_set_charge_discharge_times(TOUCH_MEASURE_CYCLES);
+  touch_pad_set_measurement_interval(TOUCH_MEAS_INTERVAL_CYCLES);
+  touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_0V5);
+  touch_pad_set_idle_channel_connect(TOUCH_PAD_CONN_GND);
+
+  touch_pad_denoise_t denoise = {};
+  denoise.grade = TOUCH_PAD_DENOISE_BIT4;
+  denoise.cap_level = TOUCH_PAD_DENOISE_CAP_L4;
+  if (touch_pad_denoise_set_config(&denoise) != ESP_OK)
+    return false;
+  if (touch_pad_denoise_enable() != ESP_OK)
+    return false;
+
+  const int pads[] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+  for (int i = 0; i < 3; i++)
+  {
+    if (touch_pad_config((touch_pad_t)pads[i]) != ESP_OK)
+      return false;
+    sTouchChanEnabled[pads[i]] = true;
+  }
+
+  if (touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER) != ESP_OK)
+    return false;
+  if (touch_pad_fsm_start() != ESP_OK)
+    return false;
+
+  touch_filter_config_t filter_cfg = fed4TouchFilterConfig();
+  if (touch_pad_filter_set_config(&filter_cfg) != ESP_OK)
+    return false;
+  if (touch_pad_filter_enable() != ESP_OK)
+    return false;
+
+  // Do not call touch_pad_sleep_channel_enable() — that is the deep-sleep
+  // single-channel path and would break multi-pad light-sleep wake.
+  if (touch_pad_isr_register(fed4TouchOnActive, NULL, TOUCH_PAD_INTR_MASK_ACTIVE) !=
+      ESP_OK)
+    return false;
+  return touch_pad_intr_enable(TOUCH_PAD_INTR_MASK_ACTIVE) == ESP_OK;
 }
 
-static bool fed4TouchNgEnableStart()
-{
-  if (touch_sensor_enable(sTouchSens) != ESP_OK)
-    return false;
-  return touch_sensor_start_continuous_scanning(sTouchSens) == ESP_OK;
-}
-
-static bool fed4TouchNgAddChannel(int chanId, touch_channel_handle_t *outHandle)
-{
-  touch_channel_config_t chan_cfg = TOUCH_CHANNEL_DEFAULT_CONFIG();
-  if (touch_sensor_new_channel(sTouchSens, chanId, &chan_cfg, outHandle) != ESP_OK)
-    return false;
-  sTouchChanByPad[chanId] = *outHandle;
-  return true;
-}
-
-static bool fed4TouchNgCreateController()
-{
-  touch_sensor_sample_config_t sample_cfg = TOUCH_SENSOR_V2_DEFAULT_SAMPLE_CONFIG(
-      TOUCH_MEASURE_CYCLES, TOUCH_VOLT_LIM_L_0V5, TOUCH_VOLT_LIM_H_2V7);
-  touch_sensor_config_t sens_cfg = TOUCH_SENSOR_DEFAULT_BASIC_CONFIG(1, &sample_cfg);
-  sens_cfg.power_on_wait_us = TOUCH_SLEEP_CYCLES;
-  sens_cfg.meas_interval_us = 32.0f;
-
-  if (touch_sensor_new_controller(&sens_cfg, &sTouchSens) != ESP_OK)
-    return false;
-
-  if (!fed4TouchNgAddChannel(TOUCH_PAD_LEFT, &sTouchChanLeft))
-    return false;
-  if (!fed4TouchNgAddChannel(TOUCH_PAD_CENTER, &sTouchChanCenter))
-    return false;
-  if (!fed4TouchNgAddChannel(TOUCH_PAD_RIGHT, &sTouchChanRight))
-    return false;
-
-  touch_event_callbacks_t cbs = {};
-  cbs.on_active = fed4TouchOnActive;
-  if (touch_sensor_register_callbacks(sTouchSens, &cbs, NULL) != ESP_OK)
-    return false;
-
-#if SOC_TOUCH_SUPPORT_SLEEP_WAKEUP
-  touch_sleep_config_t sleep_cfg = TOUCH_SENSOR_DEFAULT_LSLP_CONFIG();
-  if (touch_sensor_config_sleep_wakeup(sTouchSens, &sleep_cfg) != ESP_OK)
-    return false;
-#endif
-
-  if (!fed4TouchNgEnableStart())
-    return false;
-
-  touch_sensor_filter_config_t filter_cfg = fed4TouchFilterConfig();
-  return touch_sensor_config_filter(sTouchSens, &filter_cfg) == ESP_OK;
-}
-
-static bool fed4TouchNgApplyThresholds(uint32_t threshL, uint32_t threshC,
-                                       uint32_t threshR)
+static bool fed4TouchApplyThresholds(uint32_t threshL, uint32_t threshC,
+                                     uint32_t threshR)
 {
   const int pads[] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
   const uint32_t thresh[] = {threshL, threshC, threshR};
@@ -157,36 +144,29 @@ static bool fed4TouchNgApplyThresholds(uint32_t threshL, uint32_t threshC,
   fed4TouchWakeAbsC = threshC;
   fed4TouchWakeAbsR = threshR;
 
-  if (!fed4TouchNgStopDisable())
-    return false;
-
+  // Live set_thresh — do not stop/start the FSM. touch_pad_fsm_start()
+  // resets the benchmark on all channels and would destroy drift tracking.
   for (int i = 0; i < 3; i++)
   {
-    touch_channel_config_t chan_cfg = TOUCH_CHANNEL_DEFAULT_CONFIG();
-    chan_cfg.active_thresh[0] = thresh[i];
-    if (touch_sensor_reconfig_channel(sTouchChanByPad[pads[i]], &chan_cfg) != ESP_OK)
+    if (touch_pad_set_thresh((touch_pad_t)pads[i], thresh[i]) != ESP_OK)
       return false;
   }
-
-#if SOC_TOUCH_SUPPORT_SLEEP_WAKEUP
-  touch_sleep_config_t sleep_cfg = TOUCH_SENSOR_DEFAULT_LSLP_CONFIG();
-  if (touch_sensor_config_sleep_wakeup(sTouchSens, &sleep_cfg) != ESP_OK)
-    return false;
-#endif
-
-  return fed4TouchNgEnableStart();
+  return true;
 }
 
-static uint32_t fed4TouchNgReadChannel(uint8_t pin, touch_chan_data_type_t type)
+static uint32_t fed4TouchReadChannel(uint8_t pin, bool benchmark)
 {
   const int8_t pad = digitalPinToTouchChannel(pin);
-  if (pad < 0 || pad >= TOUCH_PAD_MAX || !sTouchChanByPad[pad])
+  if (pad < 0 || pad >= TOUCH_PAD_MAX || !sTouchChanEnabled[pad])
     return 0;
 
-  uint32_t value[TOUCH_SAMPLE_CFG_NUM] = {};
-  if (touch_channel_read_data(sTouchChanByPad[pad], type, value) != ESP_OK)
+  uint32_t value = 0;
+  const esp_err_t err =
+      benchmark ? touch_pad_read_benchmark((touch_pad_t)pad, &value)
+                : touch_pad_filter_read_smooth((touch_pad_t)pad, &value);
+  if (err != ESP_OK)
     return 0;
-  return value[0];
+  return value;
 }
 
 typedef struct
@@ -215,9 +195,9 @@ static void characterizeAllPads(Fed4TouchPadStats *outL, Fed4TouchPadStats *outC
 
   for (int i = 0; i < TOUCH_CHAR_SAMPLES; i++)
   {
-    samplesL[i] = fed4TouchNgReadChannel(TOUCH_PAD_LEFT, TOUCH_CHAN_DATA_TYPE_SMOOTH);
-    samplesC[i] = fed4TouchNgReadChannel(TOUCH_PAD_CENTER, TOUCH_CHAN_DATA_TYPE_SMOOTH);
-    samplesR[i] = fed4TouchNgReadChannel(TOUCH_PAD_RIGHT, TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    samplesL[i] = fed4TouchRead(TOUCH_PAD_LEFT);
+    samplesC[i] = fed4TouchRead(TOUCH_PAD_CENTER);
+    samplesR[i] = fed4TouchRead(TOUCH_PAD_RIGHT);
     sumL += samplesL[i];
     sumC += samplesC[i];
     sumR += samplesR[i];
@@ -262,7 +242,7 @@ static bool fed4TouchAbsorbResidualOffset(void)
 
   for (int i = 0; i < 3; i++)
   {
-    const uint32_t raw = fed4TouchNgReadChannel(pads[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+    const uint32_t raw = fed4TouchRead(pads[i]);
     const float rise = fed4TouchRiseFraction(raw, *idles[i]);
     if (rise >= *threshs[i] && raw > *idles[i])
     {
@@ -316,7 +296,7 @@ bool fed4TouchCharacterizePads(void)
 
   fed4TouchPrintCharacterization();
 
-  return fed4TouchNgApplyThresholds(
+  return fed4TouchApplyThresholds(
       fed4TouchWakeThresholdForPad(fed4TouchIdleL, fed4TouchRiseThreshL),
       fed4TouchWakeThresholdForPad(fed4TouchIdleC, fed4TouchRiseThreshC),
       fed4TouchWakeThresholdForPad(fed4TouchIdleR, fed4TouchRiseThreshR));
@@ -478,7 +458,7 @@ bool fed4TouchCalApply(const Fed4TouchCal *cal)
   fed4TouchRiseThreshR = cal->R.riseThresh;
 
   fed4TouchCalPrint(cal);
-  return fed4TouchNgApplyThresholds(cal->L.wakeAbs, cal->C.wakeAbs, cal->R.wakeAbs);
+  return fed4TouchApplyThresholds(cal->L.wakeAbs, cal->C.wakeAbs, cal->R.wakeAbs);
 }
 
 void fed4TouchCalPrint(const Fed4TouchCal *cal)
@@ -531,7 +511,7 @@ float fed4TouchRiseFraction(uint32_t raw, uint32_t idle)
 
 uint32_t fed4TouchWakeThreshold(uint32_t idle)
 {
-  // NG active_thresh is a delta above benchmark (legacy helper uses floor).
+  // active_thresh is a delta above benchmark (legacy helper uses floor).
   return fed4TouchWakeThresholdForPad(idle, TOUCH_THRESHOLD);
 }
 
@@ -542,12 +522,12 @@ uint32_t fed4TouchWakeThresholdForPad(uint32_t idle, float riseThresh)
 
 uint32_t fed4TouchRead(uint8_t pin)
 {
-  return fed4TouchNgReadChannel(pin, TOUCH_CHAN_DATA_TYPE_SMOOTH);
+  return fed4TouchReadChannel(pin, false);
 }
 
 uint32_t fed4TouchReadBenchmark(uint8_t pin)
 {
-  return fed4TouchNgReadChannel(pin, TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+  return fed4TouchReadChannel(pin, true);
 }
 
 int fed4TouchLastLatchPad(void) { return sTouchLastLatchPad; }
@@ -595,10 +575,11 @@ bool fed4TouchAnyPadActive(float riseLimit)
 
 bool fed4TouchInitPads(void)
 {
-  if (sTouchSens == NULL)
+  if (!sTouchInited)
   {
-    if (!fed4TouchNgCreateController())
+    if (!fed4TouchCreateController())
       return false;
+    sTouchInited = true;
   }
   return fed4TouchCharacterizePads();
 }
@@ -636,10 +617,8 @@ int fed4TouchPadIndexFromHwWakeStatus(void)
   {
     if (!absThr[i])
       continue;
-    const uint32_t sm =
-        fed4TouchNgReadChannel(pins[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
-    const uint32_t bm =
-        fed4TouchNgReadChannel(pins[i], TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+    const uint32_t sm = fed4TouchRead(pins[i]);
+    const uint32_t bm = fed4TouchReadBenchmark(pins[i]);
     const int32_t d = (int32_t)sm - (int32_t)bm;
     if (d >= (int32_t)absThr[i] && d > bestDelta)
     {
@@ -674,10 +653,8 @@ int fed4TouchPadIndexFromLatchOnly(void)
   {
     if (!(sTouchActiveMask & (1u << chans[i])))
       continue;
-    const uint32_t sm =
-        fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
-    const uint32_t bm =
-        fed4TouchNgReadChannel(chans[i], TOUCH_CHAN_DATA_TYPE_BENCHMARK);
+    const uint32_t sm = fed4TouchRead(chans[i]);
+    const uint32_t bm = fed4TouchReadBenchmark(chans[i]);
     const int32_t d = (int32_t)sm - (int32_t)bm;
     if (d > bestDelta)
     {
@@ -728,8 +705,7 @@ int fed4TouchConfirmPadByAbsDelta(void)
     {
       if (!idles[i])
         continue;
-      const uint32_t sm =
-          fed4TouchNgReadChannel(pins[i], TOUCH_CHAN_DATA_TYPE_SMOOTH);
+      const uint32_t sm = fed4TouchRead(pins[i]);
       int32_t di = (int32_t)sm - (int32_t)idles[i];
       if (di < 0)
         di = 0;
@@ -852,7 +828,7 @@ const char *fed4TouchIdentifyWakePad(float triggerRise)
 
 void fed4TouchPrintDriverConfig(void)
 {
-  Serial.println("Touch: NG driver + BM IIR8 + denoise2 + smooth=raw + debounce1");
+  Serial.println("Touch: legacy touch_pad + BM IIR8 + denoise BIT4/L4 + smooth=raw + debounce1");
   Serial.printf(
       "Touch: char warm=%ums n=%d dt=%ums sigma=%.1f absMin=%.0f absMargin=%.0f\n",
       (unsigned)TOUCH_CHAR_WARM_MS, TOUCH_CHAR_SAMPLES,
