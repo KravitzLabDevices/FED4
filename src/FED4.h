@@ -593,10 +593,6 @@ private:
 
     // Touch diagnostic log state
     bool touchLogAvailable = false;
-    // Per-device context from meta.json "context" — read once, stamped on BootChar
-    String touchCtxCage, touchCtxRackSlot, touchCtxOrientation;
-    String touchCtxFrontPlate, touchCtxBatterySide, touchCtxPokeModule;
-    void loadTouchContext();
 
     // RTC functions
     Preferences preferences;

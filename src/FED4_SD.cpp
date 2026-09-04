@@ -649,17 +649,6 @@ bool FED4::logData(const String &newEvent)
 
 #if FED4_ENABLE_TOUCH_LOG
 
-/** Reads the optional meta.json "context" block (empty strings if absent). */
-void FED4::loadTouchContext()
-{
-    touchCtxCage = getMetaValue("context", "cage");
-    touchCtxRackSlot = getMetaValue("context", "rack_slot");
-    touchCtxOrientation = getMetaValue("context", "orientation");
-    touchCtxFrontPlate = getMetaValue("context", "front_plate");
-    touchCtxBatterySide = getMetaValue("context", "battery_side");
-    touchCtxPokeModule = getMetaValue("context", "poke_module");
-}
-
 /**
  * Creates the touch diagnostic log next to the behavioral log, sharing its
  * file number so the pair is unambiguous: /FED4_<id>_<YYYYMMDD>_<NN>_T.CSV
@@ -714,8 +703,7 @@ bool FED4::createTouchLogFile()
     touchFile.print("IdleL,IdleC,IdleR,StdL,StdC,StdR,");
     touchFile.print("RiseThreshL,RiseThreshC,RiseThreshR,WakeAbsL,WakeAbsC,WakeAbsR,");
     touchFile.print("PeakSmooth,PokeDuration,");
-    touchFile.print("RecharCount,ProxMm,Motion,Temperature,Humidity,BatteryVoltage,BatteryPercent,WakeCount,");
-    touchFile.println("Cage,RackSlot,Orientation,FrontPlate,BatterySide,PokeModule");
+    touchFile.println("RecharCount,ProxMm,Motion,Temperature,Humidity,BatteryVoltage,BatteryPercent,WakeCount");
 
     touchFile.flush();
     if (touchFile.getWriteError())
@@ -739,7 +727,6 @@ bool FED4::createTouchLogFile()
     Serial.print("New touch log created: ");
     Serial.println(touchFilename);
 
-    loadTouchContext();
     return true;
 }
 
@@ -839,7 +826,7 @@ bool FED4::logTouch(const char *rowType)
         snprintf(formattedMouseId, sizeof(formattedMouseId), "%04d", mouseIdValue);
     }
 
-    // Identity and context
+    // Identity
     touchFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,%llX,%s,%s,%s,%s,%s,%s,",
                      now.year(), now.month(), now.day(),
                      now.hour(), now.minute(), now.second(),
@@ -888,21 +875,8 @@ bool FED4::logTouch(const char *rowType)
     } else {
         touchFile.printf("%.1f,", motionPercentage);
     }
-    touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d,",
+    touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d\n",
                      temperature, humidity, cellVoltage, cellPercent, wakeCount);
-
-    // Per-device context — stamped on BootChar; joined per device offline
-    if (strcmp(rowType, "BootChar") == 0)
-    {
-        touchFile.printf("%s,%s,%s,%s,%s,%s\n",
-                         touchCtxCage.c_str(), touchCtxRackSlot.c_str(),
-                         touchCtxOrientation.c_str(), touchCtxFrontPlate.c_str(),
-                         touchCtxBatterySide.c_str(), touchCtxPokeModule.c_str());
-    }
-    else
-    {
-        touchFile.print(",,,,,\n");
-    }
 
     touchFile.flush();
 
@@ -926,7 +900,6 @@ bool FED4::logTouch(const char *rowType)
 
 #else // !FED4_ENABLE_TOUCH_LOG
 
-void FED4::loadTouchContext() {}
 bool FED4::createTouchLogFile() { return false; }
 bool FED4::logTouch(const char *rowType) { (void)rowType; return false; }
 

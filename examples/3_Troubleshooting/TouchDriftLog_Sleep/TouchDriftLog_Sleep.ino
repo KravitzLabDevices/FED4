@@ -16,11 +16,6 @@
   #define here does NOT reach the library under the Arduino IDE. Rebuild after
   changing it.
 
-  Before a cage run, fill in the "context" block of meta.json on the SD card
-  (cage, rack_slot, orientation, front_plate, battery_side, poke_module) — it is
-  stamped into the BootChar row and is what separates context-dependent causes
-  from device- and module-specific ones. See extras/meta.json_examples/meta.json.
-
   Analyse with extras/analysis/fed4_touch_analysis.py.
 */
 

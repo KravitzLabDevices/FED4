@@ -198,6 +198,8 @@ bool FED4::begin(const char *programName)
     {
         int maxRetries = 3;
         int retryCount = 0;
+        // Adafruit begin() writes 0x5400 to COMMAND; MAX17048 is specified to
+        // NACK that POR write. Arduino-ESP32 3.2.1 logs i2c.master ERROR — not a failure.
         while (!maxlipo.begin() && retryCount < maxRetries)
         {
             retryCount++;

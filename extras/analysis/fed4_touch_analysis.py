@@ -43,15 +43,6 @@ PADS = ("L", "C", "R")
 PAD_NAMES = {"L": "Left", "C": "Center", "R": "Right"}
 PAD_COLORS = {"L": "#1f77b4", "C": "#ff7f0e", "R": "#2ca02c"}
 
-CONTEXT_COLS = [
-    "Cage",
-    "RackSlot",
-    "Orientation",
-    "FrontPlate",
-    "BatterySide",
-    "PokeModule",
-]
-
 NUMERIC_COLS = (
     [f"Smooth{p}" for p in PADS]
     + [f"Bench{p}" for p in PADS]
@@ -126,19 +117,6 @@ def load(files: list[Path]) -> pd.DataFrame:
     # Motion is "Disabled" when the PIR is off — keep a numeric twin
     if "Motion" in df.columns:
         df["MotionPct"] = pd.to_numeric(df["Motion"], errors="coerce")
-
-    # Context is stamped on BootChar rows only; broadcast it per device+file
-    for col in CONTEXT_COLS:
-        if col not in df.columns:
-            df[col] = pd.NA
-    boot = df[df["RowType"] == "BootChar"]
-    for (uid, src), grp in boot.groupby(["DeviceUID", "SourceFile"], dropna=False):
-        mask = (df["DeviceUID"] == uid) & (df["SourceFile"] == src)
-        for col in CONTEXT_COLS:
-            vals = grp[col].dropna()
-            vals = vals[vals.astype(str).str.strip() != ""]
-            if not vals.empty:
-                df.loc[mask, col] = vals.iloc[0]
 
     df["Device"] = df["DeviceUID"].astype(str).str[-6:]
 
@@ -308,7 +286,6 @@ def panel_cross_device(df: pd.DataFrame, out_dir: Path) -> tuple[pd.DataFrame, p
                     "Std": r[f"Std{p}"],
                     "RiseThresh": r[f"RiseThresh{p}"],
                     "WakeAbs": r[f"WakeAbs{p}"],
-                    **{c: r.get(c) for c in CONTEXT_COLS},
                 }
             )
     boot_table = pd.DataFrame(rows)
