@@ -8,13 +8,17 @@
     1 Hz   Heartbeat row to SD (idle / benchmark / thresholds)
     10 Hz  Serial line for bench work
     poke   software-detected on absolute (smooth − idle), logged on release with
-           PeakSmooth (peak amplitude) and PokeDuration (hold ms)
+           PeakSmooth (peak amplitude) and PokeDuration (hold ms); L/C/R counters
+           and indicator dots updated on the display (FedUpdateMode::Poke)
 
   If this arm stays healthy while the sleep arm dies, the fault is in the light
   sleep / benchmark / latch path — not in the pad.
 
   REQUIRES FED4_ENABLE_TOUCH_LOG = 1 in src/FED4.h — it is a LIBRARY flag, so a
   #define here does NOT reach the library under the Arduino IDE.
+
+  Display: Task field = "AwakeDrift"; footer / Task-right = firmware v1.7.0.1
+  (see docs/firmware/v1.7.0.1.md). Firmware number bumps only when src/ changes.
 
   Analyse with extras/analysis/fed4_touch_analysis.py.
 */
@@ -66,7 +70,7 @@ void setup()
   // Set before begin() so the BootChar row is labelled correctly
   fed4.touchLogMode = "Awake";
 
-  fed4.begin("TouchDriftAwake");
+  fed4.begin("AwakeDrift");
 
 #if !FED4_ENABLE_TOUCH_LOG
   Serial.println("WARNING: FED4_ENABLE_TOUCH_LOG is 0 — no touch log will be written.");
@@ -115,7 +119,25 @@ void loop()
       FED4::wakePad = (uint8_t)activePad;
       fed4.pokeDuration = (float)(nowMs - activeStartMs);
 
+      fed4.resetTouchFlags();
+      if (activePad == 1)
+      {
+        fed4.leftCount++;
+        fed4.leftTouch = true;
+      }
+      else if (activePad == 2)
+      {
+        fed4.centerCount++;
+        fed4.centerTouch = true;
+      }
+      else if (activePad == 3)
+      {
+        fed4.rightCount++;
+        fed4.rightTouch = true;
+      }
+
       fed4.logTouch("Poke");
+      fed4.update(FedUpdateMode::Poke); // counters + L/C/R dots (MIP)
 
       Serial.printf("Poke pad=%d peak=%lu hold=%.0f ms\n", activePad,
                     (unsigned long)activePeakSmooth, fed4.pokeDuration);

@@ -16,6 +16,9 @@
   #define here does NOT reach the library under the Arduino IDE. Rebuild after
   changing it.
 
+  Display: Task field = "SleepDrift"; footer / Task-right = firmware v1.7.0.1
+  (see docs/firmware/v1.7.0.1.md). Firmware number bumps only when src/ changes.
+
   Analyse with extras/analysis/fed4_touch_analysis.py.
 */
 
@@ -28,7 +31,7 @@ void setup()
   // Set before begin() so the BootChar row is labelled correctly
   fed4.touchLogMode = "LightSleep";
 
-  fed4.begin("TouchDriftLog");
+  fed4.begin("SleepDrift");
 
 #if !FED4_ENABLE_TOUCH_LOG
   Serial.println("WARNING: FED4_ENABLE_TOUCH_LOG is 0 — no touch log will be written.");

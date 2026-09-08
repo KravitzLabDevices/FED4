@@ -703,7 +703,13 @@ bool FED4::createTouchLogFile()
     touchFile.print("IdleL,IdleC,IdleR,StdL,StdC,StdR,");
     touchFile.print("RiseThreshL,RiseThreshC,RiseThreshR,WakeAbsL,WakeAbsC,WakeAbsR,");
     touchFile.print("PeakSmooth,PokeDuration,");
-    touchFile.println("RecharCount,ProxMm,Motion,Temperature,Humidity,BatteryVoltage,BatteryPercent,WakeCount");
+    touchFile.print("RecharCount,ProxMm,Motion,Temperature,Humidity,BatteryVoltage,BatteryPercent,WakeCount,");
+    // Build-1 diagnostics (see docs/wiki/Poke-Functionality.md) — appended after
+    // WakeCount so older parsers / pd.concat of mixed-vintage files keep working.
+    touchFile.print("ScanPeriodUs,MeasUsL,MeasUsC,MeasUsR,TimeoutCount,");
+    touchFile.print("StatusMask,IsrChan,IsrMask,IsrCount,");
+    touchFile.print("PeakL,PeakC,PeakR,ConfirmAgreed,ReleaseWaitMs,");
+    touchFile.println("BenchStuckMsL,BenchStuckMsC,BenchStuckMsR");
 
     touchFile.flush();
     if (touchFile.getWriteError())
@@ -764,7 +770,8 @@ static const char *fed4WakeSourceName(FedWakeSource source)
 
 /**
  * Appends one row to the touch diagnostic log.
- * @param rowType BootChar | Heartbeat | Poke | TouchMiss | Rechar
+ * @param rowType BootChar | Heartbeat | Poke | TouchMiss | Rechar | CalReject |
+ *                Stuck | ReleaseWait | BenchReset
  * @return true if the row was written
  *
  * Environment / battery columns are the cached refreshSensors() snapshot — they
@@ -839,9 +846,17 @@ bool FED4::logTouch(const char *rowType)
                      touchLogMode ? touchLogMode : "",
                      fed4WakeSourceName(lastWakeSource));
 
-    // Identification
-    touchFile.printf("%s,%d,%d,", fed4TouchPadName(wakePad),
-                     fed4TouchLastLatchPad(), fed4TouchLastConfirmPad());
+    // Identification — LatchPad/ConfirmPad/PeakSmooth/PokeDuration/PeakL-C-R/
+    // ConfirmAgreed are only meaningful on Poke rows; they are stale carry-over
+    // from the last poke otherwise (capturePoke() is the only writer of these
+    // globals) and would otherwise invite false conclusions, e.g. a PeakSmooth
+    // from hours ago sitting on every quiet Heartbeat row.
+    const bool isPokeRow = (strcmp(rowType, "Poke") == 0);
+    const int latchPadOut = isPokeRow ? fed4TouchLastLatchPad() : 0;
+    const int confirmPadOut = isPokeRow ? fed4TouchLastConfirmPad() : 0;
+
+    touchFile.printf("%s,%d,%d,", fed4TouchPadName(wakePad), latchPadOut,
+                     confirmPadOut);
 
     // Live signal + hardware baseline (the two the HW wake actually compares)
     touchFile.printf("%lu,%lu,%lu,%lu,%lu,%lu,",
@@ -864,9 +879,10 @@ bool FED4::logTouch(const char *rowType)
                      (unsigned long)fed4TouchWakeAbsC,
                      (unsigned long)fed4TouchWakeAbsR);
 
-    // Poke amplitude / hold time
-    touchFile.printf("%lu,%.3f,", (unsigned long)fed4TouchLastPeakSmooth(),
-                     pokeDuration);
+    // Poke amplitude / hold time (0 / 0.0 on non-Poke rows — see note above)
+    touchFile.printf("%lu,%.3f,",
+                     isPokeRow ? (unsigned long)fed4TouchLastPeakSmooth() : 0UL,
+                     isPokeRow ? pokeDuration : 0.0f);
 
     // State and covariates (cached sensor snapshot — see note above)
     touchFile.printf("%lu,%d,", (unsigned long)fed4TouchRecharCount(), proxMm);
@@ -875,8 +891,30 @@ bool FED4::logTouch(const char *rowType)
     } else {
         touchFile.printf("%.1f,", motionPercentage);
     }
-    touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d\n",
+    touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d,",
                      temperature, humidity, cellVoltage, cellPercent, wakeCount);
+
+    // Build-1 diagnostics
+    touchFile.printf("%lu,%lu,%lu,%lu,%lu,",
+                     (unsigned long)fed4TouchScanPeriodUs(),
+                     (unsigned long)fed4TouchMeasUs(1),
+                     (unsigned long)fed4TouchMeasUs(2),
+                     (unsigned long)fed4TouchMeasUs(3),
+                     (unsigned long)fed4TouchTimeoutCount());
+    touchFile.printf("%lu,%d,%lu,%lu,",
+                     (unsigned long)fed4TouchLiveStatusMask(),
+                     fed4TouchLastIsrChan(), (unsigned long)fed4TouchLastIsrMask(),
+                     (unsigned long)fed4TouchIsrCount());
+    touchFile.printf("%lu,%lu,%lu,%d,%.3f,",
+                     isPokeRow ? (unsigned long)fed4TouchLastPeakL() : 0UL,
+                     isPokeRow ? (unsigned long)fed4TouchLastPeakC() : 0UL,
+                     isPokeRow ? (unsigned long)fed4TouchLastPeakR() : 0UL,
+                     isPokeRow ? (fed4TouchLastConfirmAgreed() ? 1 : 0) : 0,
+                     touchLastReleaseWaitMs);
+    touchFile.printf("%lu,%lu,%lu\n",
+                     (unsigned long)fed4TouchBenchStuckMs(1),
+                     (unsigned long)fed4TouchBenchStuckMs(2),
+                     (unsigned long)fed4TouchBenchStuckMs(3));
 
     touchFile.flush();
 

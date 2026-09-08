@@ -63,6 +63,25 @@ NUMERIC_COLS = (
         "BatteryVoltage",
         "BatteryPercent",
         "WakeCount",
+        # Build-1 diagnostics (see docs/wiki/Poke-Functionality.md) — absent in
+        # logs written before that fix, in which case these read as NaN.
+        "ScanPeriodUs",
+        "MeasUsL",
+        "MeasUsC",
+        "MeasUsR",
+        "TimeoutCount",
+        "StatusMask",
+        "IsrChan",
+        "IsrMask",
+        "IsrCount",
+        "PeakL",
+        "PeakC",
+        "PeakR",
+        "ConfirmAgreed",
+        "ReleaseWaitMs",
+        "BenchStuckMsL",
+        "BenchStuckMsC",
+        "BenchStuckMsR",
     ]
 )
 
@@ -521,6 +540,24 @@ def panel_sleep_vs_awake(df: pd.DataFrame, out_dir: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 
+def print_isr_skew(df: pd.DataFrame) -> None:
+    """Build-1 diagnostic: cross-tab resolved Pad x raw IsrChan on Poke rows.
+    IsrChan is touch_pad_get_current_meas_channel() at the last ISR entry and
+    is diagnostic-only (identification uses the status_mask edge instead — see
+    docs/wiki/Poke-Functionality.md) - a skewed matrix here would mean the FSM
+    scan order assumption behind that correction no longer holds, not that
+    identification itself is wrong."""
+    if "IsrChan" not in df.columns:
+        return
+    pokes = df[(df["RowType"] == "Poke") & df["PadLetter"].notna()]
+    pokes = pokes[pokes["IsrChan"].notna() & (pokes["IsrChan"] != -1)]
+    if pokes.empty:
+        return
+    print("\nPad x IsrChan (raw, diagnostic-only) on Poke rows:")
+    table = pd.crosstab(pokes["Pad"], pokes["IsrChan"].astype(int))
+    print(table.to_string())
+
+
 def interpret(df: pd.DataFrame, droughts: pd.DataFrame) -> list[str]:
     """Encode the interpretation rules from the plan as explicit findings."""
     out: list[str] = []
@@ -553,6 +590,48 @@ def interpret(df: pd.DataFrame, droughts: pd.DataFrame) -> list[str]:
                             f"recalibration ran with a mouse nearby (ProxMm/Motion on "
                             f"those rows)."
                         )
+                # Any single Heartbeat-to-Heartbeat step > 20% of idle is the
+                # calibration-poisoned signature (a 13.8x jump was observed in
+                # the field before the Build-1 plausibility bound existed).
+                idle_pct_step = hb[f"Idle{p}"].pct_change().abs()
+                if idle_pct_step.gt(0.20).any():
+                    jump_idx = idle_pct_step.idxmax()
+                    jump_time = hb.loc[jump_idx, "DateTime"]
+                    out.append(
+                        f"[{dev} {PAD_NAMES[p]}] Idle stepped "
+                        f"{idle_pct_step.max() * 100:.0f}% at {jump_time} - "
+                        f"calibration poisoned at that timestamp (check for a "
+                        f"Rechar row and whether ConfirmAgreed/CalReject rows "
+                        f"are present in a Build-1 log)."
+                    )
+
+            # H1/H10: Smooth AND Bench frozen simultaneously across all three
+            # pads for a sustained run is the FSM-stopped signature (a
+            # measurement timeout that was never resumed) - distinct from a
+            # single pad's benchmark latching active (which freezes only that
+            # pad's Bench while Smooth keeps moving).
+            frozen_cols = [f"Smooth{p}" for p in PADS] + [f"Bench{p}" for p in PADS]
+            if all(c in hb.columns for c in frozen_cols) and len(hb) >= 10:
+                unchanged = pd.Series(True, index=hb.index)
+                for c in frozen_cols:
+                    unchanged &= hb[c].diff().eq(0)
+                run = (~unchanged).cumsum()
+                run_len = unchanged.groupby(run).transform("sum")
+                max_run = int(run_len.max()) if len(run_len) else 0
+                if max_run >= 10:
+                    stuck_at = hb.loc[unchanged & (run_len == max_run), "DateTime"]
+                    timeout_count = (
+                        hb["TimeoutCount"].max() if "TimeoutCount" in hb.columns else float("nan")
+                    )
+                    out.append(
+                        f"[{dev}] Smooth and Bench frozen together across all pads "
+                        f"for {max_run} consecutive Heartbeat rows starting "
+                        f"{stuck_at.min() if len(stuck_at) else '?'} - the FSM "
+                        f"appears stopped (TimeoutCount={timeout_count} at that "
+                        f"point, in a Build-1 log; a step up in TimeoutCount "
+                        f"across the freeze confirms an unresumed measurement "
+                        f"timeout as the cause)."
+                    )
 
         if len(pokes) >= 6:
             for p in PADS:
@@ -582,6 +661,23 @@ def interpret(df: pd.DataFrame, droughts: pd.DataFrame) -> list[str]:
                 out.append(
                     f"[{dev}] {miss_pct:.0f}% of touch wakes did not resolve to a pad - "
                     f"identification is failing, not just detection."
+                )
+
+        # Build-1: how often the arbiter had to break a latch/confirm tie, and
+        # (pre-Build-1 logs only) how often confirm was an unvoted single-sample
+        # winner. Post-fix, ConfirmAgreed==0 whenever ConfirmPad==0 by
+        # construction (see fed4TouchConfirmPadByAbsDelta), so this mainly shows
+        # up as a sanity check plus the conflict rate.
+        if "ConfirmAgreed" in pokes.columns and len(pokes) >= 6:
+            conflict = pokes["LatchPad"] != pokes["ConfirmPad"]
+            if conflict.any():
+                conflict_pct = conflict.mean() * 100.0
+                confirm_used = pokes.loc[conflict, "ConfirmPad"] != 0
+                out.append(
+                    f"[{dev}] LatchPad and ConfirmPad disagreed on "
+                    f"{conflict_pct:.0f}% of pokes; the arbiter used the voted "
+                    f"confirm on {confirm_used.mean() * 100:.0f}% of those and the "
+                    f"latch otherwise."
                 )
 
     # Dead ports: across all devices vs one device only
@@ -692,6 +788,8 @@ def main() -> int:
         droughts.to_csv(out_dir / "poke_droughts.csv", index=False)
         print("\nPoke droughts:")
         print(droughts.to_string(index=False))
+
+    print_isr_skew(df)
 
     print("\n=== Interpretation ===")
     for line in interpret(df, droughts):

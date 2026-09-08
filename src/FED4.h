@@ -68,8 +68,14 @@ class DateTime;
 #define FED4_ENABLE_TOUCH_LOG 1
 #endif
 
-// Board Version: v1.7
+// Board Version: v1.7 (hardware)
 #define FED4_BOARD_VERSION_STR "1.7.0"
+
+// Flashed firmware identity — shown on the display footer and logged as
+// CSV LibraryVer. The 4th digit is the in-lab test-flash increment on top of
+// library 1.7.0. Bump ONLY when src/ library code changes; sketch-only edits
+// (task name, comments) do not bump this. See docs/firmware/.
+#define FED4_FIRMWARE_VERSION_STR "1.7.0.1"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -349,7 +355,8 @@ public:
     // the behavioral CSV schema and downstream tooling stay untouched).
     /** Create <base>_T.CSV next to the behavioral log and write its header. */
     bool createTouchLogFile();
-    /** Append one touch row. rowType: BootChar | Heartbeat | Poke | TouchMiss | Rechar.
+    /** Append one touch row. rowType: BootChar | Heartbeat | Poke | TouchMiss |
+     *  Rechar | CalReject | Stuck | ReleaseWait | BenchReset.
      *  ProxMm is polled on Heartbeat/Rechar rows only (prox() blocks up to 100 ms
      *  and must stay off the poke latency path). */
     bool logTouch(const char *rowType);
@@ -357,6 +364,22 @@ public:
     const char *touchLogMode = "LightSleep";
     /** Set when startSleep()'s 2 s rescue characterization fired; cleared by waitUntil(). */
     bool touchRecharPending = false;
+    /** Set when the rescue characterization (or fed4TouchAbsorbResidualOffset())
+     *  rejected a candidate value against the boot-reference plausibility bounds;
+     *  cleared by waitUntil() after logging a CalReject row. */
+    bool touchCalRejectPending = false;
+    /** Set when startSleep()'s pre-sleep release wait hit FED4_TOUCH_RELEASE_WAIT_MS
+     *  and proceeded to sleep with a pad still reading active; cleared by waitUntil()
+     *  after logging a Stuck row. */
+    bool touchStuckPending = false;
+    /** Set when the release wait exceeded FED4_TOUCH_RELEASE_LOG_MS but did not hit
+     *  the hard cap (touchStuckPending); cleared by waitUntil() after logging a
+     *  ReleaseWait row. */
+    bool touchReleaseWaitPending = false;
+    /** Duration (ms) of the most recent startSleep() release wait — logged on
+     *  every touch row so a slow-but-not-hung release is visible even without a
+     *  ReleaseWait/Stuck row. */
+    float touchLastReleaseWaitMs = 0.0f;
     bool isTouchLogAvailable() const { return touchLogAvailable; }
 
     String getMetaValue(const char *rootKey, const char *subKey);

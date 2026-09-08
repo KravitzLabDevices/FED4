@@ -108,7 +108,41 @@ Wizard: [`examples/2_UnitTests/FED4-Touch-Calibrate/`](../../examples/2_UnitTest
 
 **Production today** is the ESP-IDF **legacy** `touch_pad` path in [`FED4_Touch.cpp`](../../src/FED4_Touch.cpp) (`driver/touch_sensor.h`, Arduino-ESP32 3.2.1 / IDF 5.4): IIR8 benchmark, denoise BIT4/L4, SMOOTH_OFF, debounce 1. Light-sleep latch is the legacy `on_active` ISR (`chan_id` / `status_mask`).
 
-**NG `touch_sens` is not compiled in.** [`FED4_TouchHelpers.h`](../../src/FED4_TouchHelpers.h) still has a stale “NG helpers / no legacy path” comment — ignore it; the `.cpp` is the legacy driver. Smooth / Bench / `wakeAbs` semantics above are the legacy filter/benchmark model (NG has analogous names; a port is WIP, not documented here as current behavior).
+**NG `touch_sens` is not compiled in**, and — on Arduino-ESP32 3.2.1 / IDF 5.4 for the S3 — cannot be: `driver/touch_sens.h` ships only for the P4 in that core, not the S3. Smooth / Bench / `wakeAbs` semantics above are the legacy filter/benchmark model.
+
+### Build 1: field-failure root cause and fixes
+
+A field unit degraded over ~2 days (wrong pad → missed pokes, worst on Left →
+fully unresponsive). A 74.7 h `_T.CSV` capture traced the whole progression:
+
+1. **The measurement was ~10x longer than IDF recommends** (`TOUCH_MEASURE_CYCLES`
+   gave Left ~9.7 ms vs. the IDF-recommended ~1 ms), leaving almost no headroom
+   before a loaded pad's measurement went out of range.
+2. That out-of-range measurement **stopped the FSM permanently** — the legacy
+   driver's measurement-timeout interrupt was never configured or handled, so
+   `Smooth` and `Bench` froze on all three pads simultaneously.
+3. **The rescue characterization accepted the frozen runaway value** (a 13.8x
+   jump) into `Idle` with no plausibility check, making the damage irreversible
+   even if the FSM had recovered.
+4. Independently, the ISR's channel latch used `touch_pad_get_current_meas_channel()`
+   — which reports whichever channel the FSM is scanning *right now*, not the
+   channel that went active — producing a deterministic (not random) pad skew.
+
+Fixed in `FED4_Touch.cpp`/`FED4_Sleep.cpp`/`FED4_TouchHelpers.h`: measurement
+time reduced to target ~1 ms; `touch_pad_timeout_set()`/`touch_pad_timeout_resume()`
+wired up (`fed4TouchServiceTimeout()`); every characterization/absorb bounded
+against the first boot characterization (`TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC`/
+`TOUCH_CAL_MAX_RISE_MULT`, rejections logged as `CalReject`); the ISR latches
+the `status_mask` edge instead of the current-scan-channel register; a stale
+hardware benchmark is force-reset after `FED4_TOUCH_BENCH_STUCK_MS` (logged as
+`BenchReset`); the pre-sleep release wait is bounded at
+`FED4_TOUCH_RELEASE_WAIT_MS` instead of spinning forever (logged as `Stuck`/
+`ReleaseWait`); and the absolute-Δ confirm no longer returns an unvoted
+single-sample winner (`ConfirmAgreed`). See the tunables block at the top of
+[`FED4_TouchHelpers.h`](../../src/FED4_TouchHelpers.h) and the new `_T.CSV`
+columns (`ScanPeriodUs`, `MeasUs{L,C,R}`, `TimeoutCount`, `StatusMask`,
+`IsrChan`, `IsrMask`, `IsrCount`, `Peak{L,C,R}`, `ConfirmAgreed`,
+`ReleaseWaitMs`, `BenchStuckMs{L,C,R}`).
 
 ---
 
@@ -188,10 +222,12 @@ POKE_TIMING Right us: wake=… wakeUp=… preCap=… id=… capDone=… class=�
 | Field | Meaning |
 |-------|---------|
 | `wake` … `update` | µs from t0 (see table above) |
-| `gpioChan` | Touch channel used for ID (2=Left, 1=Center, 3=Right) |
-| `mask` | Last `on_active` `status_mask` snapshot (bit `N` ⇒ channel N); may show multiple bits |
+| `gpioChan` | Raw `touch_pad_get_current_meas_channel()` at the last ISR entry — **diagnostic only** (see correction below); the authoritative channel map is `FED4_Pins.h`: **Left=1, Center=3, Right=2** |
+| `mask` | Edge-accumulated active mask at the last consumer read (bit `N` ⇒ channel N newly active); may show multiple bits if more than one edge occurred between reads |
 
-**Checks:** `id − preCap` ≈ identify; `capDone − id` ≈ hold; `log − class` ≈ SD; `update − log` ≈ Poke UI; `gpioChan` matches the physical port.
+**Checks:** `id − preCap` ≈ identify; `capDone − id` ≈ hold; `log − class` ≈ SD; `update − log` ≈ Poke UI.
+
+> **Correction (Build 1):** the worked example above (`gpioChan=3` labelled "Right", captured on a pre-fix build) and the legend that used to read *"2=Left, 1=Center, 3=Right"* were both wrong, and for the same reason: `gpioChan` was `touch_pad_get_current_meas_channel()`, which reports whichever channel the FSM happens to be scanning at ISR-entry time — not the channel that actually went active. Against millisecond-scale measurements the FSM has almost always already advanced to the *next* channel by the time the ISR runs, so Left(1) reported as 3(Center gone stale)/skewed, Right(2) reported as 3(Center), etc. That example is a captured instance of the bug, not a general truth about `gpioChan`. Pad identification no longer uses this register at all — `fed4TouchPadIndexFromLatchOnly()` uses the edge-accumulated `status_mask` (`touch_pad_get_status()`) instead; see `FED4_Touch.cpp`. `gpioChan`/`IsrChan` remain in the log as diagnostics only. Do not use them, or this example, to check "does `gpioChan` match the physical port" — use the CSV's `IsrMask`/`StatusMask` columns or the resolved `Pad`/`LatchPad`/`ConfirmPad` columns instead.
 
 Disable (`0`) for normal runs — Serial/`flush` adds a little overhead.
 
@@ -219,10 +255,12 @@ File pair (same suffix): `/FED4_<id>_<date>_<NN>.CSV` behavioral, `/FED4_<id>_<d
 
 `Mode` is `LightSleep` or `Awake` (`touchLogMode` before `begin()`). Columns: identity, `Pad` / `LatchPad` / `ConfirmPad`, Smooth / Bench / Idle / Std, RiseThresh / WakeAbs, PeakSmooth / PokeDuration, RecharCount, ProxMm, ENV/battery (stale on `Poke` rows — last `update(Full)`), WakeCount. `LatchPad` is 0 on the awake arm. `ProxMm` is `-1` except Heartbeat / Rechar.
 
-| Sketch | Arm |
-|--------|-----|
-| [`TouchDriftLog_Sleep`](../../examples/3_Troubleshooting/TouchDriftLog_Sleep/) | `waitUntil(60)`, `Mode=LightSleep` |
-| [`TouchDriftLog_Awake`](../../examples/3_Troubleshooting/TouchDriftLog_Awake/) | Never sleeps; software `(smooth − idle)` pokes, `Mode=Awake` |
+| Sketch | Arm | Task on display |
+|--------|-----|-----------------|
+| [`TouchDriftLog_Sleep`](../../examples/3_Troubleshooting/TouchDriftLog_Sleep/) | `waitUntil(60)`, `Mode=LightSleep` | **SleepDrift** |
+| [`TouchDriftLog_Awake`](../../examples/3_Troubleshooting/TouchDriftLog_Awake/) | Never sleeps; software `(smooth − idle)` pokes, `Mode=Awake` | **AwakeDrift** |
+
+Firmware identity (`v1.7.0.1`, …) is on the display (Task-right + footer) and in CSV `LibraryVer`. Bump only when `src/` changes — [firmware flash tracker](../firmware/README.md).
 
 [`extras/analysis/fed4_touch_analysis.py`](../../extras/analysis/fed4_touch_analysis.py): `python fed4_touch_analysis.py /path/to/sd_dumps -o out/`
 

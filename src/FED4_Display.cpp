@@ -167,12 +167,19 @@ void FED4::displayTask() {
   } else {
     setCursor(6, CONTENT_TOP + 8);
     print("Task: ");
-    fillRect(70, CONTENT_TOP, 100, 16, DISPLAY_WHITE);
+    fillRect(42, CONTENT_TOP, 130, 16, DISPLAY_WHITE);
     String shortProgram = program;
-    if (shortProgram.length() > 8) {
-      shortProgram = shortProgram.substring(0, 8);
+    // Default GFX font is 6 px wide; ~12 chars fit beside "Task: " with
+    // firmware version reserved on the right (x=118).
+    if (shortProgram.length() > 12) {
+      shortProgram = shortProgram.substring(0, 12);
     }
     print(shortProgram);
+
+    setTextColor(DISPLAY_BLACK);
+    setCursor(118, CONTENT_TOP + 8);
+    print("v");
+    print(libraryVer);
   }
 }
 
@@ -361,10 +368,14 @@ void FED4::displayDateTime() {
   snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, current.minute(),
            (h24 >= 12) ? "PM" : "AM");
 
-  setCursor(5, FOOTER_TEXT_Y);
+  setCursor(4, FOOTER_TEXT_Y);
   print(dateStr);
 
-  setCursor(100, FOOTER_TEXT_Y);
+  setCursor(62, FOOTER_TEXT_Y);
+  print("v");
+  print(libraryVer);
+
+  setCursor(124, FOOTER_TEXT_Y);
   print(timeStr);
 }
 

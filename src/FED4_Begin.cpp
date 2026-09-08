@@ -566,6 +566,8 @@ bool FED4::begin(const char *programName)
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
+    Serial.printf("Firmware %s | board %s | task %s\n",
+                  libraryVer, FED4_BOARD_VERSION_STR, program.c_str());
     Serial.println("Component          Status  Notes");
     Serial.println("--------------------------------");
 
