@@ -1,0 +1,4 @@
+{
+  "name": "FED4 (Arduino / ESP32-S3)",
+  "install": "bash scripts/cloud-agent-install.sh"
+}
