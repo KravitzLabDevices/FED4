@@ -1,4 +1,4 @@
-[![Version](https://img.shields.io/badge/Version-1.7.0-blue.svg)](https://github.com/KravitzLabDevices/FED4)
+[![Version](https://img.shields.io/badge/Version-1.7.1-blue.svg)](https://github.com/KravitzLabDevices/FED4)
 
 <p align="center">
   <img src="https://github.com/KravitzLabDevices/FED4/blob/main/extras/images/FED4.gif?raw=true" alt="FED4 Demo" width="400"/>

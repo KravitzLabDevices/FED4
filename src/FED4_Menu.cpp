@@ -24,15 +24,15 @@ void FED4::menu() {
 void FED4::menuStart() {
     Serial.println("********** MENU **********");
 
-    // Match program status layout (divider @ y=70)
+    // Match program status layout (divider @ DIVIDER_Y)
     fillRect(0, 68, 176, 252, DISPLAY_WHITE);
     drawLine(0, 69, 175, 69, DISPLAY_WHITE);
     drawLine(0, 70, 175, 70, DISPLAY_WHITE);
     refresh();
-    displayDateTime();
-    displayEnvironmental();
-    displayBattery();
+    displayHeader();
+    displayFooter();
     displayTask();
+    displayFilename();
     displayMouseId();
     displaySex();
     displayStrain();
@@ -383,26 +383,8 @@ void FED4::menuRTC() {
             refresh();
             
             if (timeVisible) {
-                // Demo body font for dense footer text
-                setFont(nullptr);
-                setTextSize(1);
-                setTextColor(DISPLAY_WHITE);
-                
-                // Display date
-                setCursor(5, 307);
-                char dateStr[9];
-                snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
-                         currentMonth, currentDay, currentYear - 2000);
-                print(dateStr);
-                
-                // Display time
-                setCursor(100, 307);
-                int h12 = currentHour % 12;
-                if (h12 == 0) h12 = 12;
-                char timeStr[10];
-                snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
-                         (currentHour >= 12) ? "PM" : "AM");
-                print(timeStr);
+                drawFooterBar(currentMonth, currentDay, currentYear, currentHour,
+                              currentMinute);
                 refresh();
             }
         }
@@ -455,26 +437,8 @@ void FED4::menuRTC() {
                     rtc.adjust(newTime);
                     
                     // Update display in real-time
-                    fillRect(0, 296, 176, 24, DISPLAY_BLACK);
-                    setFont(nullptr);
-                    setTextSize(2);
-                    setTextColor(DISPLAY_WHITE);
-                    
-                    // Display date
-                    setCursor(5, 307);
-                    char dateStr[9];
-                    snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
-                             currentMonth, currentDay, currentYear - 2000);
-                    print(dateStr);
-                    
-                    // Display time
-                    setCursor(100, 307);
-                    int h12 = currentHour % 12;
-                    if (h12 == 0) h12 = 12;
-                    char timeStr[10];
-                    snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
-                             (currentHour >= 12) ? "PM" : "AM");
-                    print(timeStr);
+                    drawFooterBar(currentMonth, currentDay, currentYear, currentHour,
+                                  currentMinute);
                     refresh();
                     
                     // Audio feedback for each update
@@ -537,26 +501,8 @@ void FED4::menuRTC() {
                     rtc.adjust(newTime);
                     
                     // Update display in real-time
-                    fillRect(0, 296, 176, 24, DISPLAY_BLACK);
-                    setFont(nullptr);
-                    setTextSize(2);
-                    setTextColor(DISPLAY_WHITE);
-                    
-                    // Display date
-                    setCursor(5, 307);
-                    char dateStr[9];
-                    snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
-                             currentMonth, currentDay, currentYear - 2000);
-                    print(dateStr);
-                    
-                    // Display time
-                    setCursor(100, 307);
-                    int h12 = currentHour % 12;
-                    if (h12 == 0) h12 = 12;
-                    char timeStr[10];
-                    snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
-                             (currentHour >= 12) ? "PM" : "AM");
-                    print(timeStr);
+                    drawFooterBar(currentMonth, currentDay, currentYear, currentHour,
+                                  currentMinute);
                     refresh();
                     
                     // Audio feedback for each update
@@ -578,26 +524,8 @@ void FED4::menuRTC() {
             delay(200); // Debounce
             
             // Show final date and time without blinking
-            fillRect(0, 296, 176, 24, DISPLAY_BLACK);
-            setFont(nullptr);
-            setTextSize(2);
-            setTextColor(DISPLAY_WHITE);
-            
-            // Display date
-            setCursor(5, 307);
-            char dateStr[9];
-            snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", 
-                     currentMonth, currentDay, currentYear - 2000);
-            print(dateStr);
-            
-            // Display time
-            setCursor(100, 307);
-            int h12 = currentHour % 12;
-            if (h12 == 0) h12 = 12;
-            char timeStr[10];
-            snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, currentMinute,
-                     (currentHour >= 12) ? "PM" : "AM");
-            print(timeStr);
+            drawFooterBar(currentMonth, currentDay, currentYear, currentHour,
+                          currentMinute);
             refresh();
         }
         
