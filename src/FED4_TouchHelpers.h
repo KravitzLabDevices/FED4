@@ -48,18 +48,6 @@ extern "C" {
 #define FED4_TOUCH_INIT_SETTLE_MS 100
 #endif
 
-// --- Stale-benchmark watchdog (Heartbeat rows only) -------------------------
-// If a pad's hardware benchmark has been continuously stuck (smooth − bench >=
-// wakeAbs) for this long, force a per-channel touch_pad_reset_benchmark().
-// Safe because a benchmark seeded/stuck too HIGH self-heals — the hardware IIR
-// tracker walks it back down while the channel is inactive — but stuck too LOW
-// does not recover on its own: the channel latches active, which is exactly
-// what freezes the benchmark, which is exactly the field failure documented in
-// docs/wiki/Poke-Functionality.md (BenchL frozen 43 h straight on one unit).
-#ifndef FED4_TOUCH_BENCH_STUCK_MS
-#define FED4_TOUCH_BENCH_STUCK_MS 300000UL // 5 minutes
-#endif
-
 // --- Bounded pre-sleep release wait (startSleep()) --------------------------
 // Absolute cap: proceed to sleep regardless once exceeded (the timer wake stays
 // armed) rather than spinning forever waiting for pads to release.
@@ -69,20 +57,6 @@ extern "C" {
 // Lower bound for logging a "release was slow but did not hang" row.
 #ifndef FED4_TOUCH_RELEASE_LOG_MS
 #define FED4_TOUCH_RELEASE_LOG_MS 500UL
-#endif
-
-// --- Calibration plausibility bounds -----------------------------------------
-// A re-characterization (startSleep()'s rescue, or a bench sketch calling
-// fed4TouchCharacterizePads()/calibrateTouchSensors()) is rejected per-pad if
-// it would move that pad's idle/threshold further than this from the FIRST
-// successful boot characterization. Without this bound, characterizing while a
-// pad was loaded accepted a >13x jump in Idle in the field, which made that pad
-// permanently unresponsive — see docs/wiki/Poke-Functionality.md.
-#ifndef TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC
-#define TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC 0.10f
-#endif
-#ifndef TOUCH_CAL_MAX_RISE_MULT
-#define TOUCH_CAL_MAX_RISE_MULT 2.0f
 #endif
 
 // Characterization window (init / recalibrate)
@@ -189,11 +163,6 @@ uint32_t fed4TouchWakeThresholdForPad(uint32_t idle, float riseThresh);
 bool fed4TouchPadsReleased(float riseLimit);
 bool fed4TouchAnyPadActive(float riseLimit);
 bool fed4TouchEnableTouchpadWakeup(void);
-/** True when the HARDWARE model (smooth − benchmark < wakeAbs) agrees every pad
- *  is inactive. Used to gate startSleep()'s rescue characterization on the
- *  hardware's opinion rather than the (possibly stuck) software one — see
- *  docs/wiki/Poke-Functionality.md. */
-bool fed4TouchAllPadsHwInactive(void);
 
 /** Full idle characterization: warm → sample mean/std → set idle + rise thresh + HW wake. */
 bool fed4TouchCharacterizePads(void);
@@ -237,7 +206,7 @@ void fed4TouchClearWakePadLatch(void);
 const char *fed4TouchIdentifyWakePad(float triggerRise);
 void fed4TouchPrintDriverConfig(void);
 
-// --- Diagnostics: ISR / timing / benchmark watchdog (touch drift log) --------
+// --- Diagnostics: ISR / timing (touch drift log) -----------------------------
 /** Live touch_pad_get_status() poll (bit N = channel N currently active). */
 uint32_t fed4TouchLiveStatusMask(void);
 /** Raw touch_pad_get_current_meas_channel() at the last ISR entry — diagnostic
@@ -264,19 +233,6 @@ uint32_t fed4TouchMeasUs(int padIndex);
 uint32_t fed4TouchLastPeakL(void);
 uint32_t fed4TouchLastPeakC(void);
 uint32_t fed4TouchLastPeakR(void);
-/** Runs the stale-benchmark watchdog (FED4_TOUCH_BENCH_STUCK_MS) across all
- *  three pads; call on Heartbeat rows only, never on the poke path. Returns
- *  true if any pad's benchmark was reset. */
-bool fed4TouchBenchWatchdog(void);
-/** Ms the given pad (1/2/3) has been continuously stuck active in hardware
- *  (smooth − bench >= wakeAbs), 0 if not currently stuck. */
-uint32_t fed4TouchBenchStuckMs(int padIndex);
-/** Set when fed4TouchCharacterizePads()/fed4TouchAbsorbResidualOffset() reject
- *  a candidate value against the boot-reference plausibility bounds (see
- *  TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC / TOUCH_CAL_MAX_RISE_MULT above). Consumed
- *  the same way as fed4TouchNoteRechar()/touchRecharPending. */
-bool fed4TouchCalRejectPending(void);
-void fed4TouchClearCalRejectPending(void);
 
 // --- Diagnostic snapshots (touch drift log; see FED4_SD.cpp logTouch) ---------
 /** Latch decision from the last capturePoke() (0 = none). */

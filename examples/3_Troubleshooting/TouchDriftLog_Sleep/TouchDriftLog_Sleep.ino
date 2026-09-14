@@ -13,11 +13,11 @@
     Rechar     startSleep()'s 2 s rescue characterization fired
 
   REQUIRES FED4_ENABLE_TOUCH_LOG = 1 in src/FED4.h — it is a LIBRARY flag, so a
-  #define here does NOT reach the library under the Arduino IDE. Rebuild after
-  changing it.
+  #define here does NOT reach the library under the Arduino IDE. Production
+  default is 0; rebuild the library with =1 for a diagnostic campaign.
 
-  Display: Task field = "SleepDrift"; footer / Task-right = firmware v1.7.0.1
-  (see docs/firmware/v1.7.0.1.md). Firmware number bumps only when src/ changes.
+  Display: Task field = "SleepDrift"; footer / Task-right = firmware v1.7.1
+  (see docs/firmware/v1.7.1.md). Firmware number bumps when src/ changes.
 
   Analyse with extras/analysis/fed4_touch_analysis.py.
 */

@@ -708,8 +708,7 @@ bool FED4::createTouchLogFile()
     // WakeCount so older parsers / pd.concat of mixed-vintage files keep working.
     touchFile.print("ScanPeriodUs,MeasUsL,MeasUsC,MeasUsR,TimeoutCount,");
     touchFile.print("StatusMask,IsrChan,IsrMask,IsrCount,");
-    touchFile.print("PeakL,PeakC,PeakR,ConfirmAgreed,ReleaseWaitMs,");
-    touchFile.println("BenchStuckMsL,BenchStuckMsC,BenchStuckMsR");
+    touchFile.println("PeakL,PeakC,PeakR,ConfirmAgreed,ReleaseWaitMs");
 
     touchFile.flush();
     if (touchFile.getWriteError())
@@ -770,8 +769,8 @@ static const char *fed4WakeSourceName(FedWakeSource source)
 
 /**
  * Appends one row to the touch diagnostic log.
- * @param rowType BootChar | Heartbeat | Poke | TouchMiss | Rechar | CalReject |
- *                Stuck | ReleaseWait | BenchReset
+ * @param rowType BootChar | Heartbeat | Poke | TouchMiss | Rechar |
+ *                Stuck | ReleaseWait
  * @return true if the row was written
  *
  * Environment / battery columns are the cached refreshSensors() snapshot — they
@@ -905,16 +904,12 @@ bool FED4::logTouch(const char *rowType)
                      (unsigned long)fed4TouchLiveStatusMask(),
                      fed4TouchLastIsrChan(), (unsigned long)fed4TouchLastIsrMask(),
                      (unsigned long)fed4TouchIsrCount());
-    touchFile.printf("%lu,%lu,%lu,%d,%.3f,",
+    touchFile.printf("%lu,%lu,%lu,%d,%.3f\n",
                      isPokeRow ? (unsigned long)fed4TouchLastPeakL() : 0UL,
                      isPokeRow ? (unsigned long)fed4TouchLastPeakC() : 0UL,
                      isPokeRow ? (unsigned long)fed4TouchLastPeakR() : 0UL,
                      isPokeRow ? (fed4TouchLastConfirmAgreed() ? 1 : 0) : 0,
                      touchLastReleaseWaitMs);
-    touchFile.printf("%lu,%lu,%lu\n",
-                     (unsigned long)fed4TouchBenchStuckMs(1),
-                     (unsigned long)fed4TouchBenchStuckMs(2),
-                     (unsigned long)fed4TouchBenchStuckMs(3));
 
     touchFile.flush();
 

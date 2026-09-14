@@ -5,7 +5,7 @@
   path hides, writing the SAME _T.CSV schema as TouchDriftLog_Sleep so the two
   arms concatenate in the analysis script and differ only in the Mode column.
 
-    1 Hz   Heartbeat row to SD (idle / benchmark / thresholds)
+    1/min  Heartbeat row to SD (idle / benchmark / thresholds)
     10 Hz  Serial line for bench work
     poke   software-detected on absolute (smooth − idle), logged on release with
            PeakSmooth (peak amplitude) and PokeDuration (hold ms); L/C/R counters
@@ -15,10 +15,11 @@
   sleep / benchmark / latch path — not in the pad.
 
   REQUIRES FED4_ENABLE_TOUCH_LOG = 1 in src/FED4.h — it is a LIBRARY flag, so a
-  #define here does NOT reach the library under the Arduino IDE.
+  #define here does NOT reach the library under the Arduino IDE. Production
+  default is 0; rebuild the library with =1 for a diagnostic campaign.
 
-  Display: Task field = "AwakeDrift"; footer / Task-right = firmware v1.7.0.1
-  (see docs/firmware/v1.7.0.1.md). Firmware number bumps only when src/ changes.
+  Display: Task field = "AwakeDrift"; footer / Task-right = firmware v1.7.1
+  (see docs/firmware/v1.7.1.md). Firmware number bumps when src/ changes.
 
   Analyse with extras/analysis/fed4_touch_analysis.py.
 */
@@ -27,7 +28,7 @@
 
 FED4 fed4;
 
-static const uint32_t SD_HEARTBEAT_MS = 1000; // Heartbeat row to SD
+static const uint32_t SD_HEARTBEAT_MS = 60000; // Heartbeat row to SD (1/min)
 static const uint32_t SERIAL_PRINT_MS = 100;  // 10 Hz bench print
 static const uint32_t SENSOR_POLL_MS = 60000; // keep ENV/battery covariates fresh
 
@@ -84,7 +85,7 @@ void setup()
 
   fed4TouchPrintCharacterization();
   fed4TouchPrintDriverConfig();
-  Serial.println("Awake arm: 1 Hz Heartbeat rows to SD, 10 Hz Serial, software poke rows.");
+  Serial.println("Awake arm: 1/min Heartbeat rows to SD, 10 Hz Serial, software poke rows.");
 
   lastSensorMs = millis();
 }

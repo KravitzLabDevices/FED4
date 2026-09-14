@@ -64,21 +64,10 @@ static uint32_t sTouchLastPeakL = 0;
 static uint32_t sTouchLastPeakC = 0;
 static uint32_t sTouchLastPeakR = 0;
 static uint32_t sTouchRecharCount = 0;
-static bool sTouchLastCalRejectPending = false;
 
 // Measured scan timing (fed4TouchMeasureScanTiming(), probed once at init).
 static uint32_t sScanPeriodUs = 0;
 static uint32_t sMeasUsL = 0, sMeasUsC = 0, sMeasUsR = 0;
-
-// Boot-reference characterization (latched once, from the first successful
-// characterization) — plausibility bound for every later re-characterization.
-// See TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC / TOUCH_CAL_MAX_RISE_MULT.
-static uint32_t sTouchIdleBootL = 0, sTouchIdleBootC = 0, sTouchIdleBootR = 0;
-static float sTouchRiseThreshBootL = 0.0f, sTouchRiseThreshBootC = 0.0f,
-             sTouchRiseThreshBootR = 0.0f;
-
-// Stale-benchmark watchdog state (Heartbeat-path only).
-static uint32_t sBenchStuckSinceMsL = 0, sBenchStuckSinceMsC = 0, sBenchStuckSinceMsR = 0;
 
 /**
  * ISR: latches the newly-active status_mask edge, not the "current measure
@@ -177,9 +166,6 @@ int32_t fed4TouchLastConfirmDelta(int padIndex)
     return 0;
   }
 }
-
-bool fed4TouchCalRejectPending(void) { return sTouchLastCalRejectPending; }
-void fed4TouchClearCalRejectPending(void) { sTouchLastCalRejectPending = false; }
 
 static touch_filter_config_t fed4TouchFilterConfig()
 {
@@ -425,41 +411,14 @@ static void characterizeAllPads(Fed4TouchPadStats *outL, Fed4TouchPadStats *outC
   finishPad(samplesR, sumR, outR);
 }
 
-/**
- * True if a candidate (idle, riseThresh) is within TOUCH_CAL_MAX_* of the boot
- * reference. bootIdle == 0 means no reference yet (first-ever characterization)
- * and always passes. See docs/wiki/Poke-Functionality.md: without this bound, a
- * characterization run while a pad was loaded accepted a >13x jump in Idle in
- * the field, which made that pad permanently unresponsive.
- */
-static bool fed4TouchWithinCalBounds(uint32_t bootIdle, float bootRise,
-                                     uint32_t candidateIdle, float candidateRise)
-{
-  if (!bootIdle)
-    return true;
-  const float lo = (float)bootIdle * (1.0f - TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC);
-  const float hi = (float)bootIdle * (1.0f + TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC);
-  if ((float)candidateIdle < lo || (float)candidateIdle > hi)
-    return false;
-  if (candidateRise > bootRise * TOUCH_CAL_MAX_RISE_MULT)
-    return false;
-  return true;
-}
-
 static bool fed4TouchAbsorbResidualOffset(void)
 {
   // If a pad still looks "active" vs the new mean (settle after sampling),
-  // lift idle to the current reading so release-wait cannot hang. Bounded
-  // against the boot reference (F3): a residual this large is the same
-  // "characterizing while loaded" failure mode as fed4TouchCharacterizePads()
-  // itself, and must not be absorbed silently.
+  // lift idle to the current reading so release-wait cannot hang.
   const uint8_t pads[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
   uint32_t *idles[3] = {&fed4TouchIdleL, &fed4TouchIdleC, &fed4TouchIdleR};
   float *threshs[3] = {&fed4TouchRiseThreshL, &fed4TouchRiseThreshC,
                        &fed4TouchRiseThreshR};
-  const uint32_t bootIdles[3] = {sTouchIdleBootL, sTouchIdleBootC, sTouchIdleBootR};
-  const float bootRises[3] = {sTouchRiseThreshBootL, sTouchRiseThreshBootC,
-                              sTouchRiseThreshBootR};
   bool adjusted = false;
 
   for (int i = 0; i < 3; i++)
@@ -468,16 +427,6 @@ static bool fed4TouchAbsorbResidualOffset(void)
     const float rise = fed4TouchRiseFraction(raw, *idles[i]);
     if (rise >= *threshs[i] && raw > *idles[i])
     {
-      if (!fed4TouchWithinCalBounds(bootIdles[i], bootRises[i], raw, *threshs[i]))
-      {
-        Serial.printf(
-            "Touch: pad %d residual rise=%.3f raw=%lu rejected (boot idle=%lu, "
-            "bound=±%.0f%%) — NOT absorbing\n",
-            pads[i], (double)rise, (unsigned long)raw, (unsigned long)bootIdles[i],
-            (double)(TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC * 100.0f));
-        sTouchLastCalRejectPending = true;
-        continue;
-      }
       Serial.printf("Touch: pad %d residual rise=%.3f — absorbing into idle (%lu → %lu)\n",
                     pads[i], (double)rise, (unsigned long)*idles[i],
                     (unsigned long)raw);
@@ -488,10 +437,7 @@ static bool fed4TouchAbsorbResidualOffset(void)
   return adjusted;
 }
 
-/** Warm filter, characterize mean/std, set per-pad rise thresh + HW wake.
- *  Each pad's new idle/riseThresh is bounded against the boot-reference
- *  characterization (fed4TouchWithinCalBounds) — a rejected pad keeps its
- *  previous value and a CalReject condition is raised for the caller to log. */
+/** Warm filter, characterize mean/std, set per-pad rise thresh + HW wake. */
 bool fed4TouchCharacterizePads(void)
 {
   Serial.println("Touch: characterizing baselines (keep pads clear)...");
@@ -514,42 +460,15 @@ bool fed4TouchCharacterizePads(void)
   if (!statsL.mean || !statsC.mean || !statsR.mean)
     return false;
 
-  const bool okL = fed4TouchWithinCalBounds(sTouchIdleBootL, sTouchRiseThreshBootL,
-                                            statsL.mean, statsL.riseThresh);
-  const bool okC = fed4TouchWithinCalBounds(sTouchIdleBootC, sTouchRiseThreshBootC,
-                                            statsC.mean, statsC.riseThresh);
-  const bool okR = fed4TouchWithinCalBounds(sTouchIdleBootR, sTouchRiseThreshBootR,
-                                            statsR.mean, statsR.riseThresh);
-
-  if (!okL || !okC || !okR)
-  {
-    Serial.printf(
-        "Touch: characterization rejected (boot-bound exceeded) L=%d(%lu/%.4f) "
-        "C=%d(%lu/%.4f) R=%d(%lu/%.4f) — keeping previous value(s)\n",
-        (int)!okL, (unsigned long)statsL.mean, (double)statsL.riseThresh,
-        (int)!okC, (unsigned long)statsC.mean, (double)statsC.riseThresh,
-        (int)!okR, (unsigned long)statsR.mean, (double)statsR.riseThresh);
-    sTouchLastCalRejectPending = true;
-  }
-
-  if (okL)
-  {
-    fed4TouchIdleL = statsL.mean;
-    fed4TouchStdL = statsL.stddev;
-    fed4TouchRiseThreshL = statsL.riseThresh;
-  }
-  if (okC)
-  {
-    fed4TouchIdleC = statsC.mean;
-    fed4TouchStdC = statsC.stddev;
-    fed4TouchRiseThreshC = statsC.riseThresh;
-  }
-  if (okR)
-  {
-    fed4TouchIdleR = statsR.mean;
-    fed4TouchStdR = statsR.stddev;
-    fed4TouchRiseThreshR = statsR.riseThresh;
-  }
+  fed4TouchIdleL = statsL.mean;
+  fed4TouchStdL = statsL.stddev;
+  fed4TouchRiseThreshL = statsL.riseThresh;
+  fed4TouchIdleC = statsC.mean;
+  fed4TouchStdC = statsC.stddev;
+  fed4TouchRiseThreshC = statsC.riseThresh;
+  fed4TouchIdleR = statsR.mean;
+  fed4TouchStdR = statsR.stddev;
+  fed4TouchRiseThreshR = statsR.riseThresh;
 
   if (fed4TouchAbsorbResidualOffset())
   {
@@ -558,30 +477,10 @@ bool fed4TouchCharacterizePads(void)
 
   fed4TouchPrintCharacterization();
 
-  const bool applied = fed4TouchApplyThresholds(
+  return fed4TouchApplyThresholds(
       fed4TouchWakeThresholdForPad(fed4TouchIdleL, fed4TouchRiseThreshL),
       fed4TouchWakeThresholdForPad(fed4TouchIdleC, fed4TouchRiseThreshC),
       fed4TouchWakeThresholdForPad(fed4TouchIdleR, fed4TouchRiseThreshR));
-
-  // Latch the boot reference exactly once, from the first accepted
-  // characterization (guaranteed accepted above, since bootIdle==0 passes).
-  if (!sTouchIdleBootL)
-  {
-    sTouchIdleBootL = fed4TouchIdleL;
-    sTouchRiseThreshBootL = fed4TouchRiseThreshL;
-  }
-  if (!sTouchIdleBootC)
-  {
-    sTouchIdleBootC = fed4TouchIdleC;
-    sTouchRiseThreshBootC = fed4TouchRiseThreshC;
-  }
-  if (!sTouchIdleBootR)
-  {
-    sTouchIdleBootR = fed4TouchIdleR;
-    sTouchRiseThreshBootR = fed4TouchRiseThreshR;
-  }
-
-  return applied;
 }
 
 void fed4TouchPrintCharacterization(void)
@@ -865,86 +764,6 @@ bool fed4TouchPadsReleased(float riseLimit)
 bool fed4TouchAnyPadActive(float riseLimit)
 {
   return !fed4TouchPadsReleased(riseLimit);
-}
-
-bool fed4TouchAllPadsHwInactive(void)
-{
-  const uint8_t pins[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
-  const uint32_t wakeAbs[3] = {fed4TouchWakeAbsL, fed4TouchWakeAbsC, fed4TouchWakeAbsR};
-  for (int i = 0; i < 3; i++)
-  {
-    if (!wakeAbs[i])
-      continue; // not yet characterized — don't block on an unknown pad
-    const uint32_t sm = fed4TouchRead(pins[i]);
-    const uint32_t bm = fed4TouchReadBenchmark(pins[i]);
-    if ((int32_t)sm - (int32_t)bm >= (int32_t)wakeAbs[i])
-      return false;
-  }
-  return true;
-}
-
-bool fed4TouchBenchWatchdog(void)
-{
-  const uint8_t pins[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
-  uint32_t *sinceMs[3] = {&sBenchStuckSinceMsL, &sBenchStuckSinceMsC,
-                          &sBenchStuckSinceMsR};
-  const uint32_t wakeAbs[3] = {fed4TouchWakeAbsL, fed4TouchWakeAbsC, fed4TouchWakeAbsR};
-  const uint32_t nowMs = millis();
-  bool fired = false;
-
-  for (int i = 0; i < 3; i++)
-  {
-    if (!wakeAbs[i])
-    {
-      *sinceMs[i] = 0;
-      continue;
-    }
-    const uint32_t sm = fed4TouchRead(pins[i]);
-    const uint32_t bm = fed4TouchReadBenchmark(pins[i]);
-    const int32_t d = (int32_t)sm - (int32_t)bm;
-    if (d >= (int32_t)wakeAbs[i])
-    {
-      if (!*sinceMs[i])
-      {
-        *sinceMs[i] = nowMs;
-      }
-      else if ((nowMs - *sinceMs[i]) >= FED4_TOUCH_BENCH_STUCK_MS)
-      {
-        touch_pad_reset_benchmark((touch_pad_t)pins[i]);
-        Serial.printf(
-            "Touch: pad %d benchmark stuck %lu ms — reset (smooth=%lu bench=%lu wakeAbs=%lu)\n",
-            pins[i], (unsigned long)FED4_TOUCH_BENCH_STUCK_MS, (unsigned long)sm,
-            (unsigned long)bm, (unsigned long)wakeAbs[i]);
-        *sinceMs[i] = 0;
-        fired = true;
-      }
-    }
-    else
-    {
-      *sinceMs[i] = 0;
-    }
-  }
-  return fired;
-}
-
-uint32_t fed4TouchBenchStuckMs(int padIndex)
-{
-  uint32_t sinceMs;
-  switch (padIndex)
-  {
-  case 1:
-    sinceMs = sBenchStuckSinceMsL;
-    break;
-  case 2:
-    sinceMs = sBenchStuckSinceMsC;
-    break;
-  case 3:
-    sinceMs = sBenchStuckSinceMsR;
-    break;
-  default:
-    return 0;
-  }
-  return sinceMs ? (millis() - sinceMs) : 0;
 }
 
 bool fed4TouchInitPads(void)

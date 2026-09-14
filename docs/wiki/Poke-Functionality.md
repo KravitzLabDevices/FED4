@@ -130,19 +130,16 @@ fully unresponsive). A 74.7 h `_T.CSV` capture traced the whole progression:
 
 Fixed in `FED4_Touch.cpp`/`FED4_Sleep.cpp`/`FED4_TouchHelpers.h`: measurement
 time reduced to target ~1 ms; `touch_pad_timeout_set()`/`touch_pad_timeout_resume()`
-wired up (`fed4TouchServiceTimeout()`); every characterization/absorb bounded
-against the first boot characterization (`TOUCH_CAL_MAX_IDLE_DEVIATION_FRAC`/
-`TOUCH_CAL_MAX_RISE_MULT`, rejections logged as `CalReject`); the ISR latches
-the `status_mask` edge instead of the current-scan-channel register; a stale
-hardware benchmark is force-reset after `FED4_TOUCH_BENCH_STUCK_MS` (logged as
-`BenchReset`); the pre-sleep release wait is bounded at
+wired up (`fed4TouchServiceTimeout()`); the ISR latches
+the `status_mask` edge instead of the current-scan-channel register;
+the pre-sleep release wait is bounded at
 `FED4_TOUCH_RELEASE_WAIT_MS` instead of spinning forever (logged as `Stuck`/
 `ReleaseWait`); and the absolute-Δ confirm no longer returns an unvoted
 single-sample winner (`ConfirmAgreed`). See the tunables block at the top of
-[`FED4_TouchHelpers.h`](../../src/FED4_TouchHelpers.h) and the new `_T.CSV`
+[`FED4_TouchHelpers.h`](../../src/FED4_TouchHelpers.h) and the `_T.CSV`
 columns (`ScanPeriodUs`, `MeasUs{L,C,R}`, `TimeoutCount`, `StatusMask`,
 `IsrChan`, `IsrMask`, `IsrCount`, `Peak{L,C,R}`, `ConfirmAgreed`,
-`ReleaseWaitMs`, `BenchStuckMs{L,C,R}`).
+`ReleaseWaitMs`). `IsrChan` is diagnostic only — pad ID is Latch + Confirm.
 
 ---
 
@@ -207,10 +204,10 @@ Timer / button: no `capturePoke` / poke `logData`; **`update(Full)`**. Marks `pr
 
 ## Hardware validation (`FED4_DIAG_POKE_TIMING`)
 
-In [`FED4.h`](../../src/FED4.h):
+In [`FED4.h`](../../src/FED4.h) (production default is **0**; set to 1 and rebuild for a latency bench):
 
 ```cpp
-#define FED4_DIAG_POKE_TIMING 1
+#define FED4_DIAG_POKE_TIMING 0
 ```
 
 On each resolved touch wake:
@@ -237,10 +234,10 @@ API: `fed4PokeTimingReset` / `Mark` / `Print` in [`FED4_TouchHelpers.h`](../../s
 
 ## Touch diagnostic log (`FED4_ENABLE_TOUCH_LOG`)
 
-Logs Smooth / Bench / Idle / `wakeAbs` side by side. Does **not** change calibration (`calibrateTouchSensors()`, 2 s rescue char, NVS). Library flag in [`FED4.h`](../../src/FED4.h) — rebuild required; an `.ino` `#define` does not reach library sources.
+Logs Smooth / Bench / Idle / `wakeAbs` side by side. Does **not** change calibration (`calibrateTouchSensors()`, 2 s rescue char, NVS). Library flag in [`FED4.h`](../../src/FED4.h) — rebuild required; an `.ino` `#define` does not reach library sources. Production default is **0** (heartbeat `_T.CSV` is a diagnostic campaign). Schema, `logTouch()`, and row types stay in the code.
 
 ```cpp
-#define FED4_ENABLE_TOUCH_LOG 1
+#define FED4_ENABLE_TOUCH_LOG 0
 ```
 
 File pair (same suffix): `/FED4_<id>_<date>_<NN>.CSV` behavioral, `/FED4_<id>_<date>_<NN>_T.CSV` touch. Heartbeats ~1440 SD appends/day at 60 s; poke rows add a second append on the wake path.
@@ -252,6 +249,8 @@ File pair (same suffix): `/FED4_<id>_<date>_<NN>.CSV` behavioral, `/FED4_<id>_<d
 | `Poke` | Touch + resolved pad (`PeakSmooth`, `PokeDuration`) |
 | `TouchMiss` | Touch + no pad (behavioral CSV writes nothing) |
 | `Rechar` | After `startSleep()` 2 s rescue |
+| `Stuck` | Pre-sleep release wait hit `FED4_TOUCH_RELEASE_WAIT_MS` |
+| `ReleaseWait` | Release wait slow but pads released before the hard cap |
 
 `Mode` is `LightSleep` or `Awake` (`touchLogMode` before `begin()`). Columns: identity, `Pad` / `LatchPad` / `ConfirmPad`, Smooth / Bench / Idle / Std, RiseThresh / WakeAbs, PeakSmooth / PokeDuration, RecharCount, ProxMm, ENV/battery (stale on `Poke` rows — last `update(Full)`), WakeCount. `LatchPad` is 0 on the awake arm. `ProxMm` is `-1` except Heartbeat / Rechar.
 
@@ -260,7 +259,7 @@ File pair (same suffix): `/FED4_<id>_<date>_<NN>.CSV` behavioral, `/FED4_<id>_<d
 | [`TouchDriftLog_Sleep`](../../examples/3_Troubleshooting/TouchDriftLog_Sleep/) | `waitUntil(60)`, `Mode=LightSleep` | **SleepDrift** |
 | [`TouchDriftLog_Awake`](../../examples/3_Troubleshooting/TouchDriftLog_Awake/) | Never sleeps; software `(smooth − idle)` pokes, `Mode=Awake` | **AwakeDrift** |
 
-Firmware identity (`v1.7.0.1`, …) is on the display (Task-right + footer) and in CSV `LibraryVer`. Bump only when `src/` changes — [firmware flash tracker](../firmware/README.md).
+Firmware identity (`v1.7.1`) is on the display (Task-right + footer) and in CSV `LibraryVer`. Bump when `src/` changes — [firmware flash tracker](../firmware/README.md).
 
 [`extras/analysis/fed4_touch_analysis.py`](../../extras/analysis/fed4_touch_analysis.py): `python fed4_touch_analysis.py /path/to/sd_dumps -o out/`
 

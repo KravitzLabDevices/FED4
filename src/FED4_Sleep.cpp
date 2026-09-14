@@ -29,14 +29,6 @@ void FED4::startSleep()
   // here previously meant a device that never releases pads never sleeps,
   // never wakes, and logs nothing, which is one of the field failure's dead
   // ends (see docs/wiki/Poke-Functionality.md).
-  //
-  // The 2 s rescue characterization only runs if the HARDWARE model
-  // (fed4TouchAllPadsHwInactive: smooth − benchmark < wakeAbs on all three
-  // pads) agrees nothing is touching. Characterizing while a pad is
-  // genuinely loaded is what poisoned calibration in the field — the rescue
-  // used to trust only the software model, which is exactly the one that
-  // can be stuck. fed4TouchCharacterizePads() also independently bounds any
-  // resulting change against the boot reference (see FED4_TouchHelpers.h).
   Serial.println("startSleep: waiting for pads released...");
   Serial.flush();
   bool releaseEscaped = false;
@@ -62,29 +54,14 @@ void FED4::startSleep()
       if (!didRescueChar && elapsedMs >= 2000)
       {
         didRescueChar = true;
-        if (fed4TouchAllPadsHwInactive())
-        {
-          Serial.println(
-              "startSleep: pads stuck (HW agrees inactive) — re-characterizing baselines...");
-          Serial.flush();
-          (void)fed4TouchCharacterizePads();
-          // Logged as a hypothesis under test ("recalibrated while a mouse was
-          // nearby"), not modified — waitUntil() emits the Rechar row on wake.
-          fed4TouchNoteRechar();
-          touchRecharPending = true;
-          if (fed4TouchCalRejectPending())
-          {
-            touchCalRejectPending = true;
-            fed4TouchClearCalRejectPending();
-          }
-        }
-        else
-        {
-          Serial.println(
-              "startSleep: pads stuck but HW reports active — NOT re-characterizing "
-              "(likely a real touch)");
-          Serial.flush();
-        }
+        Serial.println(
+            "startSleep: pads stuck — re-characterizing baselines...");
+        Serial.flush();
+        (void)fed4TouchCharacterizePads();
+        // Logged as a hypothesis under test ("recalibrated while a mouse was
+        // nearby"), not modified — waitUntil() emits the Rechar row on wake.
+        fed4TouchNoteRechar();
+        touchRecharPending = true;
         continue;
       }
       if ((nowMs - lastDiagMs) >= 1000)
@@ -311,14 +288,6 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
     logTouch("Rechar");
     touchRecharPending = false;
   }
-  if (touchCalRejectPending)
-  {
-    // A characterization/absorb rejected a candidate against the boot-reference
-    // plausibility bound (F3) — the value that would have poisoned calibration
-    // in the field never got applied; this row is the evidence trail.
-    logTouch("CalReject");
-    touchCalRejectPending = false;
-  }
   if (touchStuckPending)
   {
     // startSleep()'s release wait hit FED4_TOUCH_RELEASE_WAIT_MS and slept
@@ -341,14 +310,6 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   }
   else if (event.source == FedWakeSource::Timer)
   {
-    // Stale-benchmark watchdog: only on the Timer/Heartbeat path, never on the
-    // poke path (see fed4TouchBenchWatchdog()). Logged as its own row so a
-    // multi-hour frozen benchmark (the field failure's terminal mechanism) is
-    // visible as an event, not just inferable from a flat Bench column offline.
-    if (fed4TouchBenchWatchdog())
-    {
-      logTouch("BenchReset");
-    }
     // Only path that samples idle when nothing is happening — makes drift visible.
     logTouch("Heartbeat");
   }

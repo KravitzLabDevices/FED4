@@ -55,27 +55,29 @@ class DateTime;
 #endif
 
 // Set to 1 to print waitUntil poke-path micros marks (see docs/wiki/Poke-Functionality.md).
+// Production default is 0 — Serial/flush on every poke. Library rebuild required.
 #ifndef FED4_DIAG_POKE_TIMING
-#define FED4_DIAG_POKE_TIMING 1
+#define FED4_DIAG_POKE_TIMING 0
 #endif
 
 // Touch diagnostic CSV (separate _T.CSV file — baselines, thresholds, poke
 // amplitude on every wake). Set here (library rebuild required) — a #define in
 // the .ino does NOT reach library sources under Arduino IDE, same caveat as
-// FED4_ENABLE_SUBMODULE. Diagnostic campaigns only: heartbeat rows add ~1440 SD
-// appends/day and poke rows add a second SD append to the wake path.
+// FED4_ENABLE_SUBMODULE. Production default is 0: heartbeat rows add ~1440 SD
+// appends/day and poke rows add a second SD append to the wake path. Schema,
+// logTouch(), and row types stay in the code; rebuild with =1 to re-enable.
 #ifndef FED4_ENABLE_TOUCH_LOG
-#define FED4_ENABLE_TOUCH_LOG 1
+#define FED4_ENABLE_TOUCH_LOG 0
 #endif
 
 // Board Version: v1.7 (hardware)
 #define FED4_BOARD_VERSION_STR "1.7.0"
 
-// Flashed firmware identity — shown on the display footer and logged as
-// CSV LibraryVer. The 4th digit is the in-lab test-flash increment on top of
-// library 1.7.0. Bump ONLY when src/ library code changes; sketch-only edits
-// (task name, comments) do not bump this. See docs/firmware/.
-#define FED4_FIRMWARE_VERSION_STR "1.7.0.1"
+// Published library / flashed firmware identity — shown on the display
+// (Task-right + footer), Serial boot line, and CSV LibraryVer. FED4::libraryVer
+// is this string; do not hardcode a second copy. Bump when src/ library code
+// changes. See docs/firmware/.
+#define FED4_FIRMWARE_VERSION_STR "1.7.1"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -356,7 +358,7 @@ public:
     /** Create <base>_T.CSV next to the behavioral log and write its header. */
     bool createTouchLogFile();
     /** Append one touch row. rowType: BootChar | Heartbeat | Poke | TouchMiss |
-     *  Rechar | CalReject | Stuck | ReleaseWait | BenchReset.
+     *  Rechar | Stuck | ReleaseWait.
      *  ProxMm is polled on Heartbeat/Rechar rows only (prox() blocks up to 100 ms
      *  and must stay off the poke latency path). */
     bool logTouch(const char *rowType);
@@ -364,10 +366,6 @@ public:
     const char *touchLogMode = "LightSleep";
     /** Set when startSleep()'s 2 s rescue characterization fired; cleared by waitUntil(). */
     bool touchRecharPending = false;
-    /** Set when the rescue characterization (or fed4TouchAbsorbResidualOffset())
-     *  rejected a candidate value against the boot-reference plausibility bounds;
-     *  cleared by waitUntil() after logging a CalReject row. */
-    bool touchCalRejectPending = false;
     /** Set when startSleep()'s pre-sleep release wait hit FED4_TOUCH_RELEASE_WAIT_MS
      *  and proceeded to sleep with a pad still reading active; cleared by waitUntil()
      *  after logging a Stuck row. */
