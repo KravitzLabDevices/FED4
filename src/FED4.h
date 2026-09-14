@@ -74,7 +74,7 @@ class DateTime;
 #define FED4_BOARD_VERSION_STR "1.7.0"
 
 // Published library / flashed firmware identity — shown on the display
-// (Task-right + footer), Serial boot line, and CSV LibraryVer. FED4::libraryVer
+// footer, Serial boot line, and CSV LibraryVer. FED4::libraryVer
 // is this string; do not hardcode a second copy. Bump when src/ library code
 // changes. See docs/firmware/.
 #define FED4_FIRMWARE_VERSION_STR "1.7.1"
@@ -303,6 +303,8 @@ public:
     /** Counters + poke/pellet indicators only (no buffer clear / ENV redraw). */
     void updateDisplayPoke();
     void displayTask();
+    /** SD log basename under Task (short MMDDYY_NN.csv when parseable). */
+    void displayFilename();
     void displayMouseId();
     void displayStrain();
     void displaySex();
@@ -310,6 +312,13 @@ public:
     void displayAudio();
     void displayCounters();
     void displayDateTime();
+    /** Status header: MM/DD · time · battery. */
+    void displayHeader();
+    /** Status footer: temp/RH · libraryVer. */
+    void displayFooter();
+    /** Date left, time centered, libraryVer right — RTC menu footer only. */
+    void drawFooterBar(uint8_t month, uint8_t day, uint16_t year, uint8_t hour,
+                       uint8_t minute);
     void displayEnvironmental();
     void displayBattery();
     void displaySDCardStatus();

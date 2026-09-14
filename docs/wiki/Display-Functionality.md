@@ -14,7 +14,10 @@ The FED4 uses a **Sharp Memory Display** (SPI, **DISPLAY_CS** = 17), **144×168*
 
 **Status helpers (used by `updateDisplay`)**
 
-- **`displayTask()`**, **`displayMouseId()`**, **`displayEnvironmental()`**, **`displayBattery()`**, **`displaySDCardStatus()`**, **`displayCounters()`**, **`displayIndicators()`**, **`displayDateTime()`** — status layout. `displayTask()` shows the program name (up to 12 characters) plus **`v` + `libraryVer`** on the right; the footer (date / firmware / time) also shows the firmware version. See [firmware flash tracker](../firmware/README.md).
+- **`displayHeader()`** — top bar: `MM/DD` · centered `H:MMam/pm` · battery.
+- **`displayFooter()`** — bottom bar: `XXC RH%` · `v`+`libraryVer`. See [firmware flash tracker](../firmware/README.md).
+- **`displayTask()`**, **`displayFilename()`** (`File: ` + SD log short name), **`displayMouseId()`**, **`displaySDCardStatus()`**, **`displayCounters()`**, **`displayIndicators()`** — status body.
+- **`drawFooterBar()`** — RTC menu footer only (date · time · version).
 - **`displayActivityMonitor()`** / **`displayActivityCounters()`** — when program is ActivityMonitor.
 - **`displayInitStatus(msg)`** — show init message during `begin()`.
 - **`displayLowBatteryWarning()`** — low-battery full-screen message.

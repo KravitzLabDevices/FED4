@@ -40,12 +40,15 @@ static const uint8_t PROGMEM set[] = {1, 2, 4, 8, 16, 32, 64, 128},
                                       (uint8_t)~8,   (uint8_t)~16,  (uint8_t)~32,
                                       (uint8_t)~64,  (uint8_t)~128};
 
-// Demo-Hardware header metrics (default GFX font: cursor Y = top edge of glyph)
+// Status header: MM/DD · time · battery. Footer: temp/RH · version. GFX font Y = glyph top.
 static const int16_t HEADER_H = 20;
 static const int16_t HEADER_TEXT_Y = 5;
 static const int16_t CONTENT_TOP = 28;
 static const int16_t DIVIDER_Y = 70;
 static const int16_t COUNTERS_TOP = 88;
+static const int16_t PANEL_W = 176;
+static const int16_t FOOTER_Y = 302;
+static const int16_t FOOTER_TEXT_Y = FOOTER_Y + 5;
 
 void FED4::updateDisplay() {
   // Demo ground truth: default GFX font for body; FreeSans reserved for labels
@@ -56,17 +59,17 @@ void FED4::updateDisplay() {
   // Full clear each status frame — MIP retains uncleared pixels otherwise
   memset(displayBuffer, 0xFF, (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT / 8);
 
+  displayHeader();
   displayTask();
+  displayFilename();
   displayMouseId();
 
   drawLine(0, DIVIDER_Y, 175, DIVIDER_Y, DISPLAY_BLACK);
 
-  displayEnvironmental();
-  displayBattery();
   displaySDCardStatus();
   displayCounters();
   displayIndicators();
-  displayDateTime();
+  displayFooter();
 
   refresh();
 }
@@ -84,20 +87,18 @@ void FED4::updateDisplayPoke()
 
 void FED4::displayActivityMonitor() {
   // Use the same layout as normal FED4 display but replace counters and indicators
+  displayHeader();
   displayTask();
+  displayFilename();
   displayMouseId();
 
   drawLine(0, DIVIDER_Y, 175, DIVIDER_Y, DISPLAY_BLACK);
 
-  // draw screen elements (same as normal display)
-  displayEnvironmental();
-  displayBattery();
   displaySDCardStatus();
 
   // Replace displayCounters() with activity information
   displayActivityCounters();
-
-  displayDateTime();
+  displayFooter();
 }
 
 void FED4::displayActivityCounters() {
@@ -167,19 +168,49 @@ void FED4::displayTask() {
   } else {
     setCursor(6, CONTENT_TOP + 8);
     print("Task: ");
-    fillRect(42, CONTENT_TOP, 130, 16, DISPLAY_WHITE);
+    fillRect(70, CONTENT_TOP, 100, 16, DISPLAY_WHITE);
     String shortProgram = program;
-    // Default GFX font is 6 px wide; ~12 chars fit beside "Task: " with
-    // firmware version reserved on the right (x=118).
-    if (shortProgram.length() > 12) {
-      shortProgram = shortProgram.substring(0, 12);
+    if (shortProgram.length() > 8) {
+      shortProgram = shortProgram.substring(0, 8);
     }
     print(shortProgram);
+  }
+}
 
-    setTextColor(DISPLAY_BLACK);
-    setCursor(118, CONTENT_TOP + 8);
-    print("v");
-    print(libraryVer);
+void FED4::displayFilename() {
+  // SequenceLearning uses the Task band for the sequence UI — skip file line there.
+  if (program == "SequenceLearning") {
+    return;
+  }
+
+  setFont(nullptr);
+  setTextSize(1);
+  setTextColor(DISPLAY_BLACK);
+
+  const int16_t fileY = CONTENT_TOP + 20; // between Task and MouseID
+  fillRect(6, fileY, 164, 12, DISPLAY_WHITE);
+  setCursor(6, fileY);
+  print("File: ");
+
+  if (filename[0] == '\0') {
+    return;
+  }
+
+  // Prefer short form used at init: MMDDYY_NN.csv from /FED4_IIII_YYYYMMDD_NN.CSV
+  const char *base = strrchr(filename, '/');
+  base = base ? base + 1 : filename;
+  const char *p = strchr(base, '_');
+  if (p) {
+    p = strchr(p + 1, '_');
+  }
+  // p points at _YYYYMMDD_NN.CSV
+  if (p && strlen(p) >= 14) {
+    char shortName[16];
+    snprintf(shortName, sizeof(shortName), "%c%c%c%c%c%c_%c%c.csv", p[5], p[6],
+             p[7], p[8], p[3], p[4], p[10], p[11]);
+    print(shortName);
+  } else {
+    print(base);
   }
 }
 
@@ -188,11 +219,11 @@ void FED4::displayMouseId() {
   setTextSize(1);
   setTextColor(DISPLAY_BLACK);
 
-  const int16_t mouseY = CONTENT_TOP + 28; // room below Task; gap above divider
+  const int16_t mouseY = CONTENT_TOP + 32; // below Task + filename; gap above divider
 
   if (!sdCardAvailable) {
     setCursor(6, mouseY);
-    fillRect(6, mouseY - 8, 160, 14, DISPLAY_WHITE);
+    fillRect(6, mouseY - 2, 160, 12, DISPLAY_WHITE);
     print("No SD — not logging");
   } else {
     setCursor(6, mouseY);
@@ -204,7 +235,7 @@ void FED4::displayMouseId() {
     } else {
       snprintf(idStr, sizeof(idStr), "%04d", mouseIdNum % 10000);
     }
-    fillRect(100, mouseY - 8, 70, 14, DISPLAY_WHITE);
+    fillRect(100, mouseY - 2, 70, 12, DISPLAY_WHITE);
     print(idStr);
   }
 }
@@ -240,36 +271,80 @@ void FED4::displayAge(){
   print(" mo");
 }
 
-void FED4::displayEnvironmental(){
-  // Demo: HEADER_H=20, default-font text at Y=5 (top edge of glyph)
-  fillRect(0, 0, 176, HEADER_H, DISPLAY_BLACK);
+void FED4::displayHeader() {
+  fillRect(0, 0, PANEL_W, HEADER_H, DISPLAY_BLACK);
 
   setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_WHITE);
 
+  DateTime current = rtc.now();
+
+  // Left: MM/DD
+  char dateStr[8];
+  snprintf(dateStr, sizeof(dateStr), "%02d/%02d", current.month(), current.day());
   setCursor(4, HEADER_TEXT_Y);
+  print(dateStr);
+
+  // Center: H:MMam/pm
+  int h12 = (int)current.hour() % 12;
+  if (h12 == 0) {
+    h12 = 12;
+  }
+  char timeStr[10];
+  snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, current.minute(),
+           (current.hour() >= 12) ? "pm" : "am");
+  int16_t x1, y1;
+  uint16_t tw, th;
+  getTextBounds(timeStr, 0, 0, &x1, &y1, &tw, &th);
+  setCursor((PANEL_W - (int16_t)tw) / 2, HEADER_TEXT_Y);
+  print(timeStr);
+
+  // Right: battery icon + voltage
+  displayBattery();
+}
+
+void FED4::displayFooter() {
+  setFont(nullptr);
+  setTextSize(1);
+  setTextColor(DISPLAY_WHITE);
+
+  fillRect(0, FOOTER_Y, PANEL_W, 320 - FOOTER_Y, DISPLAY_BLACK);
+
+  // Left: XXC RH%
+  setCursor(5, FOOTER_TEXT_Y);
   print((int)temperature);
   print("C");
-
   if (humidity >= 0) {
-    setCursor(36, HEADER_TEXT_Y);
+    print(" ");
     print((int)humidity);
     print("%");
   }
-
   if (audioSilenced) {
-    setCursor(70, HEADER_TEXT_Y);
-    print("X");
+    print(" X");
   }
+
+  // Right: vX.X.X
+  char verStr[12];
+  snprintf(verStr, sizeof(verStr), "v%s", libraryVer);
+  int16_t x1, y1;
+  uint16_t tw, th;
+  getTextBounds(verStr, 0, 0, &x1, &y1, &tw, &th);
+  setCursor(PANEL_W - 4 - (int16_t)tw, FOOTER_TEXT_Y);
+  print(verStr);
 }
 
-void FED4::displayBattery(){
+void FED4::displayEnvironmental() {
+  // Compatibility: env lives in the status footer
+  displayFooter();
+}
+
+void FED4::displayBattery() {
   // Demo-style header battery: 7px tall, optically centered in HEADER_H
   static const int16_t BAR_H = 7;
   static const int16_t BAR_W = 18;
   static const int16_t INNER_H = 5;
-  const int16_t barY = (HEADER_H - BAR_H) / 2; // 6 in a 20px bar
+  const int16_t barY = (HEADER_H - BAR_H) / 2;
   const int16_t barX = 118;
   const int16_t innerY = barY + (BAR_H - INNER_H) / 2;
 
@@ -277,8 +352,10 @@ void FED4::displayBattery(){
   fillRect(barX + 2, innerY, 14, INNER_H, DISPLAY_BLACK);
   fillRect(barX + BAR_W, innerY, 2, INNER_H, DISPLAY_WHITE); // terminal
   int fillW = (int)(cellVoltage / 7);
-  if (fillW < 0) fillW = 0;
-  if (fillW > 14) fillW = 14;
+  if (fillW < 0)
+    fillW = 0;
+  if (fillW > 14)
+    fillW = 14;
   if (fillW > 0) {
     fillRect(barX + 2, innerY, fillW, INNER_H, DISPLAY_WHITE);
   }
@@ -344,39 +421,47 @@ void FED4::displayIndicators(){
   }
 }
 
-void FED4::displayDateTime() {
+void FED4::drawFooterBar(uint8_t month, uint8_t day, uint16_t year, uint8_t hour,
+                         uint8_t minute)
+{
+  // RTC menu only — status screen uses displayFooter() (env + version)
   setFont(nullptr);
   setTextSize(1);
   setTextColor(DISPLAY_WHITE);
 
-  // Bottom bar — Demo FOOTER_Y=302, text at +5 (default font top-edge)
-  static const int16_t FOOTER_Y = 302;
-  static const int16_t FOOTER_TEXT_Y = FOOTER_Y + 5;
-  fillRect(0, FOOTER_Y, 176, 320 - FOOTER_Y, DISPLAY_BLACK);
-  DateTime current = rtc.now();
+  fillRect(0, FOOTER_Y, PANEL_W, 320 - FOOTER_Y, DISPLAY_BLACK);
 
   char dateStr[9];
-  snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d",
-           current.month(), current.day(), current.year() - 2000);
+  snprintf(dateStr, sizeof(dateStr), "%02d.%02d.%02d", month, day, year - 2000);
 
-  int h24 = current.hour();
-  int h12 = h24 % 12;
-  if (h12 == 0) {
+  int h12 = (int)hour % 12;
+  if (h12 == 0)
     h12 = 12;
-  }
   char timeStr[10];
-  snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, current.minute(),
-           (h24 >= 12) ? "PM" : "AM");
+  snprintf(timeStr, sizeof(timeStr), "%d:%02d%s", h12, minute,
+           (hour >= 12) ? "pm" : "am");
 
-  setCursor(4, FOOTER_TEXT_Y);
+  char verStr[12];
+  snprintf(verStr, sizeof(verStr), "v%s", libraryVer);
+
+  int16_t x1, y1;
+  uint16_t tw, th;
+
+  setCursor(5, FOOTER_TEXT_Y);
   print(dateStr);
 
-  setCursor(62, FOOTER_TEXT_Y);
-  print("v");
-  print(libraryVer);
-
-  setCursor(124, FOOTER_TEXT_Y);
+  getTextBounds(timeStr, 0, 0, &x1, &y1, &tw, &th);
+  setCursor((PANEL_W - (int16_t)tw) / 2, FOOTER_TEXT_Y);
   print(timeStr);
+
+  getTextBounds(verStr, 0, 0, &x1, &y1, &tw, &th);
+  setCursor(PANEL_W - 4 - (int16_t)tw, FOOTER_TEXT_Y);
+  print(verStr);
+}
+
+void FED4::displayDateTime() {
+  // Compatibility: date/time live in the status header
+  displayHeader();
 }
 
 // Displays a low battery warning with an icon and message

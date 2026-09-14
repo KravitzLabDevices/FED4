@@ -16,7 +16,7 @@
   #define here does NOT reach the library under the Arduino IDE. Production
   default is 0; rebuild the library with =1 for a diagnostic campaign.
 
-  Display: Task field = "SleepDrift"; footer / Task-right = firmware v1.7.1
+  Display: Task field = "SleepDrift"; footer = firmware v1.7.1
   (see docs/firmware/v1.7.1.md). Firmware number bumps when src/ changes.
 
   Analyse with extras/analysis/fed4_touch_analysis.py.

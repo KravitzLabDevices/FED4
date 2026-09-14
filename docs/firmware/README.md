@@ -14,7 +14,7 @@ Each flashed library build is identified by `FED4_FIRMWARE_VERSION_STR` so a uni
 - Display / Serial / CSV `LibraryVer` all come from `FED4_FIRMWARE_VERSION_STR` — do not hardcode a second string.
 - Sketch-only edits (task name, comments, analysis scripts) **do not** bump the firmware number.
 - Library change → bump `FED4_FIRMWARE_VERSION_STR` and `library.properties` together, and add a page under this folder **before** flashing units.
-- Display shows `v` + `libraryVer` on the Task row (right) and in the footer.
+- Display shows `v` + `libraryVer` in the status footer (and RTC menu footer).
 
 ## How to tell which flash / arm is running
 
@@ -24,7 +24,7 @@ Look at the status screen after boot:
 |-------|---------|
 | **Task: AwakeDrift** | [`TouchDriftLog_Awake`](../../examples/3_Troubleshooting/TouchDriftLog_Awake/) — never sleeps |
 | **Task: SleepDrift** | [`TouchDriftLog_Sleep`](../../examples/3_Troubleshooting/TouchDriftLog_Sleep/) — `waitUntil()` light sleep |
-| **v1.7.1** (Task-right + footer) | Firmware identity for this library build |
+| **v1.7.1** (status footer) | Firmware identity for this library build |
 
 CSV columns `LibraryVer` and `Program` record the same pair on every behavioral and `_T.CSV` row.
 
