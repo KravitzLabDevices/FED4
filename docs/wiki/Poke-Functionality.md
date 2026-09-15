@@ -79,7 +79,7 @@ riseThresh = clamp(absDelta / idle, TOUCH_RISE_MIN, TOUCH_RISE_MAX)   // 0.005 �
 wakeAbs    = idle × riseThresh
 ```
 
-Absolute (not % of idle) so high-baseline pads (often Left ~220k) stay as sensitive as lower-baseline pads for similar poke capacitance. The 2 s `startSleep()` rescue re-runs this same formula if pads look stuck.
+Absolute (not % of idle) so high-baseline pads (often Left ~220k) stay as sensitive as lower-baseline pads for similar poke capacitance. The 2 s `startSleep()` rescue re-runs this same formula only when software says pads are stuck **and** hardware agrees they are clear (`fed4TouchAllPadsHwInactive()`, and not right after a captured poke). A long hold must not rewrite Idle.
 
 ### WIP — NVS poke-delta calibration
 
@@ -248,7 +248,7 @@ File pair (same suffix): `/FED4_<id>_<date>_<NN>.CSV` behavioral, `/FED4_<id>_<d
 | `Heartbeat` | Timer wake (idle sampled while quiet) |
 | `Poke` | Touch + resolved pad (`PeakSmooth`, `PokeDuration`) |
 | `TouchMiss` | Touch + no pad (behavioral CSV writes nothing) |
-| `Rechar` | After `startSleep()` 2 s rescue |
+| `Rechar` | After `startSleep()` 2 s rescue (only if HW agrees pads are clear and this wake was not a poke) |
 | `Stuck` | Pre-sleep release wait hit `FED4_TOUCH_RELEASE_WAIT_MS` |
 | `ReleaseWait` | Release wait slow but pads released before the hard cap |
 

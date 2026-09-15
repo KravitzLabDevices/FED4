@@ -199,7 +199,12 @@ bool FED4::begin(const char *programName)
         int maxRetries = 3;
         int retryCount = 0;
         // Adafruit begin() writes 0x5400 to COMMAND; MAX17048 is specified to
-        // NACK that POR write. Arduino-ESP32 3.2.1 logs i2c.master ERROR — not a failure.
+        // NACK that POR write (chip resets instead of ACKing). Arduino-ESP32
+        // 3.2.1 / IDF 5.4 i2c.master prints ERROR on any unexpected NACK:
+        //   E (...) i2c.master: I2C transaction unexpected nack detected
+        //   E (...) i2c.master: s_i2c_synchronous_transaction(...): I2C transaction failed
+        //   E (...) i2c.master: i2c_master_multi_buffer_transmit(...): I2C transaction failed
+        // That is by spec, not a missing device. See docs/firmware/v1.7.1.md.
         while (!maxlipo.begin() && retryCount < maxRetries)
         {
             retryCount++;

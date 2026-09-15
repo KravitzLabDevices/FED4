@@ -32,4 +32,4 @@ CSV columns `LibraryVer` and `Program` record the same pair on every behavioral 
 
 | Firmware | Library change? | Sketches | Status | Notes |
 |----------|-----------------|----------|--------|-------|
-| [v1.7.1](v1.7.1.md) | Yes — published library; keeps the validated 3.2.1 touch fixes | SleepDrift / BasicFED4 (production); AwakeDrift + SleepDrift (diag, log flag =1) | Ready to flash | No CalReject / bench watchdog; touch log and poke-timing off by default |
+| [v1.7.1](v1.7.1.md) | Yes — published library; keeps the validated 3.2.1 touch fixes | SleepDrift / BasicFED4 (production); AwakeDrift + SleepDrift (diag, log flag =1) | Ready to flash | 2 s rechar gated by HW-inactive + wakePad; no CalReject / bench watchdog; touch log and poke-timing off by default |

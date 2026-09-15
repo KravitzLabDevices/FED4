@@ -54,14 +54,25 @@ void FED4::startSleep()
       if (!didRescueChar && elapsedMs >= 2000)
       {
         didRescueChar = true;
-        Serial.println(
-            "startSleep: pads stuck — re-characterizing baselines...");
-        Serial.flush();
-        (void)fed4TouchCharacterizePads();
-        // Logged as a hypothesis under test ("recalibrated while a mouse was
-        // nearby"), not modified — waitUntil() emits the Rechar row on wake.
-        fed4TouchNoteRechar();
-        touchRecharPending = true;
+        // A just-captured poke (wakePad) or a live HW-active pad is a finger,
+        // not a stuck baseline. Rechar while loaded poisons Idle (1.7.1 log
+        // FED4_0000_20260915_01_T.CSV: IdleR 9943→17809 after a 500 ms hold)
+        // and the characterize window itself is ~1.7 s of ignored touches.
+        if (wakePad != 0 || !fed4TouchAllPadsHwInactive())
+        {
+          Serial.println(
+              "startSleep: pads stuck but poke/HW active — NOT re-characterizing");
+          Serial.flush();
+        }
+        else
+        {
+          Serial.println(
+              "startSleep: pads stuck (HW agrees inactive) — re-characterizing baselines...");
+          Serial.flush();
+          (void)fed4TouchCharacterizePads();
+          fed4TouchNoteRechar();
+          touchRecharPending = true;
+        }
         continue;
       }
       if ((nowMs - lastDiagMs) >= 1000)

@@ -67,7 +67,7 @@ class DateTime;
 // appends/day and poke rows add a second SD append to the wake path. Schema,
 // logTouch(), and row types stay in the code; rebuild with =1 to re-enable.
 #ifndef FED4_ENABLE_TOUCH_LOG
-#define FED4_ENABLE_TOUCH_LOG 0
+#define FED4_ENABLE_TOUCH_LOG 1
 #endif
 
 // Board Version: v1.7 (hardware)

@@ -766,6 +766,22 @@ bool fed4TouchAnyPadActive(float riseLimit)
   return !fed4TouchPadsReleased(riseLimit);
 }
 
+bool fed4TouchAllPadsHwInactive(void)
+{
+  const uint8_t pins[3] = {TOUCH_PAD_LEFT, TOUCH_PAD_CENTER, TOUCH_PAD_RIGHT};
+  const uint32_t wakeAbs[3] = {fed4TouchWakeAbsL, fed4TouchWakeAbsC, fed4TouchWakeAbsR};
+  for (int i = 0; i < 3; i++)
+  {
+    if (!wakeAbs[i])
+      continue;
+    const uint32_t sm = fed4TouchRead(pins[i]);
+    const uint32_t bm = fed4TouchReadBenchmark(pins[i]);
+    if ((int32_t)sm - (int32_t)bm >= (int32_t)wakeAbs[i])
+      return false;
+  }
+  return true;
+}
+
 bool fed4TouchInitPads(void)
 {
   if (!sTouchInited)

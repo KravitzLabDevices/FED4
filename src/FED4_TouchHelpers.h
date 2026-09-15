@@ -162,6 +162,9 @@ uint32_t fed4TouchWakeThresholdForPad(uint32_t idle, float riseThresh);
  *  riseLimit: optional stricter (lower) override; ignored if >= per-pad thresh. */
 bool fed4TouchPadsReleased(float riseLimit);
 bool fed4TouchAnyPadActive(float riseLimit);
+/** True when smooth − bench < wakeAbs on all characterized pads. Gates the
+ *  startSleep() 2 s rescue so a long poke cannot rewrite Idle. */
+bool fed4TouchAllPadsHwInactive(void);
 bool fed4TouchEnableTouchpadWakeup(void);
 
 /** Full idle characterization: warm → sample mean/std → set idle + rise thresh + HW wake. */
