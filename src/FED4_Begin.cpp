@@ -198,6 +198,13 @@ bool FED4::begin(const char *programName)
     {
         int maxRetries = 3;
         int retryCount = 0;
+        // Adafruit begin() writes 0x5400 to COMMAND; MAX17048 is specified to
+        // NACK that POR write (chip resets instead of ACKing). Arduino-ESP32
+        // 3.2.1 / IDF 5.4 i2c.master prints ERROR on any unexpected NACK:
+        //   E (...) i2c.master: I2C transaction unexpected nack detected
+        //   E (...) i2c.master: s_i2c_synchronous_transaction(...): I2C transaction failed
+        //   E (...) i2c.master: i2c_master_multi_buffer_transmit(...): I2C transaction failed
+        // That is by spec, not a missing device. See docs/firmware/v1.7.1.md.
         while (!maxlipo.begin() && retryCount < maxRetries)
         {
             retryCount++;
@@ -504,6 +511,13 @@ bool FED4::begin(const char *programName)
             sdCardAvailable = false;
             handleSDCardError();
         }
+#if FED4_ENABLE_TOUCH_LOG
+        else
+        {
+            // Shares createLogFile()'s file number: <base>_T.CSV
+            createTouchLogFile();
+        }
+#endif
     }
 
     // Only pull JSON data from SD card if it's available
@@ -546,11 +560,19 @@ bool FED4::begin(const char *programName)
             age = "Unknown";
     }
     logData("Startup");
+#if FED4_ENABLE_TOUCH_LOG
+    // Per-device, per-port characterization table for this boot. Logged here
+    // rather than next to initializeTouch() because the SD card and log file do
+    // not exist yet at that point; the characterization globals are unchanged.
+    logTouch("BootChar");
+#endif
 
     stripRainbow(3, 1);
 
     // Print initialization report
     Serial.println("\n=== FED4 Initialization Report ===");
+    Serial.printf("Firmware %s | board %s | task %s\n",
+                  libraryVer, FED4_BOARD_VERSION_STR, program.c_str());
     Serial.println("Component          Status  Notes");
     Serial.println("--------------------------------");
 

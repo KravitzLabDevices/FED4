@@ -26,6 +26,8 @@
 
 Library sketches stay small via an event-driven idle path: `waitUntil()` → act → `update()`.
 
+In-lab test firmware flashes (version on the display, CSV `LibraryVer`) are tracked in [`docs/firmware/`](docs/firmware/).
+
 ## Examples
 
 | Sketch                                            | Role                               |

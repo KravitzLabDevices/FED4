@@ -55,12 +55,29 @@ class DateTime;
 #endif
 
 // Set to 1 to print waitUntil poke-path micros marks (see docs/wiki/Poke-Functionality.md).
+// Production default is 0 — Serial/flush on every poke. Library rebuild required.
 #ifndef FED4_DIAG_POKE_TIMING
-#define FED4_DIAG_POKE_TIMING 1
+#define FED4_DIAG_POKE_TIMING 0
 #endif
 
-// Board Version: v1.7
+// Touch diagnostic CSV (separate _T.CSV file — baselines, thresholds, poke
+// amplitude on every wake). Set here (library rebuild required) — a #define in
+// the .ino does NOT reach library sources under Arduino IDE, same caveat as
+// FED4_ENABLE_SUBMODULE. Production default is 0: heartbeat rows add ~1440 SD
+// appends/day and poke rows add a second SD append to the wake path. Schema,
+// logTouch(), and row types stay in the code; rebuild with =1 to re-enable.
+#ifndef FED4_ENABLE_TOUCH_LOG
+#define FED4_ENABLE_TOUCH_LOG 1
+#endif
+
+// Board Version: v1.7 (hardware)
 #define FED4_BOARD_VERSION_STR "1.7.0"
+
+// Published library / flashed firmware identity — shown on the display
+// footer, Serial boot line, and CSV LibraryVer. FED4::libraryVer
+// is this string; do not hardcode a second copy. Bump when src/ library code
+// changes. See docs/firmware/.
+#define FED4_FIRMWARE_VERSION_STR "1.7.1"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -344,6 +361,34 @@ public:
     bool createMetaJson();
     bool createLogFile();
     bool logData(const String &newEvent = "");
+
+    // Touch diagnostic log (FED4_ENABLE_TOUCH_LOG; separate <base>_T.CSV file so
+    // the behavioral CSV schema and downstream tooling stay untouched).
+    /** Create <base>_T.CSV next to the behavioral log and write its header. */
+    bool createTouchLogFile();
+    /** Append one touch row. rowType: BootChar | Heartbeat | Poke | TouchMiss |
+     *  Rechar | Stuck | ReleaseWait.
+     *  ProxMm is polled on Heartbeat/Rechar rows only (prox() blocks up to 100 ms
+     *  and must stay off the poke latency path). */
+    bool logTouch(const char *rowType);
+    /** Mode column — "LightSleep" (waitUntil arm) or "Awake" (physics arm). */
+    const char *touchLogMode = "LightSleep";
+    /** Set when startSleep()'s 2 s rescue characterization fired; cleared by waitUntil(). */
+    bool touchRecharPending = false;
+    /** Set when startSleep()'s pre-sleep release wait hit FED4_TOUCH_RELEASE_WAIT_MS
+     *  and proceeded to sleep with a pad still reading active; cleared by waitUntil()
+     *  after logging a Stuck row. */
+    bool touchStuckPending = false;
+    /** Set when the release wait exceeded FED4_TOUCH_RELEASE_LOG_MS but did not hit
+     *  the hard cap (touchStuckPending); cleared by waitUntil() after logging a
+     *  ReleaseWait row. */
+    bool touchReleaseWaitPending = false;
+    /** Duration (ms) of the most recent startSleep() release wait — logged on
+     *  every touch row so a slow-but-not-hung release is visible even without a
+     *  ReleaseWait/Stuck row. */
+    float touchLastReleaseWaitMs = 0.0f;
+    bool isTouchLogAvailable() const { return touchLogAvailable; }
+
     String getMetaValue(const char *rootKey, const char *subKey);
     bool setMetaValue(const char *rootKey, const char *subKey, const char *value);
     void setProgram(String program);
@@ -472,6 +517,7 @@ public:
     float pokeDuration = 0.0;
     int motorTurns;
     char filename[32];
+    char touchFilename[40] = {0}; // <base>_T.CSV (filename[32] is near capacity)
     bool sdCardAvailable = true; // Track if SD card operations are available
     bool audioSilenced = false;  // Track if audio has been silenced
 
@@ -574,6 +620,9 @@ private:
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
     bool pendingRetrieval = false;   // pellet still in well after awake 20 s window
     void monitorPelletInWell(uint32_t retrievalTimeoutSec);
+
+    // Touch diagnostic log state
+    bool touchLogAvailable = false;
 
     // RTC functions
     Preferences preferences;

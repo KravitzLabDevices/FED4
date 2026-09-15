@@ -23,11 +23,15 @@ void FED4::startSleep()
 {
   lastWakeSource = FedWakeSource::None;
 
-  // Wait for all touch pads to be released before sleeping.
-  // If idle drifted (false "touch"), re-characterize once after 2s so we
-  // don't hang forever — sampling the elevated baseline clears the stuck rise.
+  // Wait for all touch pads to be released before sleeping. Bounded at
+  // FED4_TOUCH_RELEASE_WAIT_MS: past that we proceed to sleep anyway (the
+  // timer wake stays armed) rather than spinning forever — an unbounded wait
+  // here previously meant a device that never releases pads never sleeps,
+  // never wakes, and logs nothing, which is one of the field failure's dead
+  // ends (see docs/wiki/Poke-Functionality.md).
   Serial.println("startSleep: waiting for pads released...");
   Serial.flush();
+  bool releaseEscaped = false;
   {
     const uint32_t waitStartMs = millis();
     uint32_t lastDiagMs = waitStartMs;
@@ -35,12 +39,40 @@ void FED4::startSleep()
     while (!fed4TouchPadsReleased(TOUCH_THRESHOLD))
     {
       const uint32_t nowMs = millis();
-      if (!didRescueChar && (nowMs - waitStartMs) >= 2000)
+      const uint32_t elapsedMs = nowMs - waitStartMs;
+
+      if (elapsedMs >= FED4_TOUCH_RELEASE_WAIT_MS)
+      {
+        Serial.printf(
+            "startSleep: release wait exceeded %lu ms — proceeding to sleep anyway\n",
+            (unsigned long)FED4_TOUCH_RELEASE_WAIT_MS);
+        Serial.flush();
+        releaseEscaped = true;
+        break;
+      }
+
+      if (!didRescueChar && elapsedMs >= 2000)
       {
         didRescueChar = true;
-        Serial.println("startSleep: pads stuck — re-characterizing baselines...");
-        Serial.flush();
-        (void)fed4TouchCharacterizePads();
+        // A just-captured poke (wakePad) or a live HW-active pad is a finger,
+        // not a stuck baseline. Rechar while loaded poisons Idle (1.7.1 log
+        // FED4_0000_20260915_01_T.CSV: IdleR 9943→17809 after a 500 ms hold)
+        // and the characterize window itself is ~1.7 s of ignored touches.
+        if (wakePad != 0 || !fed4TouchAllPadsHwInactive())
+        {
+          Serial.println(
+              "startSleep: pads stuck but poke/HW active — NOT re-characterizing");
+          Serial.flush();
+        }
+        else
+        {
+          Serial.println(
+              "startSleep: pads stuck (HW agrees inactive) — re-characterizing baselines...");
+          Serial.flush();
+          (void)fed4TouchCharacterizePads();
+          fed4TouchNoteRechar();
+          touchRecharPending = true;
+        }
         continue;
       }
       if ((nowMs - lastDiagMs) >= 1000)
@@ -68,8 +100,21 @@ void FED4::startSleep()
       }
       delay(1);
     }
-    Serial.printf("startSleep: pads released after %lu ms\n",
-                  (unsigned long)(millis() - waitStartMs));
+
+    touchLastReleaseWaitMs = (float)(millis() - waitStartMs);
+    if (releaseEscaped)
+    {
+      Serial.printf("startSleep: pads NOT released after %lu ms — escaping bounded wait\n",
+                    (unsigned long)touchLastReleaseWaitMs);
+      touchStuckPending = true;
+    }
+    else
+    {
+      Serial.printf("startSleep: pads released after %lu ms\n",
+                    (unsigned long)touchLastReleaseWaitMs);
+      if (touchLastReleaseWaitMs >= (float)FED4_TOUCH_RELEASE_LOG_MS)
+        touchReleaseWaitPending = true;
+    }
     Serial.flush();
   }
 
@@ -245,6 +290,41 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   }
 #endif
   fed4PokeTimingMark(FED4_POKE_T_LOG_DONE);
+
+#if FED4_ENABLE_TOUCH_LOG
+  // Touch diagnostic rows — after the POKE_TIMING log mark so the wiki latency
+  // table still measures logData() alone.
+  if (touchRecharPending)
+  {
+    logTouch("Rechar");
+    touchRecharPending = false;
+  }
+  if (touchStuckPending)
+  {
+    // startSleep()'s release wait hit FED4_TOUCH_RELEASE_WAIT_MS and slept
+    // anyway with a pad still reading active.
+    logTouch("Stuck");
+    touchStuckPending = false;
+  }
+  if (touchReleaseWaitPending)
+  {
+    // Release wait exceeded FED4_TOUCH_RELEASE_LOG_MS but did not hit the hard
+    // cap — a slower-than-normal release that did not need a rescue or escape.
+    logTouch("ReleaseWait");
+    touchReleaseWaitPending = false;
+  }
+  if (event.source == FedWakeSource::Touch)
+  {
+    // Unresolved touch wakes are a primary failure signature and are otherwise
+    // invisible — the behavioral CSV writes no row for them.
+    logTouch(event.pad != FedPad::None ? "Poke" : "TouchMiss");
+  }
+  else if (event.source == FedWakeSource::Timer)
+  {
+    // Only path that samples idle when nothing is happening — makes drift visible.
+    logTouch("Heartbeat");
+  }
+#endif
 
   // Poke: skip sensors + full redraw (counters/indicators only). Timer/button: full.
   const bool pokeFast = (event.source == FedWakeSource::Touch &&
