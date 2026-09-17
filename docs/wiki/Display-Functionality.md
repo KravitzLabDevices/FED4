@@ -15,7 +15,7 @@ The FED4 uses a **Sharp Memory Display** (SPI, **DISPLAY_CS** = 17), **144×168*
 **Status helpers (used by `updateDisplay`)**
 
 - **`displayHeader()`** — top bar: `MM/DD` · centered `H:MMam/pm` · battery.
-- **`displayFooter()`** — bottom bar: `XXC RH%` · `v`+`libraryVer`.
+- **`displayFooter()`** — bottom bar: `XXC RH%` · `v`+`libraryVer`. See [firmware flash tracker](../firmware/README.md).
 - **`displayTask()`**, **`displayFilename()`** (`File: ` + SD log short name), **`displayMouseId()`**, **`displaySDCardStatus()`**, **`displayCounters()`**, **`displayIndicators()`** — status body.
 - **`drawFooterBar()`** — RTC menu footer only (date · time · version).
 - **`displayActivityMonitor()`** / **`displayActivityCounters()`** — when program is ActivityMonitor.

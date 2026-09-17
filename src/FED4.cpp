@@ -1,5 +1,5 @@
 #include "FED4.h"
-const char FED4::libraryVer[] = "1.7.1";
+const char FED4::libraryVer[] = FED4_FIRMWARE_VERSION_STR;
 
 /*
  (o)(o)--.
