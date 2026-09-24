@@ -24,11 +24,12 @@ if (e.source == FedWakeSource::Touch && e.pad == FedPad::Left) {
 **FreeFeeding** (replace when taken — do not re-dispense while well occupied):
 
 ```cpp
-while (fed4.checkForPellet()) {
+if (fed4.checkForPellet()) {
   fed4.waitUntil(); // timer/touch wake; LatePelletTaken when pending + well empty
+} else {
+  fed4.feed();
+  fed4.update();
 }
-fed4.feed();
-fed4.update();
 ```
 
 ## Why 20 s awake, then coarse late logging?

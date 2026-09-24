@@ -1,8 +1,11 @@
 /*
   Feeding Experimentation Device 4 (FED4)
 
-  FreeFeeding — keep a pellet available: when the well is empty, dispense;
-  when a pellet is present, wait until it is taken, then replace.
+  FreeFeeding — keep a pellet available: dispense when the well is empty;
+  when a pellet is present, waitUntil() until it is taken, then replace.
+
+  Same loop shape as BasicFED4 (idle via waitUntil, then act), but the
+  free-feed state machine keys off well occupancy instead of a left poke.
 
   feed() watches the well awake for ~20 s (precise retrieval). If still present,
   waitUntil() light-sleeps with PSV2 off; LatePelletTaken is logged on the next
@@ -20,12 +23,14 @@ void setup()
 
 void loop()
 {
-  // Do not start a new dispense while a pellet is still in the well
-  while (fed4.checkForPellet())
+  if (fed4.checkForPellet())
   {
-    fed4.waitUntil(); // timer/touch/button; LatePelletTaken when pending + empty
+    // Stocked — sleep until taken / timer / button (LatePelletTaken on empty wake)
+    fed4.waitUntil(); // default 60 s UI refresh
   }
-
-  fed4.feed();   // dispense + awake retrieval window (or settle error)
-  fed4.update(); // counters / ENV / display after each delivery cycle
+  else
+  {
+    fed4.feed();
+    fed4.update(); // post-feed counters / ENV / display
+  }
 }
