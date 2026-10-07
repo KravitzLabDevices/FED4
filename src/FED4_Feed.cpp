@@ -47,7 +47,8 @@ void FED4::dispense()
         //     blockPelletCount++;
         // }
 
-        stepper.step(-10);
+
+        stepper.step(10); 
         delay(2);
         motorTurns++;
         if (motorTurns % 25 == 0)
