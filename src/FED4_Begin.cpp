@@ -500,6 +500,12 @@ bool FED4::begin(const char *programName)
     }
     else
     {
+        // FED4_NNNN_YYYYMMDD_NN.CSV is named here from the number in
+        // device.id ("FED4-001" -> 0001). The CSV FED# column uses that
+        // same 4-digit value, so load it before the file exists.
+        deviceId = getMetaValue("device", "id");
+        mouseId = getMetaValue("subject", "id");
+
         // Try to create log file and check for filename creation errors
         Serial.println();
         Serial.println("Creating log file");
@@ -526,6 +532,7 @@ bool FED4::begin(const char *programName)
         Serial.println();
         Serial.println("Pulling JSON data from SD card:");
         program = getMetaValue("fed", "program");  // Changed from "subject" to "fed" to match menu
+        deviceId = getMetaValue("device", "id");
         mouseId = getMetaValue("subject", "id");
         sex = getMetaValue("subject", "sex");
         strain = getMetaValue("subject", "strain");
@@ -542,6 +549,11 @@ bool FED4::begin(const char *programName)
         {
             Serial.print(" - Subject ID: ");
             Serial.println(subjectId);
+        }
+        if (deviceId.length() > 0)
+        {
+            Serial.print(" - Device ID: ");
+            Serial.println(deviceId);
         }
     }
     else

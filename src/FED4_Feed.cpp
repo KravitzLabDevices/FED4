@@ -4,11 +4,18 @@
  * Dispense + settle + awake well monitor (≤20 s for precise retrievalTime).
  * If the pellet is still in the well after that window, pendingRetrieval is set;
  * waitUntil() calls checkLateRetrieval() on the next wake (PSV2 off in light sleep;
- * LatePelletTaken is coarse — up to the UI interval). DispenseError only from jammed().
+ * LatePelletTaken is coarse — up to the UI interval). A later poke while the well
+ * is still blocked is logged as *WithPellet and does not start another dispense.
+ * DispenseError only from jammed().
  */
 void FED4::feed()
 {
     checkLateRetrieval(); // prior pending take may have happened during sleep
+    // Occupied well, including after the awake 20 s window: do not count another drop.
+    if (checkForPellet())
+    {
+        return;
+    }
     initFeeding();
     dispense();
     handlePelletSettling();
@@ -139,30 +146,12 @@ void FED4::monitorPelletInWell(uint32_t retrievalTimeoutSec)
 
         if (fed4TouchAnyPadActive(TOUCH_THRESHOLD) && capturePoke())
         {
-            switch (wakePad)
+            const FedPad pad = static_cast<FedPad>(wakePad);
+            const char *eventName = pokeWithPelletEvent(pad);
+            if (eventName != nullptr)
             {
-            case 1:
-                logData("LeftWithPellet");
-                click();
-                updateDisplay();
-                outputPulse(1, 100);
-                break;
-            case 2:
-                logData("CenterWithPellet");
-                click();
-                updateDisplay();
-                redPix();
-                outputPulse(2, 100);
-                break;
-            case 3:
-                logData("RightWithPellet");
-                click();
-                updateDisplay();
-                redPix();
-                outputPulse(2, 100);
-                break;
-            default:
-                break;
+                logData(eventName);
+                pokeWithPelletStimulus(pad);
             }
             resetTouchFlags();
         }
@@ -254,6 +243,41 @@ bool FED4::checkLateRetrieval()
 bool FED4::checkForPellet()
 {
     return !digitalRead(PHOTOGATE_1);
+}
+
+const char *FED4::pokeWithPelletEvent(FedPad pad)
+{
+    switch (pad)
+    {
+    case FedPad::Left:
+        return "LeftWithPellet";
+    case FedPad::Center:
+        return "CenterWithPellet";
+    case FedPad::Right:
+        return "RightWithPellet";
+    default:
+        return nullptr;
+    }
+}
+
+void FED4::pokeWithPelletStimulus(FedPad pad)
+{
+    if (pad != FedPad::Left && pad != FedPad::Center && pad != FedPad::Right)
+    {
+        return;
+    }
+
+    click();
+    updateDisplay();
+    if (pad == FedPad::Left)
+    {
+        outputPulse(1, 100);
+    }
+    else
+    {
+        redPix();
+        outputPulse(2, 100);
+    }
 }
 
 // bool FED4::didPelletDrop()
