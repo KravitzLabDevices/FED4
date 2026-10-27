@@ -70,7 +70,7 @@ Living checklist for aligning library code with [`examples/2_UnitTests/`](./).
 | Accel INT auto-enabled at begin | **Fixed** — INT_OR idle HIGH via H_LACTIVE |
 | Sleep budget / early GPIO wakes | **Fixed** — single light-sleep; INT_OR wake off; button-only GPIO wake |
 | Event-driven idle API | **Done** — `waitUntil` + `update()` + `FedPad` |
-| PIR / `motion()` in idle path | **Deferred** — leave alone until v1.8.0 counter IC |
+| PIR / `motion()` in idle path | **Done** — S-35770 Activity% in `update()`; GPIO 10 stays the live level |
 | STATUS_LED / PIR coupling | **Decoupled** from idle/`update()` |
 | Frontlight default | **Off** — `displayLight(false)` in begin |
 

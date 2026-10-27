@@ -15,6 +15,13 @@ FED4 fed4;
 
 void setup()
 {
+  // Vital row every 5 minutes. 0 disables it.
+  // Optional CSV groups stay in the header and are left blank when off:
+  //   logHeap         FreeHeap, HeapSize, MinFreeHeap
+  //   logGasPressure  Pressure on every row; GasResistance on Vital rows only
+  //   logWhite        VEML7700 raw white
+  fed4.vitalIntervalSeconds = 300;
+  fed4.logGasPressure = true;
   fed4.begin("BasicFED4");
 }
 

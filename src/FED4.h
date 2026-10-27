@@ -67,7 +67,7 @@ class DateTime;
 // appends/day and poke rows add a second SD append to the wake path. Schema,
 // logTouch(), and row types stay in the code; rebuild with =1 to re-enable.
 #ifndef FED4_ENABLE_TOUCH_LOG
-#define FED4_ENABLE_TOUCH_LOG 1
+#define FED4_ENABLE_TOUCH_LOG 0
 #endif
 
 // Board Version: v1.7 (hardware)
@@ -77,7 +77,7 @@ class DateTime;
 // footer, Serial boot line, and CSV LibraryVer. FED4::libraryVer
 // is this string; do not hardcode a second copy. Bump when src/ library code
 // changes. See docs/firmware/.
-#define FED4_FIRMWARE_VERSION_STR "1.7.1"
+#define FED4_FIRMWARE_VERSION_STR "1.7.3"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -154,6 +154,15 @@ public:
 
     // Motion sensor (PIR EKMB1107112) control
     bool useMotionSensor = true; // Default to true, can be set to false to disable PIR
+
+    // Time-based "Vital" CSV row. Set from the sketch before begin().
+    // 0 disables Vital rows. Optional groups stay in the header and are left blank.
+    uint32_t vitalIntervalSeconds = 300;
+    bool logHeap = false;        // FreeHeap, HeapSize, MinFreeHeap
+    bool logGasPressure = false; // Pressure when on; GasResistance on Vital rows only
+    bool logWhite = false;       // VEML7700 raw white
+    /** Write one Vital row now and restart the interval. */
+    bool logVital();
 
     // Button functions
     bool initializeButtons();
@@ -417,12 +426,14 @@ public:
     bool leftTouch;
     bool centerTouch;
     bool rightTouch;
-    bool motionDetected = false;  // Track motion detection status
-    int motionCount = 0;          // Aggregate motion detections between 5-minute intervals
-    float motionPercentage = 0.0; // Percentage of motion detections in the last 5-minute period
-    int pollCount = 0;            // Track total number of polls in each 5-minute period
+    bool motionDetected = false; // Instant PIR GPIO level (STATUS_LED / future interrupt)
+    // Activity% credits each gap between reads once: min(gap, pirHoldSeconds) if any
+    // new edges, else 0. Extra edges in the same gap do not raise the value.
+    // 100% means every moment is inside a detection hold (~2.6 s).
+    float activityPercent = 0.0f;
+    float pirHoldSeconds = 2.6f;
+    uint32_t activityWindowSeconds = 300; // rolling window for display, serial, touch log
     unsigned long waketime;
-    bool lastMotionPositive = false; // Debounce: require two consecutive positives
 
     // RTC functions
     bool initializeRTC();
@@ -448,7 +459,8 @@ public:
     float getPressure();
     float getGasResistance();
     bool getTempAndHumidity(float &temp, float &hum);                        // Efficient combined read
-    bool getAllBME680Data(float &temp, float &hum, float &pres, float &gas); // Get all BME680 values
+    /** T/H/P from the current heater state. Gas is 0 while the heater is off; use getGasResistance() for a heated read. */
+    bool getAllBME680Data(float &temp, float &hum, float &pres, float &gas);
     float getLux();
     float getWhite();
     bool initializeLightSensor();
@@ -538,11 +550,17 @@ public:
     bool initializeToF();
     int prox();
 
-    // Motion sensor functions (defined in FED4_Motion.cpp) - PIR EKMB1107112
-    // PIR pin configured in begin(); no protocol init required
+    // Motion (defined in FED4_Motion.cpp).
+    // GPIO 10 stays the live PIR level (STATUS_LED, optional interrupt later).
+    // The S-35770 keeps counting in sleep. The library never resets it.
+    // activityPercent is the rolling window. CSV Activity on event rows is since
+    // the previous row. Vital rows log this rolling window.
+    bool initializePirCounter();
+    bool updateMotionCount(); // fold new edges into pirTotal and refresh activityPercent
+    bool isPirCounterAvailable() const { return pirCounterAvailable; }
     bool motion();
-    void updateStatusLedFromMotion(); // STATUS_LED mirrors PIR (Demo-Hardware)
-    void resetMotionCounters();
+    void updateStatusLedFromMotion(); // STATUS_LED mirrors PIR GPIO
+    void resetMotionCounters();       // software window only; no I2C write
 
     // Drop sensor functions
     bool initializeDropSensor();
@@ -619,10 +637,32 @@ private:
     uint8_t lastInterruptMask = 0;   // captured by wakeUp() on INT_OR GPIO wake
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
     bool pendingRetrieval = false;   // pellet still in well after awake 20 s window
+    bool pirCounterAvailable = false;
+    uint32_t pirLastRaw = 0;  // last S-35770 reading (24-bit)
+    uint32_t pirTotal = 0;    // edges since begin(); wraps with uint32
+    static const uint8_t PIR_ACTIVITY_RING = 16;
+    uint32_t pirRingMs[PIR_ACTIVITY_RING] = {};
+    uint32_t pirRingTotal[PIR_ACTIVITY_RING] = {};
+    uint8_t pirRingNext = 0;
+    uint8_t pirRingCount = 0;
+    uint32_t pirTotalAtLastLog = 0;
+    uint32_t msAtLastLog = 0;
+    bool pirRowBaselineSet = false;
+    float activityFrom(uint32_t counts, uint32_t elapsedMs) const;
+    void recordPirSample(uint32_t nowMs);
+    void refreshActivityPercent(uint32_t nowMs);
     void monitorPelletInWell(uint32_t retrievalTimeoutSec);
 
     // Touch diagnostic log state
     bool touchLogAvailable = false;
+
+    // Vital row scheduling. millis() keeps running through light sleep.
+    uint32_t lastVitalMs = 0;
+    float vitalGasResistance = -1.0f;
+    bool vitalDue() const;
+    uint32_t secondsUntilVital() const;
+    bool readGasResistance(float &gas);
+    void disableGasHeater();
 
     // RTC functions
     Preferences preferences;

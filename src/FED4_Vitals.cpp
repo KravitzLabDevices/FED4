@@ -52,10 +52,46 @@ float FED4::getPressure()
 
 float FED4::getGasResistance()
 {
-    if (!bme.performReading()) {
-        return -1.0;
+    float gas = -1.0f;
+    if (!readGasResistance(gas)) {
+        return -1.0f;
     }
-    return bme.gas_resistance / 1000.0; // Convert ohms to KOhms
+    gasResistance = gas;
+    return gas;
+}
+
+void FED4::disableGasHeater()
+{
+    // enable = DISABLE, so the element does not draw heater current.
+    // heatr_dur is private and stays at the last on-time; performReading()
+    // still waits that long. It does not power the heater.
+    bme.setGasHeater(0, 0);
+}
+
+/**
+ * One forced BME680 read with the gas heater on (320°C, 150 ms, about 10–15 mA).
+ * The heater is turned back off before return, including on failure.
+ * @param gas KOhms on success
+ * @return true when the sensor reports a positive gas resistance
+ */
+bool FED4::readGasResistance(float &gas)
+{
+    gas = -1.0f;
+    if (!bme.setGasHeater(320, 150)) {
+        disableGasHeater();
+        return false;
+    }
+    const bool ok = bme.performReading();
+    float kohms = -1.0f;
+    if (ok && bme.gas_resistance > 0) {
+        kohms = bme.gas_resistance / 1000.0f; // ohms to KOhms
+    }
+    disableGasHeater();
+    if (kohms <= 0.0f) {
+        return false;
+    }
+    gas = kohms;
+    return true;
 }
 
 /**
@@ -76,8 +112,8 @@ bool FED4::getTempAndHumidity(float &temp, float &hum)
 }
 
 /**
- * Reads all BME680 sensor data in a single read
- * Most efficient way to get all environmental data
+ * Reads all BME680 sensor data in a single read.
+ * Gas is 0 while the heater is off. Heated reads go through readGasResistance().
  * @param temp Reference to store temperature value (°C)
  * @param hum Reference to store humidity value (%)
  * @param pres Reference to store pressure value (hPa)
@@ -237,7 +273,8 @@ void FED4::startupPollSensors(){
 /**
  * Refresh BME/battery/lux for the status UI. Called from update().
  * Does not auto-log Status (avoids SD flood when update() runs after every feed).
- * PIR/prox left to motion()/prox() — not required for the program header.
+ * PIR activity is read in update() via updateMotionCount(), not here.
+ * prox() stays on its own callers.
  */
 void FED4::refreshSensors() {
   lastPollTime = millis();
@@ -322,6 +359,49 @@ void FED4::refreshSensors() {
 void FED4::pollSensors(int minToUpdateSensors) {
   (void)minToUpdateSensors;
   refreshSensors();
+}
+
+bool FED4::vitalDue() const
+{
+    if (vitalIntervalSeconds == 0 || lastVitalMs == 0) {
+        return false;
+    }
+    return (millis() - lastVitalMs) >= (vitalIntervalSeconds * 1000UL);
+}
+
+uint32_t FED4::secondsUntilVital() const
+{
+    if (vitalIntervalSeconds == 0 || lastVitalMs == 0) {
+        return 0xFFFFFFFFu;
+    }
+    const uint32_t elapsedSec = (millis() - lastVitalMs) / 1000UL;
+    if (elapsedSec >= vitalIntervalSeconds) {
+        return 0;
+    }
+    return vitalIntervalSeconds - elapsedSec;
+}
+
+/**
+ * Write one Vital row and restart the interval.
+ * Refreshes sensors first. The gas heater runs only when logGasPressure is on.
+ * lastVitalMs advances even if the SD write fails, so a dead card does not
+ * reheat the gas sensor on every later wake.
+ */
+bool FED4::logVital()
+{
+    refreshSensors();
+    vitalGasResistance = -1.0f;
+    if (logGasPressure) {
+        float gas = -1.0f;
+        if (readGasResistance(gas)) {
+            vitalGasResistance = gas;
+            gasResistance = gas;
+        }
+    }
+    updateMotionCount();
+    const bool ok = logData("Vital");
+    lastVitalMs = millis();
+    return ok;
 }
 
 /**

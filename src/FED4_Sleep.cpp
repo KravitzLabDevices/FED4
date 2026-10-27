@@ -162,12 +162,26 @@ void FED4::startSleep()
   fed4TouchClearWakePadLatch();
   fed4TouchEnableTouchpadWakeup();
 
-  // Continuous VCOM via LEDC through one full-duration light sleep
+  // Continuous VCOM via LEDC through one full-duration light sleep.
+  // Wake early when the next Vital row is sooner than sleepSeconds. Sketches
+  // treat that wake as Timer and ignore it. Minimum 1 s so an already-due
+  // vital still arms the timer.
+  int timerSeconds = sleepSeconds;
+  const uint32_t untilVital = secondsUntilVital();
+  if (untilVital < (uint32_t)timerSeconds)
+  {
+    timerSeconds = (int)untilVital;
+    if (timerSeconds < 1)
+    {
+      timerSeconds = 1;
+    }
+  }
+
   startVcomLedc();
-  esp_sleep_enable_timer_wakeup((uint64_t)sleepSeconds * 1000000ULL);
+  esp_sleep_enable_timer_wakeup((uint64_t)timerSeconds * 1000000ULL);
 
   Serial.printf("startSleep: entering light sleep (%d s timer + touch/button wake)\n",
-                sleepSeconds);
+                timerSeconds);
   Serial.flush();
   esp_light_sleep_start();
 

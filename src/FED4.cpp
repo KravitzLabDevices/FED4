@@ -44,9 +44,17 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
     rightCount = 0;
     wakeCount = 0;
     motorTurns = 0;
-    motionCount = 0;
-    motionPercentage = 0.0;
-    pollCount = 0;
+    activityPercent = 0.0f;
+    pirHoldSeconds = 2.6f;
+    activityWindowSeconds = 300;
+    pirCounterAvailable = false;
+    pirLastRaw = 0;
+    pirTotal = 0;
+    pirRingNext = 0;
+    pirRingCount = 0;
+    pirTotalAtLastLog = 0;
+    msAtLastLog = 0;
+    pirRowBaselineSet = false;
 
     // Initialize touch states
     leftTouch = false;
@@ -66,17 +74,27 @@ void FED4::update(FedUpdateMode mode)
 {
     updateTime();
 
+    updateMotionCount();
+
     if (mode == FedUpdateMode::Poke)
     {
         updateDisplayPoke();
         serialStatusReport();
-        return;
+    }
+    else
+    {
+        refreshSensors();
+        updateDisplay();
+        serialStatusReport();
+        syncHublink();
     }
 
-    refreshSensors();
-    updateDisplay();
-    serialStatusReport();
-    syncHublink();
+    // Covers waitUntil(), post-feed update(), and run(). A poke-only stretch
+    // still writes the row on the first update after the deadline.
+    if (vitalDue())
+    {
+        logVital();
+    }
 }
 
 /**

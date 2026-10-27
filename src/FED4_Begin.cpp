@@ -94,6 +94,7 @@ bool FED4::begin(const char *programName)
         {"Battery Monitor", {false, ""}},
         {"Temp/Humidity", {false, ""}},
         {"Light Sensor", {false, ""}},
+        {"PIR Counter", {false, ""}},
         {"Touch Sensors", {false, ""}},
         {"Buttons", {false, ""}},
         {"Motor", {false, ""}},
@@ -275,6 +276,9 @@ bool FED4::begin(const char *programName)
         }
         else
         {
+            // begin() turns the gas heater on (320°C / 150 ms). Leave it off
+            // until a Vital row or getGasResistance() asks for one reading.
+            disableGasHeater();
             i2cReinitBus();
         }
     }
@@ -300,6 +304,18 @@ bool FED4::begin(const char *programName)
         {
             i2cReinitBus();
         }
+    }
+
+    // S-35770 counts PIR rising edges, including while the ESP32 sleeps.
+    // begin() stores the current count as a baseline and does not reset the chip.
+    // Missing addon is not fatal — GPIO 10 still mirrors the live PIR level.
+    displayInitStatus("PIR Counter");
+    Serial.println("Initializing PIR Counter");
+    statuses["PIR Counter"].initialized = initializePirCounter();
+    if (useMotionSensor && !statuses["PIR Counter"].initialized)
+    {
+        Serial.println("PIR counter not found");
+        i2cRecoverBus();
     }
 
     // Initialize front LED strip (PSV3 rail)
@@ -559,6 +575,10 @@ bool FED4::begin(const char *programName)
         if (age.length() == 0)
             age = "Unknown";
     }
+    // Rolling activity window matches the Vital interval (set before begin()).
+    if (vitalIntervalSeconds > 0) {
+        activityWindowSeconds = vitalIntervalSeconds;
+    }
     logData("Startup");
 #if FED4_ENABLE_TOUCH_LOG
     // Per-device, per-port characterization table for this boot. Logged here
@@ -603,6 +623,9 @@ bool FED4::begin(const char *programName)
 
     // First program UI frame (sketches need not call update() in setup)
     update();
+
+    // Arm after Startup and the first UI frame so boot does not also write a Vital.
+    lastVitalMs = millis();
 
     // Check if mouseId is 99 - if so, launch Pong game
     if (mouseId == "99" || mouseId == "0099") {

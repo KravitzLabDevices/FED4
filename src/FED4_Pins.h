@@ -65,6 +65,7 @@
 #define I2C_ADDR_RTC 0x68      // DS3231       (fixed)
 #define I2C_ADDR_TOF 0x29      // VL53L1X      (fixed)
 #define I2C_ADDR_LIGHT 0x10    // VEML7700     (fixed)
+#define I2C_ADDR_PIR_COUNTER 0x32 // S-35770E01 (fixed)
 
 // Power Management (TPS22917 load switch ~ON — active LOW: LOW = rail ON, HIGH = rail OFF)
 #define EXP_PSV2_EN 13 // PSV2 enable on GPIO expander (MCP pin 13)

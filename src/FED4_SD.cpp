@@ -350,7 +350,7 @@ bool FED4::createLogFile()
 
     // Write CSV headers
     dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,FR,");
-    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,PokeDuration,DispenseError,MotorTurns,Motion,");
+    dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,PokeDuration,DispenseError,MotorTurns,Activity,");
     dataFile.println("Temperature,Humidity,Pressure,GasResistance,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
     dataFile.flush();  // Force write to SD card
@@ -427,6 +427,7 @@ bool FED4::logData(const String &newEvent)
     {
         setEvent(newEvent);
     }
+    const bool isVital = (event == "Vital");
 
     File dataFile;
     SPI.setBitOrder(MSBFIRST);
@@ -590,20 +591,58 @@ bool FED4::logData(const String &newEvent)
         dataFile.print(",,,,"); // RetrievalTime, PokeDuration, DispenseError, MotorTurns
     }
 
-    // Cached members — refreshed by refreshSensors() in update(), not polled here.
-    if (!useMotionSensor || isnan(motionPercentage)) {
+    // Event rows: Activity% since the previous row. Any new edges credit one
+    // hold (2.6 s), not one hold per edge. The first row has no interval yet,
+    // so it is 0. Vital rows log the rolling window instead, and still move
+    // the baseline so the next event row stays "since the previous row".
+    if (!useMotionSensor) {
         dataFile.print("Disabled,");
+    } else if (!pirCounterAvailable) {
+        dataFile.print("NoCounter,");
+    } else if (!updateMotionCount()) {
+        dataFile.printf("%.1f,", activityPercent);
     } else {
-        dataFile.printf("%.1f,", motionPercentage);
+        float rowPercent = 0.0f;
+        const uint32_t nowMs = millis();
+        if (isVital) {
+            rowPercent = activityPercent;
+        } else if (pirRowBaselineSet) {
+            rowPercent = activityFrom(pirTotal - pirTotalAtLastLog, nowMs - msAtLastLog);
+        }
+        dataFile.printf("%.1f,", rowPercent);
+        pirTotalAtLastLog = pirTotal;
+        msAtLastLog = nowMs;
+        pirRowBaselineSet = true;
     }
 
-    dataFile.printf("%.1f,%.1f,%.1f,%.1f,%.3f,%.3f,",
-                    temperature, humidity, pressure, gasResistance, lux, white);
-
-    dataFile.printf("%d,%d,%d,%d,%.2f,%.2f\n",
-                    ESP.getFreeHeap(),
-                    ESP.getHeapSize(),
-                    ESP.getMinFreeHeap(),
+    // Header is fixed. Optional groups print empty cells when their flag is off.
+    // GasResistance is Vital-only (heater current); a failed read stays blank.
+    dataFile.printf("%.1f,%.1f,", temperature, humidity);
+    if (logGasPressure) {
+        dataFile.printf("%.1f,", pressure);
+    } else {
+        dataFile.print(",");
+    }
+    if (isVital && logGasPressure && vitalGasResistance > 0.0f) {
+        dataFile.printf("%.1f,", vitalGasResistance);
+    } else {
+        dataFile.print(",");
+    }
+    dataFile.printf("%.3f,", lux);
+    if (logWhite) {
+        dataFile.printf("%.3f,", white);
+    } else {
+        dataFile.print(",");
+    }
+    if (logHeap) {
+        dataFile.printf("%d,%d,%d,",
+                        ESP.getFreeHeap(),
+                        ESP.getHeapSize(),
+                        ESP.getMinFreeHeap());
+    } else {
+        dataFile.print(",,,");
+    }
+    dataFile.printf("%d,%.2f,%.2f\n",
                     wakeCount,
                     cellVoltage,
                     cellPercent);
@@ -885,10 +924,13 @@ bool FED4::logTouch(const char *rowType)
 
     // State and covariates (cached sensor snapshot — see note above)
     touchFile.printf("%lu,%d,", (unsigned long)fed4TouchRecharCount(), proxMm);
-    if (!useMotionSensor || isnan(motionPercentage)) {
+    if (!useMotionSensor) {
         touchFile.print("Disabled,");
+    } else if (!pirCounterAvailable) {
+        touchFile.print("NoCounter,");
     } else {
-        touchFile.printf("%.1f,", motionPercentage);
+        updateMotionCount();
+        touchFile.printf("%.1f,", activityPercent);
     }
     touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d,",
                      temperature, humidity, cellVoltage, cellPercent, wakeCount);

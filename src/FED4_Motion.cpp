@@ -1,8 +1,175 @@
 #include "FED4.h"
 
-// Motion detection using EKMB1107112 PIR sensor (digital push-pull output on PIR_MOTION pin).
-// The PIR pin is configured in begin() alongside other GPIO pins.
-// STATUS_LED mirrors PIR (same as FED4-Demo-Hardware / FED4-PIR-Sensor).
+const uint8_t FED4::PIR_ACTIVITY_RING;
+
+// PIR activity.
+// GPIO (PIR_MOTION) is the live EKMB1107112 level. STATUS_LED mirrors it.
+// The S-35770E01 at I2C 0x32 counts rising edges, including while the ESP32
+// sleeps. The library never resets that chip. It stores the raw value seen
+// at begin() and only uses differences.
+//
+// One rising edge marks a detection. During the ~2.6 s standby hold the
+// output can rise again, so extra edges in one gap are not extra activity.
+// A gap with any new edges credits min(gap, pirHoldSeconds). A gap with none
+// credits 0. Activity% is that credited time divided by the window.
+// Two visits inside one unread gap still count as a single hold.
+
+static const uint32_t PIR_COUNT_MOD = 0x01000000u;
+
+static bool readPirRaw(uint32_t &count)
+{
+    uint8_t got = Wire.requestFrom(I2C_ADDR_PIR_COUNTER, (uint8_t)3);
+    if (got != 3) {
+        return false;
+    }
+    uint32_t msb = Wire.read();
+    uint32_t mid = Wire.read();
+    uint32_t lsb = Wire.read();
+    count = (msb << 16) | (mid << 8) | lsb;
+    return true;
+}
+
+float FED4::activityFrom(uint32_t counts, uint32_t elapsedMs) const
+{
+    if (counts == 0 || elapsedMs == 0 || pirHoldSeconds <= 0.0f) {
+        return 0.0f;
+    }
+    const float elapsedS = (float)elapsedMs / 1000.0f;
+    float creditS = pirHoldSeconds;
+    if (creditS > elapsedS) {
+        creditS = elapsedS;
+    }
+    float pct = creditS / elapsedS * 100.0f;
+    if (pct > 100.0f) {
+        pct = 100.0f;
+    }
+    return pct;
+}
+
+void FED4::recordPirSample(uint32_t nowMs)
+{
+    uint32_t gapMs = 1;
+    if (activityWindowSeconds > 0) {
+        gapMs = activityWindowSeconds * 1000UL / PIR_ACTIVITY_RING;
+        if (gapMs == 0) {
+            gapMs = 1;
+        }
+    }
+    if (pirRingCount > 0) {
+        const uint8_t last = (pirRingNext + PIR_ACTIVITY_RING - 1) % PIR_ACTIVITY_RING;
+        if ((nowMs - pirRingMs[last]) < gapMs) {
+            return;
+        }
+    }
+    pirRingMs[pirRingNext] = nowMs;
+    pirRingTotal[pirRingNext] = pirTotal;
+    pirRingNext = (pirRingNext + 1) % PIR_ACTIVITY_RING;
+    if (pirRingCount < PIR_ACTIVITY_RING) {
+        pirRingCount++;
+    }
+}
+
+void FED4::refreshActivityPercent(uint32_t nowMs)
+{
+    if (pirRingCount == 0) {
+        return;
+    }
+
+    const uint32_t windowMs = activityWindowSeconds * 1000UL;
+    const uint32_t holdMs = (pirHoldSeconds > 0.0f)
+                                ? (uint32_t)(pirHoldSeconds * 1000.0f)
+                                : 0;
+
+    uint8_t order[PIR_ACTIVITY_RING];
+    for (uint8_t i = 0; i < pirRingCount; i++) {
+        order[i] = (pirRingNext + PIR_ACTIVITY_RING - pirRingCount + i) % PIR_ACTIVITY_RING;
+    }
+
+    uint32_t activeMs = 0;
+    uint32_t spanned = 0;
+    for (uint8_t step = 0; step < pirRingCount; step++) {
+        const bool tail = (step + 1 == pirRingCount);
+        const uint8_t i0 = order[step];
+        const uint32_t t0 = pirRingMs[i0];
+        const uint32_t total0 = pirRingTotal[i0];
+        const uint32_t t1 = tail ? nowMs : pirRingMs[order[step + 1]];
+        const uint32_t total1 = tail ? pirTotal : pirRingTotal[order[step + 1]];
+        if (t1 == t0) {
+            continue;
+        }
+        if (windowMs > 0 && (nowMs - t1) >= windowMs) {
+            continue;
+        }
+
+        uint32_t start = t0;
+        if (windowMs > 0 && (nowMs - t0) > windowMs) {
+            start = nowMs - windowMs;
+        }
+        const uint32_t inWindow = t1 - start;
+        if (inWindow == 0) {
+            continue;
+        }
+        spanned += inWindow;
+        if ((total1 - total0) > 0 && holdMs > 0) {
+            activeMs += (inWindow < holdMs) ? inWindow : holdMs;
+        }
+    }
+
+    if (spanned == 0) {
+        return;
+    }
+    float pct = (float)activeMs / (float)spanned * 100.0f;
+    if (pct > 100.0f) {
+        pct = 100.0f;
+    }
+    activityPercent = pct;
+}
+
+bool FED4::initializePirCounter()
+{
+    pirCounterAvailable = false;
+    activityPercent = 0.0f;
+    pirTotal = 0;
+    pirLastRaw = 0;
+    pirRingNext = 0;
+    pirRingCount = 0;
+    pirTotalAtLastLog = 0;
+    msAtLastLog = 0;
+    pirRowBaselineSet = false;
+
+    if (!useMotionSensor) {
+        return false;
+    }
+    if (!i2cProbe(I2C_ADDR_PIR_COUNTER)) {
+        return false;
+    }
+    uint32_t raw = 0;
+    if (!readPirRaw(raw)) {
+        return false;
+    }
+    // Baseline only. Edges already in the chip are not part of this session.
+    pirLastRaw = raw;
+    pirCounterAvailable = true;
+    return true;
+}
+
+bool FED4::updateMotionCount()
+{
+    if (!pirCounterAvailable) {
+        return false;
+    }
+    uint32_t raw = 0;
+    if (!readPirRaw(raw)) {
+        return false;
+    }
+    pirTotal += (raw - pirLastRaw) & (PIR_COUNT_MOD - 1);
+    pirLastRaw = raw;
+
+    const uint32_t nowMs = millis();
+    recordPirSample(nowMs);
+    refreshActivityPercent(nowMs);
+    return true;
+}
 
 void FED4::updateStatusLedFromMotion()
 {
@@ -19,44 +186,18 @@ bool FED4::motion()
         return false;
     }
 
-    bool motionFlag = digitalRead(PIR_MOTION);
+    motionDetected = digitalRead(PIR_MOTION) == HIGH;
     updateStatusLedFromMotion();
-
-    Serial.print("PIR: ");
-    Serial.print(motionFlag ? "MOTION" : "clear");
-
-    if (motionFlag) {
-        motionCount++;
-        motionPercentage = (pollCount > 0) ? (float)motionCount / pollCount * 100.0 : 0.0;
-
-        Serial.print(" - MOTION DETECTED! ");
-        Serial.print(motionPercentage, 2);
-        Serial.print("% (");
-        Serial.print(motionCount);
-        Serial.print("/");
-        Serial.print(pollCount);
-        Serial.println(")");
-
-        return true;
-    }
-
-    motionPercentage = (pollCount > 0) ? (float)motionCount / pollCount * 100.0 : 0.0;
-
-    Serial.print(" - ");
-    Serial.print(motionPercentage, 2);
-    Serial.print("% (");
-    Serial.print(motionCount);
-    Serial.print("/");
-    Serial.print(pollCount);
-    Serial.println(")");
-
-    return false;
+    updateMotionCount();
+    return motionDetected;
 }
 
-// Reset motion tracking counters (call after logging data)
 void FED4::resetMotionCounters()
 {
-    motionCount = 0;
-    pollCount = 0;
-    motionPercentage = 0.0;
+    activityPercent = 0.0f;
+    pirRingNext = 0;
+    pirRingCount = 0;
+    pirTotalAtLastLog = 0;
+    msAtLastLog = 0;
+    pirRowBaselineSet = false;
 }

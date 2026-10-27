@@ -109,15 +109,18 @@ void FED4::displayActivityCounters() {
   fillRect(90, COUNTERS_TOP - 4, 70, 78, DISPLAY_WHITE);
 
   setCursor(6, COUNTERS_TOP);
-  print("Activity ");
+  print("Activity%");
   setCursor(90, COUNTERS_TOP);
-  print(motionCount);
+  printf("%.1f", activityPercent);
 
   setCursor(6, COUNTERS_TOP + 20);
-  print("Activity% ");
+  print("Window");
   setCursor(90, COUNTERS_TOP + 20);
-
-  printf("%.1f", motionPercentage);
+  if (activityWindowSeconds >= 60) {
+    printf("%lum", (unsigned long)(activityWindowSeconds / 60));
+  } else {
+    printf("%lus", (unsigned long)activityWindowSeconds);
+  }
 
   setCursor(6, COUNTERS_TOP + 40);
   print("Seconds");
