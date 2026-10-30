@@ -111,7 +111,11 @@ void FED4::displayActivityCounters() {
   setCursor(6, COUNTERS_TOP);
   print("Activity%");
   setCursor(90, COUNTERS_TOP);
-  printf("%.1f", activityPercent);
+  if (!activityReady) {
+    print("--");
+  } else {
+    printf("%.1f", activityPercent);
+  }
 
   setCursor(6, COUNTERS_TOP + 20);
   print("Window");

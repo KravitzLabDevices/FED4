@@ -289,7 +289,7 @@ File pair (same suffix): `/FED4_<id>_<date>_<NN>.CSV` behavioral, `/FED4_<id>_<d
 | `[TouchDriftLog_Awake](../../examples/3_Troubleshooting/TouchDriftLog_Awake/)` | Never sleeps; software `(smooth − idle)` pokes, `Mode=Awake` | **AwakeDrift**  |
 
 
-Firmware identity (`v1.7.3`) is on the display footer and in CSV `LibraryVer`. Bump when `src/` changes — [firmware flash tracker](../firmware/README.md).
+Firmware identity (`v1.7.2`) is on the display footer and in CSV `LibraryVer`. Bump when `src/` changes — [firmware flash tracker](../firmware/README.md).
 
 `[extras/analysis/fed4_touch_analysis.py](../../extras/analysis/fed4_touch_analysis.py)`: `python fed4_touch_analysis.py /path/to/sd_dumps -o out/`
 

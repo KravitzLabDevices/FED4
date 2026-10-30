@@ -77,7 +77,7 @@ class DateTime;
 // footer, Serial boot line, and CSV LibraryVer. FED4::libraryVer
 // is this string; do not hardcode a second copy. Bump when src/ library code
 // changes. See docs/firmware/.
-#define FED4_FIRMWARE_VERSION_STR "1.7.3"
+#define FED4_FIRMWARE_VERSION_STR "1.7.2"
 
 // Display Colors and Constants
 static const uint8_t DISPLAY_BLACK = 0;
@@ -427,10 +427,12 @@ public:
     bool centerTouch;
     bool rightTouch;
     bool motionDetected = false; // Instant PIR GPIO level (STATUS_LED / future interrupt)
-    // Activity% credits each gap between reads once: min(gap, pirHoldSeconds) if any
-    // new edges, else 0. Extra edges in the same gap do not raise the value.
-    // 100% means every moment is inside a detection hold (~2.6 s).
+    // Activity credits each ~4 s gap once: min(gap, pirHoldSeconds) if any new
+    // edges, else 0. Extra edges in that gap do not raise the value.
+    // 1.00 is that ceiling (a hold in every sample gap, about 2.6/4). The 1.3 s
+    // mask is not credit and is not removed from the window. Blank until one full gap.
     float activityPercent = 0.0f;
+    bool activityReady = false;
     float pirHoldSeconds = 2.6f;
     uint32_t activityWindowSeconds = 300; // rolling window for display, serial, touch log
     unsigned long waketime;
@@ -553,8 +555,8 @@ public:
     // Motion (defined in FED4_Motion.cpp).
     // GPIO 10 stays the live PIR level (STATUS_LED, optional interrupt later).
     // The S-35770 keeps counting in sleep. The library never resets it.
-    // activityPercent is the rolling window. CSV Activity on event rows is since
-    // the previous row. Vital rows log this rolling window.
+    // activityPercent is the rolling window (0–100). CSV Activity is that window
+    // on Vital rows only, written as a 0.00–1.00 fraction. Event rows leave it blank.
     bool initializePirCounter();
     bool updateMotionCount(); // fold new edges into pirTotal and refresh activityPercent
     bool isPirCounterAvailable() const { return pirCounterAvailable; }
@@ -640,15 +642,13 @@ private:
     bool pirCounterAvailable = false;
     uint32_t pirLastRaw = 0;  // last S-35770 reading (24-bit)
     uint32_t pirTotal = 0;    // edges since begin(); wraps with uint32
-    static const uint8_t PIR_ACTIVITY_RING = 16;
+    // ~4 s samples. 80 slots cover a 300 s vital window (75 points) with margin.
+    static const uint32_t PIR_SAMPLE_MS = 4000;
+    static const uint8_t PIR_ACTIVITY_RING = 80;
     uint32_t pirRingMs[PIR_ACTIVITY_RING] = {};
     uint32_t pirRingTotal[PIR_ACTIVITY_RING] = {};
     uint8_t pirRingNext = 0;
     uint8_t pirRingCount = 0;
-    uint32_t pirTotalAtLastLog = 0;
-    uint32_t msAtLastLog = 0;
-    bool pirRowBaselineSet = false;
-    float activityFrom(uint32_t counts, uint32_t elapsedMs) const;
     void recordPirSample(uint32_t nowMs);
     void refreshActivityPercent(uint32_t nowMs);
     void monitorPelletInWell(uint32_t retrievalTimeoutSec);

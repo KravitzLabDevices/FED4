@@ -162,10 +162,11 @@ void FED4::startSleep()
   fed4TouchClearWakePadLatch();
   fed4TouchEnableTouchpadWakeup();
 
-  // Continuous VCOM via LEDC through one full-duration light sleep.
-  // Wake early when the next Vital row is sooner than sleepSeconds. Sketches
-  // treat that wake as Timer and ignore it. Minimum 1 s so an already-due
-  // vital still arms the timer.
+  // Continuous VCOM via LEDC through light sleep.
+  // PIR counter is read about every 4 s so a long sleep is not one activity
+  // credit. Those wakes stay inside this function: read three bytes, sleep
+  // again. Touch, a button, or the end of the budget (sleep or Vital) returns.
+  // Without the counter, one sleep covers the whole budget.
   int timerSeconds = sleepSeconds;
   const uint32_t untilVital = secondsUntilVital();
   if (untilVital < (uint32_t)timerSeconds)
@@ -178,20 +179,53 @@ void FED4::startSleep()
   }
 
   startVcomLedc();
-  esp_sleep_enable_timer_wakeup((uint64_t)timerSeconds * 1000000ULL);
+  const uint32_t deadline = millis() + (uint32_t)timerSeconds * 1000UL;
+  esp_sleep_wakeup_cause_t cause = ESP_SLEEP_WAKEUP_TIMER;
+  bool buttonHigh = false;
 
-  Serial.printf("startSleep: entering light sleep (%d s timer + touch/button wake)\n",
-                timerSeconds);
+  Serial.printf("startSleep: light sleep %d s, PIR sample %lu ms\n",
+                timerSeconds, (unsigned long)(pirCounterAvailable ? PIR_SAMPLE_MS : 0));
   Serial.flush();
-  esp_light_sleep_start();
+
+  while (true)
+  {
+    const uint32_t nowMs = millis();
+    const uint32_t remainMs = (nowMs >= deadline) ? 0 : (deadline - nowMs);
+    if (remainMs < 50)
+    {
+      cause = ESP_SLEEP_WAKEUP_TIMER;
+      break;
+    }
+
+    uint32_t chunkMs = remainMs;
+    if (pirCounterAvailable && chunkMs > PIR_SAMPLE_MS)
+    {
+      chunkMs = PIR_SAMPLE_MS;
+    }
+
+    esp_sleep_enable_timer_wakeup((uint64_t)chunkMs * 1000ULL);
+    esp_light_sleep_start();
+
+    cause = esp_sleep_get_wakeup_cause();
+    buttonHigh = digitalRead(BUTTON_1) == HIGH ||
+                 digitalRead(BUTTON_2) == HIGH ||
+                 digitalRead(BUTTON_3) == HIGH;
+    const bool touch = cause == ESP_SLEEP_WAKEUP_TOUCHPAD ||
+                       fed4TouchAnyPadActive(TOUCH_THRESHOLD);
+    if (touch || buttonHigh || cause != ESP_SLEEP_WAKEUP_TIMER)
+    {
+      break;
+    }
+
+    if (pirCounterAvailable)
+    {
+      i2cReinitBus();
+      updateMotionCount();
+    }
+  }
 
   fed4PokeTimingReset();
   fed4PokeTimingMark(FED4_POKE_T_WAKE);
-
-  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
-  const bool buttonHigh = digitalRead(BUTTON_1) == HIGH ||
-                          digitalRead(BUTTON_2) == HIGH ||
-                          digitalRead(BUTTON_3) == HIGH;
 
   Serial.printf("startSleep: woke cause=%d buttonHigh=%d\n", (int)cause,
                 (int)buttonHigh);

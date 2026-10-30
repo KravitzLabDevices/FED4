@@ -1,6 +1,7 @@
 #include "FED4.h"
 
 const uint8_t FED4::PIR_ACTIVITY_RING;
+const uint32_t FED4::PIR_SAMPLE_MS;
 
 // PIR activity.
 // GPIO (PIR_MOTION) is the live EKMB1107112 level. STATUS_LED mirrors it.
@@ -10,9 +11,11 @@ const uint8_t FED4::PIR_ACTIVITY_RING;
 //
 // One rising edge marks a detection. During the ~2.6 s standby hold the
 // output can rise again, so extra edges in one gap are not extra activity.
-// A gap with any new edges credits min(gap, pirHoldSeconds). A gap with none
-// credits 0. Activity% is that credited time divided by the window.
-// Two visits inside one unread gap still count as a single hold.
+// Samples are about every 4 s (PIR_SAMPLE_MS), including brief wakes from
+// light sleep. A gap with any new edges credits min(gap, pirHoldSeconds).
+// A gap with none credits 0. The 1.3 s mask is not credit and is not removed
+// from the window. Activity stays unpublished until the scored span is at
+// least one sample gap. Two visits inside one unread gap still count once.
 
 static const uint32_t PIR_COUNT_MOD = 0x01000000u;
 
@@ -29,35 +32,11 @@ static bool readPirRaw(uint32_t &count)
     return true;
 }
 
-float FED4::activityFrom(uint32_t counts, uint32_t elapsedMs) const
-{
-    if (counts == 0 || elapsedMs == 0 || pirHoldSeconds <= 0.0f) {
-        return 0.0f;
-    }
-    const float elapsedS = (float)elapsedMs / 1000.0f;
-    float creditS = pirHoldSeconds;
-    if (creditS > elapsedS) {
-        creditS = elapsedS;
-    }
-    float pct = creditS / elapsedS * 100.0f;
-    if (pct > 100.0f) {
-        pct = 100.0f;
-    }
-    return pct;
-}
-
 void FED4::recordPirSample(uint32_t nowMs)
 {
-    uint32_t gapMs = 1;
-    if (activityWindowSeconds > 0) {
-        gapMs = activityWindowSeconds * 1000UL / PIR_ACTIVITY_RING;
-        if (gapMs == 0) {
-            gapMs = 1;
-        }
-    }
     if (pirRingCount > 0) {
         const uint8_t last = (pirRingNext + PIR_ACTIVITY_RING - 1) % PIR_ACTIVITY_RING;
-        if ((nowMs - pirRingMs[last]) < gapMs) {
+        if ((nowMs - pirRingMs[last]) < PIR_SAMPLE_MS) {
             return;
         }
     }
@@ -115,27 +94,31 @@ void FED4::refreshActivityPercent(uint32_t nowMs)
         }
     }
 
-    if (spanned == 0) {
+    if (spanned < PIR_SAMPLE_MS) {
+        activityReady = false;
         return;
     }
     float pct = (float)activeMs / (float)spanned * 100.0f;
+    // A full hold in every 4 s gap is 2.6/4. Stretch that ceiling to 100.
+    if (holdMs > 0) {
+        pct *= (float)PIR_SAMPLE_MS / (float)holdMs;
+    }
     if (pct > 100.0f) {
         pct = 100.0f;
     }
     activityPercent = pct;
+    activityReady = true;
 }
 
 bool FED4::initializePirCounter()
 {
     pirCounterAvailable = false;
     activityPercent = 0.0f;
+    activityReady = false;
     pirTotal = 0;
     pirLastRaw = 0;
     pirRingNext = 0;
     pirRingCount = 0;
-    pirTotalAtLastLog = 0;
-    msAtLastLog = 0;
-    pirRowBaselineSet = false;
 
     if (!useMotionSensor) {
         return false;
@@ -162,7 +145,8 @@ bool FED4::updateMotionCount()
     if (!readPirRaw(raw)) {
         return false;
     }
-    pirTotal += (raw - pirLastRaw) & (PIR_COUNT_MOD - 1);
+    const uint32_t delta = (raw - pirLastRaw) & (PIR_COUNT_MOD - 1);
+    pirTotal += delta;
     pirLastRaw = raw;
 
     const uint32_t nowMs = millis();
@@ -195,9 +179,7 @@ bool FED4::motion()
 void FED4::resetMotionCounters()
 {
     activityPercent = 0.0f;
+    activityReady = false;
     pirRingNext = 0;
     pirRingCount = 0;
-    pirTotalAtLastLog = 0;
-    msAtLastLog = 0;
-    pirRowBaselineSet = false;
 }

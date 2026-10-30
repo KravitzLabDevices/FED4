@@ -11,6 +11,8 @@ void FED4::serialStatusReport()
         snprintf(motionText, sizeof(motionText), "No Motion");
     } else if (!pirCounterAvailable) {
         snprintf(motionText, sizeof(motionText), "No Counter");
+    } else if (!activityReady) {
+        snprintf(motionText, sizeof(motionText), "Activity --");
     } else if (activityWindowSeconds >= 60) {
         snprintf(motionText, sizeof(motionText), "Activity %.1f%% (%lum)",
                  activityPercent, (unsigned long)(activityWindowSeconds / 60));

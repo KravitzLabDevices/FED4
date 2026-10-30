@@ -10,7 +10,7 @@
 | Environmental sensing | **BME680**                     | Temperature / humidity / pressure / gas                                                       |
 | Environmental sensing | **VEML7700**                   | Ambient light                                                                                 |
 | Motion / presence     | **EKMB1107112**                | PIR motion sensor (digital GPIO, replaces STHS34PF80)                                         |
-| Motion count          | **S-35770E01**                 | 24-bit I2C event counter (`0x32`). CLKIN is the PIR output. Activity% credits one ~2.6 s hold per gap that has any new edges. Extra edges in that gap do not add. The chip is not reset. |
+| Motion count          | **S-35770E01**                 | 24-bit I2C event counter (`0x32`). CLKIN is the PIR output. Activity credits one ~2.6 s hold per ~4 s read that has any new edges. Extra edges in that gap do not add. The chip is not reset. |
 | Distance / proximity  | **VL53L1X**                    | Time-of-flight (ToF) distance / proximity                                                     |
 | Inertial (optional)   | **LIS3DH**                     | 3-axis accelerometer (hardware present; optional in sketches)                                 |
 | Audio                 | **MAX98357A**                  | I2S audio amplifier (speaker output)                                                          |

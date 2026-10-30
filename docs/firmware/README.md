@@ -7,10 +7,10 @@ Each flashed library build is identified by `FED4_FIRMWARE_VERSION_STR` so a uni
 | Piece | Where | When to bump |
 |-------|--------|----------------|
 | **Board** | `FED4_BOARD_VERSION_STR` | Hardware revision (currently `1.7.0`) |
-| **Arduino library package** | `library.properties` `version=` | Published library release (currently `1.7.3`) |
+| **Arduino library package** | `library.properties` `version=` | Published library release (currently `1.7.2`) |
 | **Flashed firmware** | `FED4_FIRMWARE_VERSION_STR` / `FED4::libraryVer` | Same string as the library package. Bump when `src/` changes. |
 
-- The 4th-digit lab campaign (`1.7.0.1`) was for in-lab touch-fix testing only. Published library is now **`1.7.3`**. Do not invent `1.7.0.2`.
+- The 4th-digit lab campaign (`1.7.0.1`) was for in-lab touch-fix testing only. Published library is now **`1.7.2`**. Do not invent `1.7.0.2`.
 - Display / Serial / CSV `LibraryVer` all come from `FED4_FIRMWARE_VERSION_STR` — do not hardcode a second string.
 - Sketch-only edits (task name, comments, analysis scripts) **do not** bump the firmware number.
 - Library change → bump `FED4_FIRMWARE_VERSION_STR` and `library.properties` together, and add a page under this folder **before** flashing units.
@@ -24,7 +24,7 @@ Look at the status screen after boot:
 |-------|---------|
 | **Task: AwakeDrift** | [`TouchDriftLog_Awake`](../../examples/3_Troubleshooting/TouchDriftLog_Awake/) — never sleeps |
 | **Task: SleepDrift** | [`TouchDriftLog_Sleep`](../../examples/3_Troubleshooting/TouchDriftLog_Sleep/) — `waitUntil()` light sleep |
-| **v1.7.3** (status footer) | Firmware identity for this library build |
+| **v1.7.2** (status footer) | Firmware identity for this library build |
 
 CSV columns `LibraryVer` and `Program` record the same pair on every behavioral and `_T.CSV` row.
 
@@ -32,6 +32,5 @@ CSV columns `LibraryVer` and `Program` record the same pair on every behavioral 
 
 | Firmware | Library change? | Sketches | Status | Notes |
 |----------|-----------------|----------|--------|-------|
-| [v1.7.3](v1.7.3.md) | Yes — time-based Vital CSV row; BME680 gas heater only on that row | BasicFED4 | Ready to flash | Interval and optional Heap / Gas+Pressure / White columns are set from the sketch. Header unchanged |
-| [v1.7.2](v1.7.2.md) | Yes — S-35770 Activity% over I2C; no chip reset | BasicFED4 | Superseded | CSV `Activity` is percent of the PIR's max detection rate. GPIO 10 still mirrors the live PIR level |
+| [v1.7.2](v1.7.2.md) | Yes — S-35770 activity over I2C (no chip reset); ~4 s PIR samples; time-based Vital CSV row; BME680 gas heater only on that row | BasicFED4 | Ready to flash | Activity is 0–1 with 1 at the sensor ceiling (a 2.6 s hold in every 4 s gap). Optional CSV groups stay blank until their flag is true |
 | [v1.7.1](v1.7.1.md) | Yes — published library; keeps the validated 3.2.1 touch fixes | SleepDrift / BasicFED4 (production); AwakeDrift + SleepDrift (diag, log flag =1) | Superseded | 2 s rechar gated by HW-inactive + wakePad; no CalReject / bench watchdog; touch log and poke-timing off by default |

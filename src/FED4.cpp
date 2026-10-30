@@ -45,6 +45,7 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
     wakeCount = 0;
     motorTurns = 0;
     activityPercent = 0.0f;
+    activityReady = false;
     pirHoldSeconds = 2.6f;
     activityWindowSeconds = 300;
     pirCounterAvailable = false;
@@ -52,9 +53,6 @@ FED4::FED4() : Adafruit_GFX(DISPLAY_WIDTH, DISPLAY_HEIGHT),
     pirTotal = 0;
     pirRingNext = 0;
     pirRingCount = 0;
-    pirTotalAtLastLog = 0;
-    msAtLastLog = 0;
-    pirRowBaselineSet = false;
 
     // Initialize touch states
     leftTouch = false;

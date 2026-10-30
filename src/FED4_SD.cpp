@@ -591,28 +591,29 @@ bool FED4::logData(const String &newEvent)
         dataFile.print(",,,,"); // RetrievalTime, PokeDuration, DispenseError, MotorTurns
     }
 
-    // Event rows: Activity% since the previous row. Any new edges credit one
-    // hold (2.6 s), not one hold per edge. The first row has no interval yet,
-    // so it is 0. Vital rows log the rolling window instead, and still move
-    // the baseline so the next event row stays "since the previous row".
-    if (!useMotionSensor) {
+    // Activity is Vital-only, as a 0.00–1.00 fraction of the rolling window.
+    // 1.00 is a hold in every sample gap. Blank until one full ~4 s gap has
+    // been scored. Event rows leave the cell blank. The counter is still read
+    // here so the window stays current.
+    if (useMotionSensor && pirCounterAvailable) {
+        updateMotionCount();
+    }
+    if (!isVital) {
+        dataFile.print(",");
+    } else if (!useMotionSensor) {
         dataFile.print("Disabled,");
     } else if (!pirCounterAvailable) {
         dataFile.print("NoCounter,");
-    } else if (!updateMotionCount()) {
-        dataFile.printf("%.1f,", activityPercent);
+    } else if (!activityReady) {
+        dataFile.print(",");
     } else {
-        float rowPercent = 0.0f;
-        const uint32_t nowMs = millis();
-        if (isVital) {
-            rowPercent = activityPercent;
-        } else if (pirRowBaselineSet) {
-            rowPercent = activityFrom(pirTotal - pirTotalAtLastLog, nowMs - msAtLastLog);
+        float fraction = activityPercent / 100.0f;
+        if (fraction < 0.0f) {
+            fraction = 0.0f;
+        } else if (fraction > 1.0f) {
+            fraction = 1.0f;
         }
-        dataFile.printf("%.1f,", rowPercent);
-        pirTotalAtLastLog = pirTotal;
-        msAtLastLog = nowMs;
-        pirRowBaselineSet = true;
+        dataFile.printf("%.2f,", fraction);
     }
 
     // Header is fixed. Optional groups print empty cells when their flag is off.
@@ -930,7 +931,11 @@ bool FED4::logTouch(const char *rowType)
         touchFile.print("NoCounter,");
     } else {
         updateMotionCount();
-        touchFile.printf("%.1f,", activityPercent);
+        if (!activityReady) {
+            touchFile.print(",");
+        } else {
+            touchFile.printf("%.1f,", activityPercent);
+        }
     }
     touchFile.printf("%.1f,%.1f,%.2f,%.2f,%d,",
                      temperature, humidity, cellVoltage, cellPercent, wakeCount);

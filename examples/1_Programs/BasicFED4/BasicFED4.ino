@@ -2,7 +2,8 @@
   Feeding Experimentation Device 4 (FED4)
 
   BasicFED4 — left poke dispenses a pellet, then wait until the next poke.
-  Light sleep: PSV2 on; VCOM via LEDC KEEP_ALIVE (one long sleep).
+  Light sleep: PSV2 on; VCOM via LEDC KEEP_ALIVE. The PIR counter is read
+  about every 4 s during that sleep, then the CPU sleeps again.
   Poke logging enabled (FED4_DIAG_SKIP_SD_LOG=0).
 
   If a pellet remains after feed()'s ~20 s awake watch, waitUntil() logs
