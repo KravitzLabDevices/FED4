@@ -168,18 +168,61 @@ bool FED4::createMetaJson()
 }
 
 /**
+ * Filename / FED# token from the number in meta.json device.id.
+ * "FED4-001" becomes "0001" (the last run of digits, zero-padded to 4).
+ * Falls back to the 4-digit subject id when device.id has no digits.
+ */
+static void fed4FileIdToken(const String &deviceId, const String &mouseId,
+                            char *out, size_t outLen)
+{
+    if (outLen == 0) {
+        return;
+    }
+    out[0] = '\0';
+
+    int value = -1;
+    int current = 0;
+    bool inDigits = false;
+    for (unsigned i = 0; i < deviceId.length(); i++) {
+        char c = deviceId.charAt(i);
+        if (c >= '0' && c <= '9') {
+            if (!inDigits) {
+                current = 0;
+                inDigits = true;
+            }
+            if (current <= 9999) {
+                current = current * 10 + (c - '0');
+            }
+        } else if (inDigits) {
+            value = current;
+            inDigits = false;
+        }
+    }
+    if (inDigits) {
+        value = current;
+    }
+
+    if (value < 0) {
+        value = mouseId.toInt();
+    }
+    if (value <= 0) {
+        value = 0;
+    }
+    if (value > 9999) {
+        value = value % 10000;
+    }
+    snprintf(out, outLen, "%04d", value);
+}
+
+/**
  * Creates a new log file with headers
  * @return true if successful, false if failed
  */
 bool FED4::createLogFile()
 {
     DateTime now = rtc.now();
-    char idStr[5];
-    int mouseIdValue = mouseId.toInt();  // Convert String to int
-    if (mouseIdValue <= 0) {
-        mouseIdValue = 0;
-    }
-    snprintf(idStr, sizeof(idStr), "%04d", mouseIdValue);
+    char idStr[17];
+    fed4FileIdToken(deviceId, mouseId, idStr, sizeof(idStr));
     char baseFilename[50];
     int fileNumber = -1; // Use -1 to indicate "not found yet"
     int incompleteFileNumber = -1; // Track any incomplete file we find
@@ -349,7 +392,7 @@ bool FED4::createLogFile()
     }
 
     // Write CSV headers
-    dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,MouseID,Sex,Strain,LibraryVer,Program,FR,");
+    dataFile.print("DateTime,ElapsedSeconds,ESP32_UID,FED#,Sex,Strain,LibraryVer,Program,FR,");
     dataFile.print("Event,PelletCount,LeftCount,RightCount,CenterCount,BlockPelletCount,BlockPokeCount,RetrievalTime,PokeDuration,DispenseError,MotorTurns,Motion,");
     dataFile.println("Temperature,Humidity,Pressure,GasResistance,Lux,White,FreeHeap,HeapSize,MinFreeHeap,WakeCount,BatteryVoltage,BatteryPercent");
     
@@ -526,18 +569,12 @@ bool FED4::logData(const String &newEvent)
                     currentSeconds,
                     ESP.getEfuseMac());
 
-    // Write mouse ID and other info
-    char formattedMouseId[8];
-    int mouseIdValue = mouseId.toInt();
-    if (mouseIdValue <= 0 || mouseIdValue > 9999) {
-        // Handle invalid or out-of-range values
-        snprintf(formattedMouseId, sizeof(formattedMouseId), "%.4s", mouseId.c_str());
-    } else {
-        snprintf(formattedMouseId, sizeof(formattedMouseId), "%04d", mouseIdValue);
-    }
-    
+    // FED# is the 4-digit number from device.id (same token as the CSV filename)
+    char fedNumber[17];
+    fed4FileIdToken(deviceId, mouseId, fedNumber, sizeof(fedNumber));
+
     dataFile.printf("%s,%s,%s,%s,%s,%d,%s,",
-                    formattedMouseId,
+                    fedNumber,
                     sex.c_str(),
                     strain.c_str(),
                     libraryVer,
@@ -697,7 +734,7 @@ bool FED4::createTouchLogFile()
         return false;
     }
 
-    touchFile.print("DateTime,ElapsedSeconds,DeviceUID,LibraryVer,Program,MouseID,RowType,Mode,WakeSource,");
+    touchFile.print("DateTime,ElapsedSeconds,DeviceUID,LibraryVer,Program,FED#,RowType,Mode,WakeSource,");
     touchFile.print("Pad,LatchPad,ConfirmPad,");
     touchFile.print("SmoothL,SmoothC,SmoothR,BenchL,BenchC,BenchR,");
     touchFile.print("IdleL,IdleC,IdleR,StdL,StdC,StdR,");
@@ -824,13 +861,8 @@ bool FED4::logTouch(const char *rowType)
         return false;
     }
 
-    char formattedMouseId[8];
-    int mouseIdValue = mouseId.toInt();
-    if (mouseIdValue <= 0 || mouseIdValue > 9999) {
-        snprintf(formattedMouseId, sizeof(formattedMouseId), "%.4s", mouseId.c_str());
-    } else {
-        snprintf(formattedMouseId, sizeof(formattedMouseId), "%04d", mouseIdValue);
-    }
+    char fedNumber[17];
+    fed4FileIdToken(deviceId, mouseId, fedNumber, sizeof(fedNumber));
 
     // Identity
     touchFile.printf("%04d-%02d-%02d %02d:%02d:%02d,%f,%llX,%s,%s,%s,%s,%s,%s,",
@@ -840,7 +872,7 @@ bool FED4::logTouch(const char *rowType)
                      ESP.getEfuseMac(),
                      libraryVer,
                      program.c_str(),
-                     formattedMouseId,
+                     fedNumber,
                      rowType,
                      touchLogMode ? touchLogMode : "",
                      fed4WakeSourceName(lastWakeSource));

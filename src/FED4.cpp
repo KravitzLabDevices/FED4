@@ -80,11 +80,11 @@ void FED4::update(FedUpdateMode mode)
 }
 
 /**
- * Legacy loop helper: update() then sleep(sleepSeconds).
- * Prefer waitUntil() + update() after feed for event-driven programs.
+ * Refresh the screen, then light-sleep until a poke, button, or the
+ * waitUntil() interval (60 s). leftTouch is set when that wake was the left pad.
  */
 void FED4::run()
 {
     update();
-    sleep();
+    waitUntil();
 }

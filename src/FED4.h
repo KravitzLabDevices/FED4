@@ -166,7 +166,7 @@ public:
 
     // Corefunctions
     void feed();
-    void run(); // legacy: update() + sleep(sleepSeconds)
+    void run(); // update() then waitUntil() — refresh, then sleep until the next wake
     /** Refresh UI/telemetry. Full = sensors + complete status screen (default).
      *  Poke = skip sensors; redraw counters/indicators only (waitUntil touch path). */
     void update(FedUpdateMode mode = FedUpdateMode::Full);
@@ -516,8 +516,9 @@ public:
     float retrievalTime;
     float pokeDuration = 0.0;
     int motorTurns;
-    char filename[32];
-    char touchFilename[40] = {0}; // <base>_T.CSV (filename[32] is near capacity)
+    // /FED4_NNNN_YYYYMMDD_NN.CSV — device.id "FED4-001" is stored as 0001.
+    char filename[48];
+    char touchFilename[56] = {0}; // <base>_T.CSV
     bool sdCardAvailable = true; // Track if SD card operations are available
     bool audioSilenced = false;  // Track if audio has been silenced
 
@@ -612,6 +613,7 @@ private:
     uint32_t millivolts;
     String program;
     String mouseId;
+    String deviceId; // meta.json device.id, e.g. "FED4-001"; CSV uses its number as 0001
     String sex;
     String strain;
     String age;
@@ -620,6 +622,10 @@ private:
     uint8_t statusLedBrightness = 0; // Current PWM brightness for STATUS_LED
     bool pendingRetrieval = false;   // pellet still in well after awake 20 s window
     void monitorPelletInWell(uint32_t retrievalTimeoutSec);
+    /** Event name for a poke while PHOTOGATE_1 is blocked. nullptr if pad is none. */
+    const char *pokeWithPelletEvent(FedPad pad);
+    /** Click, display, and TRRS pulse matching an in-well WithPellet poke. */
+    void pokeWithPelletStimulus(FedPad pad);
 
     // Touch diagnostic log state
     bool touchLogAvailable = false;

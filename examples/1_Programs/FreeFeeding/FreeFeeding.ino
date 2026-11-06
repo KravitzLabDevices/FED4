@@ -8,8 +8,10 @@
   free-feed state machine keys off well occupancy instead of a left poke.
 
   feed() watches the well awake for ~20 s (precise retrieval). If still present,
-  waitUntil() light-sleeps with PSV2 off; LatePelletTaken is logged on the next
-  wake when the well is empty (coarse time, up to the UI interval).
+  waitUntil() light-sleeps with PSV2 off. Pokes while the well is blocked log
+  LeftWithPellet / CenterWithPellet / RightWithPellet and do not dispense.
+  LatePelletTaken is logged on the next wake when the well is empty (coarse
+  time, up to the UI interval).
 */
 
 #include <FED4.h>

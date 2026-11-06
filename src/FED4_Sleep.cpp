@@ -267,10 +267,23 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
     redPix(1);
   }
 
+  // Live well check — still blocked after the 20 s awake watch, or stocked.
+  const bool pelletInWell = (event.source == FedWakeSource::Touch &&
+                             event.pad != FedPad::None &&
+                             checkForPellet());
+
 #if !FED4_DIAG_SKIP_SD_LOG
   if (event.source == FedWakeSource::Touch)
   {
-    if (event.pad == FedPad::Left)
+    if (pelletInWell)
+    {
+      const char *eventName = pokeWithPelletEvent(event.pad);
+      if (eventName != nullptr)
+      {
+        logData(eventName);
+      }
+    }
+    else if (event.pad == FedPad::Left)
     {
       logData("Left");
     }
@@ -290,6 +303,13 @@ FedEvent FED4::waitUntil(uint32_t updateIntervalSeconds)
   }
 #endif
   fed4PokeTimingMark(FED4_POKE_T_LOG_DONE);
+
+  // Same click / pulse as a poke inside the awake well monitor. feed() will
+  // return without dispensing while PHOTOGATE_1 stays blocked.
+  if (pelletInWell)
+  {
+    pokeWithPelletStimulus(event.pad);
+  }
 
 #if FED4_ENABLE_TOUCH_LOG
   // Touch diagnostic rows — after the POKE_TIMING log mark so the wiki latency
