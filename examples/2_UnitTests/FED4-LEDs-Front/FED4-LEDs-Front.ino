@@ -80,7 +80,7 @@ void setup() {
   Serial.println("FED4 Front LEDs test ready.");
   Serial.println("Button 1: Rainbow");
   Serial.println("Button 2: Theater Chase");
-  Serial.println("Button 3: Color Wipe");
+  Serial.println("Button 3: White (full brightness)");
 }
 
 void loop() {
@@ -90,24 +90,33 @@ void loop() {
 
   if (b1) {
     Serial.println("Button 1 - Rainbow");
+    pixels.setBrightness(BRIGHTNESS);
     rainbow(10, 1);
   }
   if (b2) {
     Serial.println("Button 2 - Theater Chase");
+    pixels.setBrightness(BRIGHTNESS);
     theaterChase(pixels.Color(0, 255, 255), 100, 3, 5);   // cyan
     theaterChase(pixels.Color(255, 0, 255), 100, 3, 5);   // magenta
     theaterChase(pixels.Color(255, 255, 0), 100, 3, 5);   // yellow
   }
   if (b3) {
-    Serial.println("Button 3 - Color Wipe");
-    colorWipe(pixels.Color(255, 0, 0), 25);               // red
-    colorWipe(pixels.Color(0, 255, 0), 25);               // green
-    colorWipe(pixels.Color(0, 0, 255), 25);               // blue
-    colorWipe(pixels.Color(255, 255, 255), 25);           // white
+    // Serial.println("Button 3 - Color Wipe");
+    // colorWipe(pixels.Color(255, 0, 0), 25);               // red
+    // colorWipe(pixels.Color(0, 255, 0), 25);               // green
+    // colorWipe(pixels.Color(0, 0, 255), 25);               // blue
+    // colorWipe(pixels.Color(255, 255, 255), 25);           // white
+    Serial.println("Button 3 - White full brightness");
+    pixels.setBrightness(255);
+    for (int i = 0; i < pixels.numPixels(); i++) {
+      pixels.setPixelColor(i, pixels.Color(255, 255, 255));
+    }
+    pixels.show();
   }
 
   // Clear when idle
   if (!b1 && !b2 && !b3) {
+    pixels.setBrightness(BRIGHTNESS);
     pixels.clear();
     pixels.show();
   }
